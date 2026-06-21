@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // ==========================================
-// REPLACE WITH YOUR FIREBASE CONFIGURATION
+// FIREBASE CONFIGURATION
 // ==========================================
 const firebaseConfig = {
   apiKey: "AIzaSyDTIz9LcVxLwJ4l5keMeSSAoCh2oTSWg9E",
@@ -17,11 +17,29 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// State Engine Variables
+// ==========================================
+// State
+// ==========================================
 let localPlayerId = Math.random().toString(36).substring(2, 9);
 let roomCode = "";
 let gameState = {};
-let hasPeekedInitial = false;
+
+// Local-only "what I can currently see" state (peeking is visual only,
+// Firestore itself does not enforce hidden info)
+let revealed = {};        // key `${pid}-${idx}` -> { card, until }
+let peeksRemaining = 0;   // initial peek allowance for this round
+let roundSeenKey = null;  // tracks which round we've already reset peeks for
+
+const isBlack = (suit) => suit === '♠' || suit === '♣';
+const isRed = (suit) => suit === '♥' || suit === '♦';
+const isSpecial = (card) => {
+    if (!card) return null;
+    if (card.name === '7' || card.name === '8') return '78';
+    if (card.name === '9' || card.name === '10') return '910';
+    if ((card.name === 'J' || card.name === 'Q') && isBlack(card.suit)) return 'jq';
+    if (card.name === 'K' && isBlack(card.suit)) return 'k';
+    return null;
+};
 
 // Card Deck Generation
 const createDeck = () => {
@@ -35,12 +53,12 @@ const createDeck = () => {
     suits.forEach(suit => {
         values.forEach(val => {
             let actualValue = val.v;
-            if (val.n === 'K' && (suit === '♥' || suit === '♦')) actualValue = -2; // Red King Rule
-            deck.push({ id: Math.random().toString(36).substring(2,7), suit, name: val.n, score: actualValue, color: (suit==='♥'||suit==='♦')?'text-rose-500':'text-slate-200' });
+            if (val.n === 'K' && isRed(suit)) actualValue = -2; // Red King Rule
+            deck.push({ id: Math.random().toString(36).substring(2, 7), suit, name: val.n, score: actualValue, color: isRed(suit) ? 'text-rose-500' : 'text-slate-200' });
         });
     });
-    deck.push({ id: Math.random().toString(36).substring(2,7), suit: '🃏', name: 'Joker', score: 0, color: 'text-amber-400' });
-    deck.push({ id: Math.random().toString(36).substring(2,7), suit: '🃏', name: 'Joker', score: 0, color: 'text-amber-400' });
+    deck.push({ id: Math.random().toString(36).substring(2, 7), suit: '🃏', name: 'Joker', score: 0, color: 'text-amber-400' });
+    deck.push({ id: Math.random().toString(36).substring(2, 7), suit: '🃏', name: 'Joker', score: 0, color: 'text-amber-400' });
     return deck.sort(() => Math.random() - 0.5);
 };
 
@@ -48,24 +66,33 @@ const createDeck = () => {
 const landingScreen = document.getElementById("screen-landing");
 const lobbyScreen = document.getElementById("screen-lobby");
 const gameScreen = document.getElementById("screen-game");
+const roundEndScreen = document.getElementById("screen-roundend");
 
-// Actions Setup
+// ==========================================
+// Lobby / Room setup
+// ==========================================
 document.getElementById("createRoomBtn").addEventListener("click", async () => {
     const name = document.getElementById("usernameInput").value.trim() || "Player";
     roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-    
+
     gameState = {
         code: roomCode,
         status: "LOBBY",
         hostId: localPlayerId,
         turnOrder: [localPlayerId],
         currentTurnIdx: 0,
+        roundNumber: 0,
         players: {
             [localPlayerId]: { name, ready: false, cards: [], totalScore: 0 }
         },
         deck: createDeck(),
         discard: [],
-        dutchCalledBy: null
+        dutchCalledBy: null,
+        finalTurnsLeft: null,
+        turnPhase: 'AWAIT_DRAW',
+        drawnCard: null,
+        ability: null,
+        pendingGive: null
     };
 
     await setDoc(doc(db, "rooms", roomCode), gameState);
@@ -79,7 +106,7 @@ document.getElementById("joinRoomBtn").addEventListener("click", async () => {
 
     roomCode = enteredCode;
     const roomRef = doc(db, "rooms", roomCode);
-    
+
     await updateDoc(roomRef, {
         [`players.${localPlayerId}`]: { name, ready: false, cards: [], totalScore: 0 },
         turnOrder: arrayUnion(localPlayerId)
@@ -95,73 +122,122 @@ function setupRoomSubscription(code) {
     });
 }
 
-// Global UI Rendering Router State Machine
+async function pushState(partial) {
+    await updateDoc(doc(db, "rooms", roomCode), partial);
+}
+
+// ==========================================
+// Global UI Rendering Router
+// ==========================================
 function renderState() {
+    landingScreen.classList.add("hidden");
+    lobbyScreen.classList.add("hidden");
+    gameScreen.classList.add("hidden");
+    roundEndScreen.classList.add("hidden");
+
     if (gameState.status === "LOBBY") {
-        landingScreen.classList.add("hidden");
         lobbyScreen.classList.remove("hidden");
-        gameScreen.classList.add("hidden");
-        
-        document.getElementById("lobbyCodeDisplay").innerText = gameState.code;
-        const playerList = document.getElementById("lobbyPlayerList");
-        playerList.innerHTML = "";
-
-        Object.keys(gameState.players).forEach(pid => {
-            const p = gameState.players[pid];
-            playerList.innerHTML += `
-                <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl flex justify-between items-center">
-                    <span class="font-medium text-sm text-white">${p.name} ${pid === gameState.hostId ? '👑' : ''}</span>
-                    <span class="text-xs px-2 py-1 rounded font-bold ${p.ready ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">${p.ready ? 'Ready' : 'Not Ready'}</span>
-                </div>`;
-        });
-
-        if (gameState.hostId === localPlayerId) {
-            const startBtn = document.getElementById("startMatchBtn");
-            startBtn.classList.remove("hidden");
-            const allReady = Object.values(gameState.players).every(p => p.ready);
-            startBtn.disabled = !allReady;
-        }
+        renderLobby();
     } else if (gameState.status === "PLAYING") {
-        landingScreen.classList.add("hidden");
-        lobbyScreen.classList.add("hidden");
         gameScreen.classList.remove("hidden");
+
+        // Detect a fresh round start to reset local peek allowance
+        const key = `${roomCode}-${gameState.roundNumber}`;
+        if (roundSeenKey !== key) {
+            roundSeenKey = key;
+            peeksRemaining = 2;
+            revealed = {};
+        }
         renderGameBoard();
+    } else if (gameState.status === "ROUND_END") {
+        roundEndScreen.classList.remove("hidden");
+        renderRoundEnd();
     }
 }
 
-// Ready Button Action toggle
+function renderLobby() {
+    document.getElementById("lobbyCodeDisplay").innerText = gameState.code;
+    const playerList = document.getElementById("lobbyPlayerList");
+    playerList.innerHTML = "";
+
+    Object.keys(gameState.players).forEach(pid => {
+        const p = gameState.players[pid];
+        playerList.innerHTML += `
+            <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl flex justify-between items-center">
+                <span class="font-medium text-sm text-white">${p.name} ${pid === gameState.hostId ? '👑' : ''}</span>
+                <span class="text-xs px-2 py-1 rounded font-bold ${p.ready ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">${p.ready ? 'Ready' : 'Not Ready'}</span>
+            </div>`;
+    });
+
+    const startBtn = document.getElementById("startMatchBtn");
+    if (gameState.hostId === localPlayerId) {
+        startBtn.classList.remove("hidden");
+        const allReady = Object.values(gameState.players).every(p => p.ready);
+        const enoughPlayers = Object.keys(gameState.players).length >= 2;
+        startBtn.disabled = !(allReady && enoughPlayers);
+    } else {
+        startBtn.classList.add("hidden");
+    }
+}
+
 document.getElementById("readyBtn").addEventListener("click", async () => {
     const isReady = gameState.players[localPlayerId].ready;
-    await updateDoc(doc(db, "rooms", roomCode), {
-        [`players.${localPlayerId}.ready`]: !isReady
-    });
+    await pushState({ [`players.${localPlayerId}.ready`]: !isReady });
 });
 
-// Start Match Engine Deals hands
-document.getElementById("startMatchBtn").addEventListener("click", async () => {
-    let freshDeck = [...gameState.deck];
+// ==========================================
+// Dealing / starting a round
+// ==========================================
+async function dealNewRound() {
+    let freshDeck = createDeck();
     let updatedPlayers = { ...gameState.players };
 
     Object.keys(updatedPlayers).forEach(pid => {
-        updatedPlayers[pid].cards = [freshDeck.pop(), freshDeck.pop(), freshDeck.pop(), freshDeck.pop()];
+        updatedPlayers[pid] = {
+            ...updatedPlayers[pid],
+            cards: [freshDeck.pop(), freshDeck.pop(), freshDeck.pop(), freshDeck.pop()],
+            ready: false
+        };
     });
 
     const initialDiscard = freshDeck.pop();
 
-    await updateDoc(doc(db, "rooms", roomCode), {
+    await pushState({
         status: "PLAYING",
         deck: freshDeck,
         discard: [initialDiscard],
-        players: updatedPlayers
+        players: updatedPlayers,
+        roundNumber: (gameState.roundNumber || 0) + 1,
+        currentTurnIdx: 0,
+        turnPhase: 'AWAIT_DRAW',
+        drawnCard: null,
+        ability: null,
+        dutchCalledBy: null,
+        finalTurnsLeft: null,
+        pendingGive: null
     });
-});
+}
 
-// Render Playing Game Board Area Grid positions
+document.getElementById("startMatchBtn").addEventListener("click", dealNewRound);
+document.getElementById("nextRoundBtn").addEventListener("click", dealNewRound);
+
+// ==========================================
+// Game board rendering
+// ==========================================
+function activePid() {
+    return gameState.turnOrder[gameState.currentTurnIdx];
+}
+
+function setInstruction(text) {
+    document.getElementById("actionInstruction").innerText = text;
+}
+
 function renderGameBoard() {
-    const activeTurnPlayerId = gameState.turnOrder[gameState.currentTurnIdx];
+    const activeTurnPlayerId = activePid();
+    const isMyTurn = activeTurnPlayerId === localPlayerId;
     const turnBanner = document.getElementById("gameTurnBanner");
-    
-    if (activeTurnPlayerId === localPlayerId) {
+
+    if (isMyTurn) {
         turnBanner.innerText = "⭐ YOUR TURN ⭐";
         turnBanner.className = "bg-amber-500 text-slate-950 p-3 rounded-xl font-black text-center text-lg shadow-lg shadow-amber-500/20";
     } else {
@@ -170,7 +246,7 @@ function renderGameBoard() {
         turnBanner.className = "bg-slate-800 text-slate-400 p-3 rounded-xl font-bold text-center text-sm";
     }
 
-    // Top Discard Card Stack Frame rendering
+    // Discard pile
     const discPile = document.getElementById("discardPile");
     if (gameState.discard && gameState.discard.length > 0) {
         const topCard = gameState.discard[gameState.discard.length - 1];
@@ -183,11 +259,50 @@ function renderGameBoard() {
         discPile.innerHTML = `<span class="text-xs text-slate-600 font-bold">EMPTY</span>`;
     }
 
-    // Render Enemies Array view
+    // Draw deck visual + drawn card preview (only meaningful to the active player locally)
+    const drawDeckEl = document.getElementById("drawDeck");
+    if (isMyTurn && gameState.turnPhase === 'AWAIT_DECISION' && gameState.drawnCard) {
+        const c = gameState.drawnCard.card;
+        drawDeckEl.innerHTML = `
+            <span class="text-2xl ${c.color}">${c.suit}</span>
+            <span class="text-sm font-black text-white">${c.name}</span>
+            <span class="text-[9px] text-indigo-300 font-bold mt-1">DRAWN</span>`;
+    } else {
+        drawDeckEl.innerHTML = `<span class="text-3xl">🎴</span><span class="text-[10px] text-indigo-300 font-bold mt-2">DRAW</span>`;
+    }
+
+    // Discard-drawn-card button visibility
+    const discardDrawnBtn = document.getElementById("discardDrawnBtn");
+    if (isMyTurn && gameState.turnPhase === 'AWAIT_DECISION' && gameState.drawnCard && gameState.drawnCard.source === 'deck') {
+        discardDrawnBtn.classList.remove("hidden");
+    } else {
+        discardDrawnBtn.classList.add("hidden");
+    }
+
+    // Call Dutch button
+    const dutchBtn = document.getElementById("callDutchBtn");
+    dutchBtn.disabled = !(isMyTurn && gameState.turnPhase === 'AWAIT_DRAW' && !gameState.dutchCalledBy);
+
+    // Instruction text
+    if (gameState.pendingGive && gameState.pendingGive.fromPid === localPlayerId) {
+        setInstruction(`Snap successful! Click one of YOUR cards to hand to ${gameState.players[gameState.pendingGive.toPid]?.name || 'opponent'}.`);
+    } else if (peeksRemaining > 0) {
+        setInstruction(`Memorize your hand: click ${peeksRemaining} of your own card(s) to peek before play begins.`);
+    } else if (isMyTurn && gameState.turnPhase === 'AWAIT_DRAW') {
+        setInstruction("Your turn: draw from the deck, take the discard, or call Dutch!");
+    } else if (isMyTurn && gameState.turnPhase === 'AWAIT_DECISION') {
+        setInstruction(gameState.drawnCard.source === 'deck'
+            ? "Click one of your cards to swap it in, or discard the drawn card to trigger its power."
+            : "Click one of your cards to swap it for the discard pile's top card.");
+    } else if (isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY') {
+        setInstruction(abilityInstructionText());
+    } else {
+        setInstruction("Watch the board — you can SNAP any time if you spot a matching card on the discard pile!");
+    }
+
+    // Players
     const oppsContainer = document.getElementById("opponentsContainer");
     oppsContainer.innerHTML = "";
-    
-    // Render Self Container Screen Block Context
     const heroContainer = document.getElementById("heroContainer");
     heroContainer.innerHTML = "";
 
@@ -201,27 +316,59 @@ function renderGameBoard() {
     });
 }
 
+function abilityInstructionText() {
+    const a = gameState.ability;
+    if (!a) return "";
+    if (a.type === '78') return "Power: click one of YOUR cards to peek at it.";
+    if (a.type === '910') return "Power: click one of an OPPONENT's cards to peek at it.";
+    if (a.type === 'jq') return a.step === 1 ? "Power: click one of YOUR cards to swap (blind)." : "Now click an OPPONENT's card to complete the blind swap.";
+    if (a.type === 'k') return a.step === 1 ? "Power: click one of YOUR cards to look at it." : "Now click an OPPONENT's card to look at it, then choose whether to swap.";
+    return "";
+}
+
+function isRevealed(pid, idx) {
+    const r = revealed[`${pid}-${idx}`];
+    if (!r) return null;
+    if (Date.now() > r.until) return null;
+    return r.card;
+}
+
+function reveal(pid, idx, card, ms = 3500) {
+    revealed[`${pid}-${idx}`] = { card, until: Date.now() + ms };
+    renderGameBoard();
+    setTimeout(() => {
+        renderGameBoard();
+    }, ms + 50);
+}
+
 function createPlayerBoardElement(player, pid, isHero) {
     const root = document.createElement("div");
     root.className = isHero ? "bg-slate-950 p-6 rounded-2xl border-2 border-amber-500/50 space-y-4 shadow-xl w-full" : "bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3";
-    
+
     root.innerHTML = `
         <div class="flex justify-between items-center">
             <h3 class="font-bold text-white flex items-center gap-2">
                 <span>${player.name}</span> ${isHero ? '<span class="text-xs font-bold uppercase tracking-widest bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">You</span>' : ''}
+                ${gameState.dutchCalledBy === pid ? '<span class="text-xs font-bold uppercase tracking-widest bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded">Called Dutch!</span>' : ''}
             </h3>
             <span class="text-xs font-mono text-slate-400">Score: ${player.totalScore || 0}</span>
         </div>
         <div class="card-grid max-w-[200px] mx-auto">
-            ${player.cards.map((card, idx) => `
-                <div data-pid="${pid}" data-cidx="${idx}" class="game-card w-20 h-28 bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 hover:border-amber-400 rounded-xl flex flex-col items-center justify-center cursor-pointer select-none relative shadow transition shadow-black/50 overflow-hidden">
-                    <span class="text-xs text-slate-500 font-bold">#${idx+1}</span>
-                </div>
-            `).join('')}
+            ${player.cards.map((card, idx) => {
+                const seen = isRevealed(pid, idx);
+                if (seen) {
+                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card w-20 h-28 bg-slate-900 border-2 border-amber-400 rounded-xl flex flex-col items-center justify-center cursor-pointer select-none shadow transition">
+                        <span class="text-2xl ${seen.color}">${seen.suit}</span>
+                        <span class="text-sm font-black text-white">${seen.name}</span>
+                    </div>`;
+                }
+                return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card w-20 h-28 bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 hover:border-amber-400 rounded-xl flex flex-col items-center justify-center cursor-pointer select-none relative shadow transition shadow-black/50 overflow-hidden">
+                    <span class="text-xs text-slate-500 font-bold">#${idx + 1}</span>
+                </div>`;
+            }).join('')}
         </div>
     `;
 
-    // Hook card action listeners for playing interactions
     root.querySelectorAll('.game-card').forEach(el => {
         el.addEventListener('click', () => handleCardInteraction(el.dataset.pid, parseInt(el.dataset.cidx)));
     });
@@ -229,27 +376,316 @@ function createPlayerBoardElement(player, pid, isHero) {
     return root;
 }
 
-// Card Game Action Event Logic Matrix
-function handleCardInteraction(targetPlayerId, cardIdx) {
-    const activeTurnPlayerId = gameState.turnOrder[gameState.currentTurnIdx];
-    
-    // Initial peek game start logic state check helper
-    if (!hasPeekedInitial && targetPlayerId === localPlayerId) {
-        const cardObj = gameState.players[localPlayerId].cards[cardIdx];
-        alert(`Your card #${cardIdx + 1} value is: [ ${cardObj.name} of ${cardObj.suit} ]`);
+// ==========================================
+// Draw / Discard pile interactions
+// ==========================================
+document.getElementById("drawDeck").addEventListener("click", async () => {
+    if (gameState.status !== 'PLAYING') return;
+    if (activePid() !== localPlayerId) return;
+    if (gameState.turnPhase !== 'AWAIT_DRAW') return;
+    if (peeksRemaining > 0) return alert("Finish peeking at your own cards first!");
+    if (!gameState.deck || gameState.deck.length === 0) return alert("Deck is empty!");
+
+    const freshDeck = [...gameState.deck];
+    const card = freshDeck.pop();
+    await pushState({
+        deck: freshDeck,
+        drawnCard: { card, source: 'deck' },
+        turnPhase: 'AWAIT_DECISION'
+    });
+});
+
+document.getElementById("discardPile").addEventListener("click", async () => {
+    if (gameState.status !== 'PLAYING') return;
+    if (activePid() !== localPlayerId) return;
+    if (gameState.turnPhase !== 'AWAIT_DRAW') return;
+    if (peeksRemaining > 0) return alert("Finish peeking at your own cards first!");
+    if (!gameState.discard || gameState.discard.length === 0) return alert("Discard pile is empty!");
+
+    const freshDiscard = [...gameState.discard];
+    const card = freshDiscard.pop();
+    await pushState({
+        discard: freshDiscard,
+        drawnCard: { card, source: 'discard' },
+        turnPhase: 'AWAIT_DECISION'
+    });
+});
+
+document.getElementById("discardDrawnBtn").addEventListener("click", async () => {
+    if (activePid() !== localPlayerId) return;
+    if (gameState.turnPhase !== 'AWAIT_DECISION' || !gameState.drawnCard || gameState.drawnCard.source !== 'deck') return;
+
+    const card = gameState.drawnCard.card;
+    const newDiscard = [...gameState.discard, card];
+    const abilityType = isSpecial(card);
+
+    if (abilityType) {
+        await pushState({
+            discard: newDiscard,
+            drawnCard: null,
+            turnPhase: 'AWAIT_ABILITY',
+            ability: { type: abilityType, step: 1, ownIdx: null, oppPid: null, oppIdx: null }
+        });
+    } else {
+        await advanceTurn({ discard: newDiscard, drawnCard: null });
+    }
+});
+
+// ==========================================
+// Call Dutch
+// ==========================================
+document.getElementById("callDutchBtn").addEventListener("click", async () => {
+    if (activePid() !== localPlayerId) return;
+    if (gameState.turnPhase !== 'AWAIT_DRAW' || gameState.dutchCalledBy) return;
+    if (!confirm('Call "Dutch!"? Every other player gets one final turn, then the round ends and scores are revealed.')) return;
+
+    await advanceTurn({
+        dutchCalledBy: localPlayerId,
+        finalTurnsLeft: Object.keys(gameState.players).length - 1
+    });
+});
+
+// ==========================================
+// Turn advancement / round end
+// ==========================================
+async function advanceTurn(extraFields = {}) {
+    const nextIdx = (gameState.currentTurnIdx + 1) % gameState.turnOrder.length;
+    let finalTurnsLeft = extraFields.finalTurnsLeft !== undefined ? extraFields.finalTurnsLeft : gameState.finalTurnsLeft;
+    const dutchCalledBy = extraFields.dutchCalledBy !== undefined ? extraFields.dutchCalledBy : gameState.dutchCalledBy;
+
+    if (dutchCalledBy && extraFields.finalTurnsLeft === undefined) {
+        finalTurnsLeft = (finalTurnsLeft || 0) - 1;
+    }
+
+    const payload = {
+        ...extraFields,
+        currentTurnIdx: nextIdx,
+        turnPhase: 'AWAIT_DRAW',
+        ability: null,
+        finalTurnsLeft: finalTurnsLeft ?? null
+    };
+
+    if (dutchCalledBy && finalTurnsLeft !== null && finalTurnsLeft <= 0) {
+        // Round over - score it
+        const updatedPlayers = { ...gameState.players };
+        Object.keys(updatedPlayers).forEach(pid => {
+            const handScore = updatedPlayers[pid].cards.reduce((sum, c) => sum + (c.score || 0), 0);
+            updatedPlayers[pid] = {
+                ...updatedPlayers[pid],
+                totalScore: (updatedPlayers[pid].totalScore || 0) + handScore,
+                lastHandScore: handScore
+            };
+        });
+        await pushState({ ...payload, status: 'ROUND_END', players: updatedPlayers });
         return;
     }
 
-    if (activeTurnPlayerId !== localPlayerId) {
-        alert("Wait until it is your turn to swap or pull actions!");
-        return;
-    }
-    
-    // Default dynamic replacement action execution fallback wrapper
-    alert(`Swapping discard top card index action with selected target index #${cardIdx + 1}.`);
+    await pushState(payload);
 }
 
-// Rules Helper Interactivity Modal trigger actions
+// ==========================================
+// Round end screen
+// ==========================================
+function renderRoundEnd() {
+    document.getElementById("roundEndSubtitle").innerText = gameState.dutchCalledBy
+        ? `${gameState.players[gameState.dutchCalledBy]?.name || 'A player'} called Dutch!`
+        : "Round complete.";
+
+    const scoresEl = document.getElementById("roundEndScores");
+    const sorted = Object.entries(gameState.players).sort((a, b) => (a[1].totalScore || 0) - (b[1].totalScore || 0));
+    scoresEl.innerHTML = sorted.map(([pid, p], i) => `
+        <div class="flex justify-between items-center bg-slate-900 border border-slate-800 rounded-xl p-3">
+            <span class="font-semibold text-white">${i === 0 ? '🏆 ' : ''}${p.name}</span>
+            <span class="text-sm text-slate-400">This round: <span class="text-white font-mono">${p.lastHandScore ?? 0}</span> &nbsp;|&nbsp; Total: <span class="text-amber-400 font-mono font-bold">${p.totalScore || 0}</span></span>
+        </div>`).join('');
+
+    const nextBtn = document.getElementById("nextRoundBtn");
+    const waitMsg = document.getElementById("nextRoundWaitMsg");
+    if (gameState.hostId === localPlayerId) {
+        nextBtn.classList.remove("hidden");
+        waitMsg.classList.add("hidden");
+    } else {
+        nextBtn.classList.add("hidden");
+        waitMsg.classList.remove("hidden");
+    }
+}
+
+// ==========================================
+// Card click interaction (turn actions, abilities, peeking, snapping)
+// ==========================================
+async function handleCardInteraction(pid, idx) {
+    if (gameState.status !== 'PLAYING') return;
+
+    // 1. Resolving a "give a card away" after a successful snap on an opponent
+    if (gameState.pendingGive && gameState.pendingGive.fromPid === localPlayerId) {
+        if (pid !== localPlayerId) return;
+        const giverCards = [...gameState.players[localPlayerId].cards];
+        const givenCard = giverCards[idx];
+        giverCards.splice(idx, 1);
+
+        const toPid = gameState.pendingGive.toPid;
+        const toIdx = gameState.pendingGive.toIdx;
+        const receiverCards = [...gameState.players[toPid].cards];
+        receiverCards.splice(toIdx, 0, givenCard);
+
+        await pushState({
+            [`players.${localPlayerId}.cards`]: giverCards,
+            [`players.${toPid}.cards`]: receiverCards,
+            pendingGive: null
+        });
+        return;
+    }
+
+    const isMyTurn = activePid() === localPlayerId;
+
+    // 2. Resolving an active special ability
+    if (isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY' && gameState.ability) {
+        await resolveAbilityClick(pid, idx);
+        return;
+    }
+
+    // 3. Deciding what to do with a drawn card (swap it into my hand)
+    if (isMyTurn && gameState.turnPhase === 'AWAIT_DECISION' && pid === localPlayerId) {
+        const myCards = [...gameState.players[localPlayerId].cards];
+        const oldCard = myCards[idx];
+        myCards[idx] = gameState.drawnCard.card;
+        const newDiscard = [...gameState.discard, oldCard];
+
+        await advanceTurn({
+            [`players.${localPlayerId}.cards`]: myCards,
+            discard: newDiscard,
+            drawnCard: null
+        });
+        return;
+    }
+
+    // 4. Initial peek phase (before round play really gets going)
+    if (peeksRemaining > 0 && pid === localPlayerId) {
+        const card = gameState.players[localPlayerId].cards[idx];
+        peeksRemaining -= 1;
+        reveal(pid, idx, card, 4000);
+        return;
+    }
+
+    // 5. Otherwise: treat as a SNAP attempt (only valid out-of-turn-action moments)
+    if (isMyTurn && (gameState.turnPhase === 'AWAIT_DECISION' || gameState.turnPhase === 'AWAIT_ABILITY')) {
+        return; // mid-action, ignore stray clicks
+    }
+    await attemptSnap(pid, idx);
+}
+
+async function resolveAbilityClick(pid, idx) {
+    const a = gameState.ability;
+
+    if (a.type === '78') {
+        if (pid !== localPlayerId) return;
+        const card = gameState.players[pid].cards[idx];
+        reveal(pid, idx, card, 3500);
+        await advanceTurn({ ability: null });
+        return;
+    }
+
+    if (a.type === '910') {
+        if (pid === localPlayerId) return;
+        const card = gameState.players[pid].cards[idx];
+        reveal(pid, idx, card, 3500);
+        await advanceTurn({ ability: null });
+        return;
+    }
+
+    if (a.type === 'jq') {
+        if (a.step === 1) {
+            if (pid !== localPlayerId) return;
+            await pushState({ ability: { ...a, step: 2, ownIdx: idx } });
+        } else {
+            if (pid === localPlayerId) return;
+            const myCards = [...gameState.players[localPlayerId].cards];
+            const oppCards = [...gameState.players[pid].cards];
+            const tmp = myCards[a.ownIdx];
+            myCards[a.ownIdx] = oppCards[idx];
+            oppCards[idx] = tmp;
+            await advanceTurn({
+                [`players.${localPlayerId}.cards`]: myCards,
+                [`players.${pid}.cards`]: oppCards,
+                ability: null
+            });
+        }
+        return;
+    }
+
+    if (a.type === 'k') {
+        if (a.step === 1) {
+            if (pid !== localPlayerId) return;
+            const card = gameState.players[pid].cards[idx];
+            reveal(pid, idx, card, 8000);
+            await pushState({ ability: { ...a, step: 2, ownIdx: idx } });
+        } else {
+            if (pid === localPlayerId) return;
+            const card = gameState.players[pid].cards[idx];
+            reveal(pid, idx, card, 8000);
+            setTimeout(async () => {
+                const doSwap = confirm("King's power: swap your peeked card with this opponent's peeked card?");
+                const myCards = [...gameState.players[localPlayerId].cards];
+                const oppCards = [...gameState.players[pid].cards];
+                if (doSwap) {
+                    const tmp = myCards[a.ownIdx];
+                    myCards[a.ownIdx] = oppCards[idx];
+                    oppCards[idx] = tmp;
+                    await advanceTurn({
+                        [`players.${localPlayerId}.cards`]: myCards,
+                        [`players.${pid}.cards`]: oppCards,
+                        ability: null
+                    });
+                } else {
+                    await advanceTurn({ ability: null });
+                }
+            }, 150);
+        }
+        return;
+    }
+}
+
+async function attemptSnap(pid, idx) {
+    if (!gameState.discard || gameState.discard.length === 0) return;
+    const topCard = gameState.discard[gameState.discard.length - 1];
+    const targetCard = gameState.players[pid]?.cards?.[idx];
+    if (!targetCard) return;
+
+    if (targetCard.name === topCard.name) {
+        // Successful snap
+        const targetCards = [...gameState.players[pid].cards];
+        targetCards.splice(idx, 1);
+        const newDiscard = [...gameState.discard, targetCard];
+
+        if (pid === localPlayerId) {
+            await pushState({
+                [`players.${pid}.cards`]: targetCards,
+                discard: newDiscard
+            });
+        } else {
+            await pushState({
+                [`players.${pid}.cards`]: targetCards,
+                discard: newDiscard,
+                pendingGive: { fromPid: localPlayerId, toPid: pid, toIdx: idx }
+            });
+        }
+    } else {
+        // Failed snap penalty: draw a card into your own hand
+        if (!gameState.deck || gameState.deck.length === 0) return;
+        const freshDeck = [...gameState.deck];
+        const penaltyCard = freshDeck.pop();
+        const myCards = [...gameState.players[localPlayerId].cards, penaltyCard];
+        await pushState({
+            deck: freshDeck,
+            [`players.${localPlayerId}.cards`]: myCards
+        });
+        alert("Wrong snap! You drew a penalty card.");
+    }
+}
+
+// ==========================================
+// Rules Modal
+// ==========================================
 const rulesModal = document.getElementById("rulesModal");
 document.getElementById("rulesBtn").addEventListener("click", () => rulesModal.classList.remove("hidden"));
 document.getElementById("closeRulesBtn").addEventListener("click", () => rulesModal.classList.add("hidden"));

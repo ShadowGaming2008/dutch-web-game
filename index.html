@@ -110,7 +110,11 @@
                         Select a deck or card to begin.
                     </div>
 
-                    <button id="callDutchBtn" class="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl tracking-wider uppercase transition shadow-lg shadow-rose-600/20 cursor-pointer">
+                    <button id="discardDrawnBtn" class="hidden w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl tracking-wide uppercase transition cursor-pointer text-sm">
+                        ⬇️ Discard Drawn Card
+                    </button>
+
+                    <button id="callDutchBtn" class="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl tracking-wider uppercase transition shadow-lg shadow-rose-600/20 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
                         🗣️ Call "DUTCH!"
                     </button>
                 </div>
@@ -118,6 +122,18 @@
 
             <div id="heroContainer" class="border-t-2 border-dashed border-slate-800 pt-6">
                 </div>
+        </section>
+
+        <section id="screen-roundend" class="hidden w-full max-w-2xl bg-slate-950 p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6">
+            <div class="text-center space-y-2">
+                <h2 class="text-3xl font-bold text-amber-400">Round Over!</h2>
+                <p id="roundEndSubtitle" class="text-slate-400 text-sm"></p>
+            </div>
+            <div id="roundEndScores" class="space-y-2"></div>
+            <button id="nextRoundBtn" class="hidden w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition cursor-pointer">
+                Start Next Round ▶️
+            </button>
+            <p id="nextRoundWaitMsg" class="hidden text-center text-xs text-slate-500">Waiting for host to start the next round...</p>
         </section>
     </main>
 

@@ -315,6 +315,19 @@ document.getElementById("joinRoomBtn").addEventListener("click", async () => {
     if (!enteredCode) { showToast("Enter a valid room code.", 'warning'); return; }
     roomCode = enteredCode;
     const roomRef = doc(db, "rooms", roomCode);
+    // Fetch current state to enforce 6-player max
+    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+    const snap = await getDoc(roomRef);
+    if (snap.exists()) {
+        const data = snap.data();
+        const playerCount = Object.keys(data.players || {}).length;
+        if (playerCount >= 6 && !data.players[localPlayerId]) {
+            showToast("This room is full (max 6 players).", 'error'); return;
+        }
+        if (data.status !== 'LOBBY') {
+            showToast("This game has already started.", 'error'); return;
+        }
+    }
     await updateDoc(roomRef, {
         [`players.${localPlayerId}`]: { name, ready: false, cards: [], totalScore: 0 },
         turnOrder: arrayUnion(localPlayerId)
@@ -377,6 +390,77 @@ function maybeApplyEventHighlights() {
         highlightSlots(evt.highlights, NOTIFY_MS);
     }
 }
+// ==========================================
+// Activity Log — visible to all players,
+// records what happened without card values
+// ==========================================
+let logEntries = [];       // { id, msg, type, time }
+let lastLogEventId = null;
+let logCollapsed = true;
+let logUnreadCount = 0;
+
+function classifyEventType(msg) {
+    if (!msg) return 'default';
+    const m = msg.toLowerCase();
+    if (m.includes('snap')) return 'snap';
+    if (m.includes('dutch')) return 'dutch';
+    if (m.includes('swap')) return 'swap';
+    if (m.includes('ability') || m.includes('peek') || m.includes('spy') || m.includes('king') || m.includes('7/8') || m.includes('9/10')) return 'ability';
+    return 'default';
+}
+
+function appendToActivityLog(message, type) {
+    const now = new Date();
+    const t = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const entry = { id: Math.random().toString(36).slice(2), msg: message, type, time: t };
+    logEntries.push(entry);
+    if (logEntries.length > 80) logEntries = logEntries.slice(-80);
+
+    const container = document.getElementById('log-entries');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = 'log-entry log-' + type;
+    div.innerHTML = '<div class="log-time">' + t + '</div><div class="log-msg">' + message + '</div>';
+    container.appendChild(div);
+    // auto-scroll to bottom if open
+    if (!logCollapsed) container.scrollTop = container.scrollHeight;
+
+    // badge
+    if (logCollapsed) {
+        logUnreadCount++;
+        const badge = document.getElementById('log-badge');
+        if (badge) { badge.textContent = logUnreadCount > 9 ? '9+' : logUnreadCount; badge.classList.add('has-new'); }
+    }
+}
+
+function maybeLogPublicEvent() {
+    const evt = gameState.lastEvent;
+    if (!evt || evt.id === lastLogEventId) return;
+    lastLogEventId = evt.id;
+    const type = classifyEventType(evt.message);
+    appendToActivityLog(evt.message, type);
+}
+
+// Toggle log open/close
+document.addEventListener('DOMContentLoaded', () => {
+    const toggle = document.getElementById('log-toggle');
+    const panel = document.getElementById('activity-log-panel');
+    const chevron = document.getElementById('log-chevron');
+    const badge = document.getElementById('log-badge');
+    const entries = document.getElementById('log-entries');
+    if (toggle && panel) {
+        toggle.addEventListener('click', () => {
+            logCollapsed = !logCollapsed;
+            panel.classList.toggle('log-collapsed', logCollapsed);
+            if (chevron) chevron.style.transform = logCollapsed ? '' : 'rotate(180deg)';
+            if (!logCollapsed) {
+                logUnreadCount = 0;
+                if (badge) badge.classList.remove('has-new');
+                if (entries) setTimeout(() => { entries.scrollTop = entries.scrollHeight; }, 50);
+            }
+        });
+    }
+});
 
 // ==========================================
 // Global UI Rendering Router
@@ -384,6 +468,7 @@ function maybeApplyEventHighlights() {
 function renderState() {
     maybeShowPublicEvent();
     maybeApplyEventHighlights();
+    maybeLogPublicEvent();
     landingScreen.classList.add("hidden");
     lobbyScreen.classList.add("hidden");
     gameScreen.classList.add("hidden");
@@ -536,8 +621,7 @@ function renderGameBoard() {
         const abilityType = isSpecial(c);
         const hasAbility = !!abilityType && gameState.drawnCard.source === 'deck';
 
-        drawnCardArea.classList.remove('hidden');
-        drawnCardArea.classList.add('flex');
+        drawnCardArea.classList.add('visible');
 
         const drawnDisplay = document.getElementById('drawnCardDisplay');
         drawnDisplay.innerHTML = `
@@ -571,8 +655,7 @@ function renderGameBoard() {
         // Reset draw deck to normal
         drawDeckEl.querySelector('.deck-top').innerHTML = `<span class="text-2xl opacity-40">✦</span><span class="text-[10px] text-indigo-300 font-bold uppercase tracking-widest">Draw</span>`;
     } else {
-        drawnCardArea.classList.add('hidden');
-        drawnCardArea.classList.remove('flex');
+        drawnCardArea.classList.remove('visible');
         discardDrawnBtn.classList.add('hidden');
         discardDrawnNABtn.classList.add('hidden');
         drawDeckEl.querySelector('.deck-top').innerHTML = `<span class="text-2xl opacity-40">✦</span><span class="text-[10px] text-indigo-300 font-bold uppercase tracking-widest">Draw</span>`;
@@ -629,20 +712,37 @@ function renderGameBoard() {
         setInstruction("Watch the discard pile — if you remember a matching card anywhere on the board, click it to snap!");
     }
 
-    // Render player areas
-    const oppsContainer = document.getElementById("opponentsContainer");
-    oppsContainer.innerHTML = "";
+    // Render player areas — perimeter layout
+    const zoneTop = document.getElementById("zone-top");
+    const zoneLeft = document.getElementById("zone-left");
+    const zoneRight = document.getElementById("zone-right");
     const heroContainer = document.getElementById("heroContainer");
+    zoneTop.innerHTML = "";
+    zoneLeft.innerHTML = "";
+    zoneRight.innerHTML = "";
     heroContainer.innerHTML = "";
 
-    Object.keys(gameState.players).forEach(pid => {
+    const opponents = Object.keys(gameState.players).filter(pid => pid !== localPlayerId);
+    // Distribute: top gets first 3, left gets 4th, right gets 5th
+    opponents.forEach((pid, i) => {
         const playerObj = gameState.players[pid];
-        if (pid === localPlayerId) {
-            heroContainer.appendChild(createPlayerBoardElement(playerObj, pid, true, topCard, canSnap));
-        } else {
-            oppsContainer.appendChild(createPlayerBoardElement(playerObj, pid, false, topCard, canSnap));
+        const el = createPlayerBoardElement(playerObj, pid, false, topCard, canSnap);
+        if (i < 3) {
+            zoneTop.appendChild(el);
+        } else if (i === 3) {
+            el.classList.add("side-zone");
+            zoneLeft.appendChild(el);
+        } else if (i === 4) {
+            el.classList.add("side-zone");
+            zoneRight.appendChild(el);
         }
     });
+
+    // Hero
+    const heroObj = gameState.players[localPlayerId];
+    if (heroObj) {
+        heroContainer.appendChild(createPlayerBoardElement(heroObj, localPlayerId, true, topCard, canSnap));
+    }
 }
 
 function abilityInstructionText() {
@@ -673,24 +773,27 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
     const isPendingGiveTo = gameState.pendingGive?.toPid === pid;
     const isAbilityPhase = isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY' && gameState.ability;
 
-    root.className = isHero
-        ? "bg-slate-950 p-5 rounded-2xl border-2 border-amber-500/40 space-y-4 shadow-xl w-full"
-        : "bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3";
+    root.className = isHero ? "hero-zone" : "opp-zone";
+    if (!isHero && activePid() === pid) root.classList.add("active-turn");
 
     const isActiveTurn = activePid() === pid;
 
+    // Determine card size based on zone
+    const cardW = isHero ? 82 : 64;
+    const cardH = isHero ? 116 : 90;
+
     root.innerHTML = `
-        <div class="flex justify-between items-center flex-wrap gap-2">
-            <h3 class="font-semibold text-white flex items-center gap-2 flex-wrap">
-                ${isActiveTurn ? '<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block"></span>' : ''}
-                <span>${player.name}</span>
-                ${isHero ? '<span class="text-[10px] font-black uppercase tracking-widest bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-md border border-amber-500/20">You</span>' : ''}
-                ${gameState.dutchCalledBy === pid ? '<span class="text-[10px] font-black uppercase tracking-widest bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-md border border-rose-500/20 animate-pulse">Called Dutch!</span>' : ''}
-                ${isPendingGiveTo ? '<span class="text-[10px] font-black uppercase tracking-widest bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-md border border-indigo-500/20">Receiving...</span>' : ''}
-            </h3>
-            <span class="text-xs font-mono text-slate-500">Total: <span class="text-slate-300 font-bold">${player.totalScore || 0}</span></span>
+        <div class="player-meta">
+            <div class="player-name-row">
+                ${isActiveTurn ? '<div class="turn-dot"></div>' : ''}
+                <span style="font-size:12px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px">${player.name}</span>
+                ${isHero ? '<span class="status-badge" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.25)">You</span>' : ''}
+                ${gameState.dutchCalledBy === pid ? '<span class="status-badge" style="background:rgba(239,68,68,0.15);color:#fca5a5;border:1px solid rgba(239,68,68,0.25);animation:dot-pulse 1s infinite">Dutch!</span>' : ''}
+                ${isPendingGiveTo ? '<span class="status-badge" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.25)">Receiving</span>' : ''}
+            </div>
+            <span class="score-chip">Pts: <span>${player.totalScore || 0}</span></span>
         </div>
-        <div class="card-grid max-w-[220px] ${isHero ? 'mx-auto sm:mx-0' : 'mx-auto'}">
+        <div class="card-grid" style="grid-template-columns: repeat(2, ${cardW}px); gap:${isHero?6:4}px;">
             ${player.cards.map((card, idx) => {
                 const seen = isRevealed(pid, idx);
                 const midAction = isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY';
@@ -738,7 +841,7 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
                 // click handler entirely (handled by the guard in
                 // handleCardInteraction, but no point making it look clickable).
                 if (!card) {
-                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card ${hl} w-[90px] h-[126px] rounded-[10px] border-2 border-dashed border-slate-700/60 flex items-center justify-center" style="min-width:0;cursor:default">
+                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card ${hl}" style="min-width:0;cursor:default;width:${cardW}px;height:${cardH}px;border-radius:8px;border:2px dashed rgba(100,116,139,0.5);display:flex;align-items:center;justify-content:center">
                         <div class="card-slot-number" style="position:static;background:none;border:none;box-shadow:none;color:#475569">#${idx + 1}</div>
                     </div>`;
                 }
@@ -747,7 +850,7 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
                     const cc = cardColorClass(seen);
                     const suit = seen.isJoker ? '🃏' : seen.suit;
                     const rank = seen.isJoker ? '🃏' : seen.name;
-                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card playing-card card-revealing w-[90px] h-[126px] ${extraCardClass}" style="min-width:0">
+                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card playing-card card-revealing ${extraCardClass}" style="min-width:0;width:${cardW}px;height:${cardH}px">
                         <div class="card-slot-number">#${idx + 1}</div>
                         <div class="corner-tl ${cc}">
                             <div class="rank">${rank}</div>
@@ -764,7 +867,7 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
                     </div>`;
                 }
 
-                return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card card-back w-[90px] h-[126px] ${extraCardClass}" style="min-width:0">
+                return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card card-back ${extraCardClass}" style="min-width:0;width:${cardW}px;height:${cardH}px">
                     <div class="card-slot-number">#${idx + 1}</div>
                 </div>`;
             }).join('')}

@@ -10,19 +10,20 @@
 
         :root {
             --card-red: #ef4444;
-            --card-black: #f1f5f9;
             --card-face: #fefce8;
-            --card-back-from: #1e1b4b;
-            --card-back-to: #0f0f23;
+            --felt-dark: #0d4426;
+            --felt-mid: #146238;
+            --rail-brown: #5c3a22;
         }
 
-        body { font-family: 'Inter', sans-serif; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; margin: 0; }
         .font-display { font-family: 'Playfair Display', serif; }
 
         /* ========== CARD STYLES ========== */
         .playing-card {
             background: var(--card-face);
-            border-radius: 10px;
+            border-radius: 8px;
             border: 1px solid #d4d0c8;
             box-shadow: 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.6);
             position: relative;
@@ -33,15 +34,12 @@
         }
         .playing-card:hover { transform: translateY(-4px) scale(1.04); box-shadow: 0 8px 20px rgba(0,0,0,0.5); }
         .playing-card:active { transform: translateY(-1px) scale(0.98); }
-
-        .playing-card .corner-tl { position: absolute; top: 4px; left: 6px; line-height: 1; }
-        .playing-card .corner-br { position: absolute; bottom: 4px; right: 6px; line-height: 1; transform: rotate(180deg); }
+        .playing-card .corner-tl { position: absolute; top: 3px; left: 5px; line-height: 1; }
+        .playing-card .corner-br { position: absolute; bottom: 3px; right: 5px; line-height: 1; transform: rotate(180deg); }
         .playing-card .center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0.08; pointer-events: none; }
-
-        .playing-card .rank { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 1.1rem; line-height: 1; }
-        .playing-card .suit-sm { font-size: 0.7rem; line-height: 1; }
-        .playing-card .suit-center { font-size: 2rem; }
-
+        .playing-card .rank { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 0.95rem; line-height: 1; }
+        .playing-card .suit-sm { font-size: 0.6rem; line-height: 1; }
+        .playing-card .suit-center { font-size: 1.6rem; }
         .card-red { color: var(--card-red); }
         .card-black { color: #1e293b; }
         .card-joker { color: #7c3aed; }
@@ -49,7 +47,7 @@
         /* Card back */
         .card-back {
             background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #0f0f23 100%);
-            border-radius: 10px;
+            border-radius: 8px;
             border: 2px solid #3730a3;
             box-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(99,102,241,0.3);
             position: relative;
@@ -59,54 +57,48 @@
             user-select: none;
         }
         .card-back:hover { transform: translateY(-4px) scale(1.04); box-shadow: 0 8px 20px rgba(0,0,0,0.5); }
-        .card-back:active { transform: translateY(-1px) scale(0.98); }
         .card-back::before {
             content: '';
             position: absolute;
-            inset: 6px;
+            inset: 5px;
             border: 1px solid rgba(99,102,241,0.4);
-            border-radius: 5px;
+            border-radius: 4px;
         }
         .card-back::after {
             content: '✦';
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%,-50%);
-            font-size: 1.4rem;
+            font-size: 1.1rem;
             color: rgba(99,102,241,0.5);
         }
 
-        /* Card position number badge — shown on every face-down card so players
-           can reliably refer to "card #2" etc. without ambiguity. Needs to be
-           legible against the dark indigo card-back gradient. */
+        /* Card slot number badge */
         .card-slot-number {
             position: absolute;
-            top: 5px;
-            right: 5px;
-            min-width: 20px;
-            height: 20px;
-            padding: 0 5px;
+            top: 4px;
+            right: 4px;
+            min-width: 17px;
+            height: 17px;
+            padding: 0 4px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 800;
             font-family: 'Inter', sans-serif;
             color: #fde68a;
             background: rgba(15, 15, 35, 0.85);
             border: 1px solid rgba(251, 191, 36, 0.55);
-            border-radius: 6px;
+            border-radius: 5px;
             line-height: 1;
-            letter-spacing: 0.02em;
             z-index: 3;
             box-shadow: 0 1px 4px rgba(0,0,0,0.5);
         }
 
-        /* Snap glow rule intentionally removed — snapping is memory-based and gets no visual hint */
-
-        /* Ability target glow */
+        /* Ability glows */
         .ability-own-target {
-            box-shadow: 0 0 0 3px #f59e0b, 0 0 20px rgba(245,158,11,0.5), 0 4px 12px rgba(0,0,0,0.4) !important;
+            box-shadow: 0 0 0 3px #f59e0b, 0 0 20px rgba(245,158,11,0.5) !important;
             animation: ability-pulse-amber 1s ease-in-out infinite;
         }
         @keyframes ability-pulse-amber {
@@ -114,18 +106,23 @@
             50% { box-shadow: 0 0 0 4px #f59e0b, 0 0 30px rgba(245,158,11,0.7); }
         }
         .ability-opp-target {
-            box-shadow: 0 0 0 3px #818cf8, 0 0 20px rgba(129,140,248,0.5), 0 4px 12px rgba(0,0,0,0.4) !important;
+            box-shadow: 0 0 0 3px #818cf8, 0 0 20px rgba(129,140,248,0.5) !important;
             animation: ability-pulse-indigo 1s ease-in-out infinite;
         }
         @keyframes ability-pulse-indigo {
             0%, 100% { box-shadow: 0 0 0 3px #818cf8, 0 0 20px rgba(129,140,248,0.5); }
             50% { box-shadow: 0 0 0 4px #818cf8, 0 0 30px rgba(129,140,248,0.7); }
         }
-        .ability-selected {
-            box-shadow: 0 0 0 3px #34d399, 0 0 20px rgba(52,211,153,0.5) !important;
+        .ability-selected { box-shadow: 0 0 0 3px #34d399, 0 0 20px rgba(52,211,153,0.5) !important; }
+        .highlight-glow {
+            box-shadow: 0 0 0 3px #2dd4bf, 0 0 22px rgba(45,212,191,0.55) !important;
+            animation: highlight-pulse 1.1s ease-in-out infinite;
+        }
+        @keyframes highlight-pulse {
+            0%, 100% { box-shadow: 0 0 0 3px #2dd4bf, 0 0 22px rgba(45,212,191,0.5); }
+            50% { box-shadow: 0 0 0 5px #2dd4bf, 0 0 34px rgba(45,212,191,0.8); }
         }
 
-        /* Peek reveal animation */
         @keyframes card-reveal {
             0% { transform: scale(0.8) rotateY(90deg); opacity: 0; }
             60% { transform: scale(1.1) rotateY(-5deg); }
@@ -133,88 +130,34 @@
         }
         .card-revealing { animation: card-reveal 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
 
-        /* Ability banner */
-        .ability-banner {
-            animation: banner-drop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
-        }
-        @keyframes banner-drop {
-            0% { transform: translateY(-20px) scale(0.9); opacity: 0; }
-            100% { transform: translateY(0) scale(1); opacity: 1; }
-        }
-
-        /* Swap animation */
         @keyframes swap-flash {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.3; background: #7c3aed; }
         }
         .swapping { animation: swap-flash 0.6s ease 2; }
 
-        /* Discard pile stack effect */
+        /* Discard pile stack */
         .discard-stack { position: relative; }
-        .discard-stack .stack-shadow-2 {
-            position: absolute;
-            inset: 0;
-            background: #1e1b4b;
-            border-radius: 10px;
-            transform: translateX(-3px) translateY(3px);
-            z-index: 0;
-        }
-        .discard-stack .stack-shadow-1 {
-            position: absolute;
-            inset: 0;
-            background: #1e293b;
-            border-radius: 10px;
-            transform: translateX(-1.5px) translateY(1.5px);
-            z-index: 1;
-        }
+        .discard-stack .stack-shadow-2 { position: absolute; inset: 0; background: #1e1b4b; border-radius: 8px; transform: translateX(-3px) translateY(3px); z-index: 0; }
+        .discard-stack .stack-shadow-1 { position: absolute; inset: 0; background: #1e293b; border-radius: 8px; transform: translateX(-1.5px) translateY(1.5px); z-index: 1; }
         .discard-stack .stack-top { position: relative; z-index: 2; }
 
         /* Draw deck stack */
         .draw-deck-stack { position: relative; }
-        .draw-deck-stack .deck-layer-3 {
-            position: absolute; inset: 0;
-            background: linear-gradient(135deg, #1e1b4b, #0f0f23);
-            border: 2px solid #3730a3;
-            border-radius: 10px;
-            transform: translateX(-4px) translateY(-4px);
-        }
-        .draw-deck-stack .deck-layer-2 {
-            position: absolute; inset: 0;
-            background: linear-gradient(135deg, #1e1b4b, #0f0f23);
-            border: 2px solid #3730a3;
-            border-radius: 10px;
-            transform: translateX(-2px) translateY(-2px);
-        }
-        .draw-deck-stack .deck-top {
-            position: relative;
-            z-index: 2;
-            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #0f0f23 100%);
-            border-radius: 10px;
-            border: 2px solid #4f46e5;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(99,102,241,0.3);
-            cursor: pointer;
-            transition: transform 0.15s ease;
-        }
+        .draw-deck-stack .deck-layer-3 { position: absolute; inset: 0; background: linear-gradient(135deg, #1e1b4b, #0f0f23); border: 2px solid #3730a3; border-radius: 8px; transform: translateX(-4px) translateY(-4px); }
+        .draw-deck-stack .deck-layer-2 { position: absolute; inset: 0; background: linear-gradient(135deg, #1e1b4b, #0f0f23); border: 2px solid #3730a3; border-radius: 8px; transform: translateX(-2px) translateY(-2px); }
+        .draw-deck-stack .deck-top { position: relative; z-index: 2; background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #0f0f23 100%); border-radius: 8px; border: 2px solid #4f46e5; box-shadow: 0 4px 12px rgba(0,0,0,0.5); cursor: pointer; transition: transform 0.15s ease; }
         .draw-deck-stack .deck-top:hover { transform: translateY(-3px); }
-        .draw-deck-stack .deck-top::before {
-            content: '';
-            position: absolute;
-            inset: 6px;
-            border: 1px solid rgba(99,102,241,0.4);
-            border-radius: 5px;
-        }
+        .draw-deck-stack .deck-top::before { content: ''; position: absolute; inset: 5px; border: 1px solid rgba(99,102,241,0.4); border-radius: 4px; }
 
-        /* Card grid */
-        .card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        /* Card grid compact */
+        .card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
 
-        /* Drawn card display in draw area */
-        .drawn-card-display {
-            animation: drawn-pop 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
-        }
         @keyframes drawn-pop {
             0% { transform: scale(0.7) translateY(-10px); opacity: 0; }
             100% { transform: scale(1) translateY(0); opacity: 1; }
         }
+        .drawn-card-display { animation: drawn-pop 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
 
         /* Toast */
         .toast-enter { animation: toast-in 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards; }
@@ -223,16 +166,12 @@
             100% { transform: translateY(0) scale(1); opacity: 1; }
         }
 
-        /* Ability overlay panel */
-        .ability-panel {
-            animation: panel-slide 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
-        }
+        .ability-panel { animation: panel-slide 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
         @keyframes panel-slide {
             0% { transform: translateY(10px); opacity: 0; }
             100% { transform: translateY(0); opacity: 1; }
         }
 
-        /* Turn banner pulse */
         .my-turn-banner {
             background: linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b);
             background-size: 200% 100%;
@@ -244,79 +183,370 @@
             100% { background-position: 0% 50%; }
         }
 
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-        /* ========== TABLE / FELT LOOK ========== */
+
+        /* ========== TABLE FELT ========== */
         body {
-            background:
-                radial-gradient(ellipse at 50% -10%, #2a1c12 0%, #1a120b 45%, #0c0805 100%);
+            background: radial-gradient(ellipse at 50% -10%, #2a1c12 0%, #1a120b 45%, #0c0805 100%);
             background-attachment: fixed;
         }
-        .table-felt {
+
+        /* ========== PERIMETER TABLE LAYOUT ========== */
+        #table-root {
+            display: grid;
+            width: 100%;
+            height: calc(100vh - 56px);
+            min-height: 580px;
+            grid-template-areas:
+                "top-bar    top-bar     top-bar"
+                "left-zone  center-zone right-zone"
+                "bottom-bar bottom-bar  bottom-bar";
+            grid-template-columns: auto 1fr auto;
+            grid-template-rows: auto 1fr auto;
+            gap: 0;
             position: relative;
-            background:
-                radial-gradient(ellipse at 50% 0%, #1d6b43 0%, #146238 35%, #0d4426 70%, #082d19 100%);
-            border: 10px solid #3e2517;
-            border-radius: 28px;
-            box-shadow:
-                inset 0 0 70px rgba(0,0,0,0.55),
-                inset 0 2px 0 rgba(255,255,255,0.06),
-                0 14px 40px rgba(0,0,0,0.65);
-            padding: 1.25rem;
-        }
-        .table-felt::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            pointer-events: none;
-            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 10px);
-            mix-blend-mode: overlay;
-        }
-        .table-felt::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            pointer-events: none;
-            box-shadow: inset 0 0 110px rgba(0,0,0,0.45);
-        }
-        .table-rail {
-            border: 6px solid #5c3a22;
-            border-radius: 20px;
-            background: linear-gradient(180deg, #6b4226 0%, #4a2c17 100%);
-            box-shadow: inset 0 2px 4px rgba(255,255,255,0.15), inset 0 -3px 6px rgba(0,0,0,0.4);
         }
 
-        /* Synced "something happened here" highlight — used for swaps, peeks,
-           snaps. Shows for exactly as long as the matching toast notification. */
-        .highlight-glow {
-            box-shadow: 0 0 0 3px #2dd4bf, 0 0 22px rgba(45,212,191,0.55), 0 4px 12px rgba(0,0,0,0.4) !important;
-            animation: highlight-pulse 1.1s ease-in-out infinite;
+        /* Top zone — opponents 1, 2, 3 (up to 3 across the top) */
+        #zone-top {
+            grid-area: top-bar;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px 12px 6px;
+            align-items: flex-start;
         }
-        @keyframes highlight-pulse {
-            0%, 100% { box-shadow: 0 0 0 3px #2dd4bf, 0 0 22px rgba(45,212,191,0.5); }
-            50% { box-shadow: 0 0 0 5px #2dd4bf, 0 0 34px rgba(45,212,191,0.8); }
+
+        /* Left zone — opponent 4 */
+        #zone-left {
+            grid-area: left-zone;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 6px 8px 6px 10px;
         }
+
+        /* Right zone — opponent 5 */
+        #zone-right {
+            grid-area: right-zone;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 6px 10px 6px 8px;
+        }
+
+        /* Center zone — board island */
+        #zone-center {
+            grid-area: center-zone;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        /* Bottom zone — hero player */
+        #zone-bottom {
+            grid-area: bottom-bar;
+            padding: 6px 12px 10px;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* The felt island in the center */
+        .board-island {
+            background: radial-gradient(ellipse at 50% 30%, #1d6b43 0%, #146238 40%, #0d4426 80%, #082d19 100%);
+            border: 8px solid #3e2517;
+            border-radius: 24px;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.05), 0 10px 30px rgba(0,0,0,0.6);
+            padding: 12px;
+            position: relative;
+        }
+        .board-island::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 10px);
+            mix-blend-mode: overlay;
+        }
+
+        /* Opponent player zone card */
+        .opp-zone {
+            background: rgba(15,23,42,0.85);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 8px 10px;
+            backdrop-filter: blur(4px);
+            position: relative;
+            transition: border-color 0.2s;
+            flex: 1;
+            min-width: 0;
+            max-width: 220px;
+        }
+        .opp-zone.active-turn {
+            border-color: rgba(251, 191, 36, 0.4);
+            box-shadow: 0 0 18px rgba(251,191,36,0.12);
+        }
+        .opp-zone.side-zone {
+            max-width: 200px;
+        }
+
+        /* Hero zone at bottom */
+        .hero-zone {
+            background: rgba(15,23,42,0.9);
+            border: 2px solid rgba(245,158,11,0.35);
+            border-radius: 16px;
+            padding: 10px 14px;
+            backdrop-filter: blur(4px);
+            max-width: 540px;
+            width: 100%;
+            position: relative;
+            box-shadow: 0 0 30px rgba(245,158,11,0.08);
+        }
+
+        /* Player status badge area */
+        .player-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+        .player-name-row {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            min-width: 0;
+        }
+        .turn-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: #fbbf24;
+            animation: dot-pulse 1s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+        @keyframes dot-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.7); }
+        }
+        .status-badge {
+            font-size: 9px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .score-chip {
+            font-size: 10px;
+            font-weight: 700;
+            font-family: 'Inter', monospace;
+            color: #94a3b8;
+            white-space: nowrap;
+        }
+        .score-chip span { color: #e2e8f0; font-weight: 800; }
+
+        /* Compact card grid for side zones */
+        .card-grid-side {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 4px;
+        }
+
+        /* Hero card grid — 2-col by default, 4-col for 3+ cards */
+        .card-grid-hero {
+            display: grid;
+            gap: 6px;
+        }
+
+        /* Board center controls */
+        .board-card-label {
+            font-size: 9px;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            text-align: center;
+            margin-bottom: 3px;
+        }
+
+        /* Instruction box */
+        #actionInstruction {
+            font-size: 11px;
+            color: #94a3b8;
+            text-align: center;
+            background: rgba(15,23,42,0.7);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 8px;
+            padding: 7px 10px;
+            line-height: 1.45;
+            max-width: 200px;
+        }
+
+        /* ========== ACTIVITY LOG ========== */
+        #activity-log-panel {
+            position: fixed;
+            bottom: 12px;
+            right: 12px;
+            width: 270px;
+            max-height: 300px;
+            background: rgba(8,15,30,0.95);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            backdrop-filter: blur(12px);
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            transition: transform 0.25s ease, opacity 0.25s ease;
+        }
+        #activity-log-panel.log-collapsed {
+            max-height: 38px;
+        }
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+        }
+        .log-header:hover { background: rgba(255,255,255,0.03); }
+        .log-title {
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #64748b;
+        }
+        .log-badge {
+            font-size: 9px;
+            font-weight: 800;
+            background: #1e40af;
+            color: #93c5fd;
+            border-radius: 999px;
+            padding: 1px 6px;
+            display: none;
+        }
+        .log-badge.has-new { display: block; }
+        #log-entries {
+            overflow-y: auto;
+            flex: 1;
+            padding: 6px 0;
+        }
+        .log-entry {
+            padding: 6px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            animation: log-in 0.25s ease forwards;
+        }
+        @keyframes log-in {
+            from { opacity: 0; transform: translateX(8px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .log-entry:last-child { border-bottom: none; }
+        .log-entry .log-time {
+            font-size: 9px;
+            color: #475569;
+            font-family: monospace;
+            margin-bottom: 1px;
+        }
+        .log-entry .log-msg {
+            font-size: 11px;
+            color: #cbd5e1;
+            line-height: 1.4;
+        }
+        .log-entry.log-ability .log-msg { color: #a5b4fc; }
+        .log-entry.log-snap .log-msg { color: #6ee7b7; }
+        .log-entry.log-dutch .log-msg { color: #fca5a5; }
+        .log-entry.log-swap .log-msg { color: #c4b5fd; }
+
+        /* Turn banner at top */
+        #gameTurnBanner {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        /* Ability panel — floats above center */
+        #abilityPanel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            width: 280px;
+        }
+
+        /* Drawn card area inline in board */
+        #drawnCardArea {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        #drawnCardArea.visible { display: flex; }
+
+        /* Dutch button */
+        #callDutchBtn {
+            width: 100%;
+            padding: 7px 10px;
+            background: #be123c;
+            color: white;
+            font-size: 11px;
+            font-weight: 900;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            transition: background 0.15s;
+        }
+        #callDutchBtn:hover:not(:disabled) { background: #e11d48; }
+        #callDutchBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .btn-sm {
+            padding: 5px 8px;
+            border-radius: 7px;
+            font-size: 10px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: background 0.15s;
+            width: 100%;
+        }
+
+        /* Scrollbar for log */
+        #log-entries::-webkit-scrollbar { width: 3px; }
+        #log-entries::-webkit-scrollbar-track { background: transparent; }
+        #log-entries::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
     </style>
 </head>
 <body class="text-slate-100 min-h-screen selection:bg-amber-500 selection:text-slate-900">
 
-    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur p-4 sticky top-0 z-40 flex justify-between items-center">
-        <h1 class="font-display text-2xl font-black tracking-wide text-amber-400 flex items-center gap-2">
-            ♠ DUTCH ♦
-        </h1>
-        <button id="rulesBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-sm font-semibold rounded-lg transition border border-slate-700">
-            📜 Rules
-        </button>
+    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur p-3 sticky top-0 z-40 flex justify-between items-center" style="height:56px">
+        <h1 class="font-display text-xl font-black tracking-wide text-amber-400 flex items-center gap-2">♠ DUTCH ♦</h1>
+        <button id="rulesBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg transition border border-slate-700">📜 Rules</button>
     </header>
 
-    <main class="max-w-6xl mx-auto p-4 min-h-[calc(100vh-65px)] flex flex-col justify-center items-center">
+    <main class="flex flex-col items-center justify-center min-h-[calc(100vh-56px)]">
 
         <!-- LANDING -->
-        <section id="screen-landing" class="w-full max-w-md space-y-6">
+        <section id="screen-landing" class="w-full max-w-md space-y-6 p-4">
             <div class="bg-slate-950 p-8 rounded-2xl border border-slate-800 shadow-2xl text-center space-y-6">
                 <div class="space-y-1">
                     <div class="font-display text-5xl font-black text-amber-400 tracking-wide">DUTCH</div>
@@ -327,9 +557,7 @@
                         <label class="block text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Your Name</label>
                         <input type="text" id="usernameInput" placeholder="Enter display name..." class="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:border-amber-500 text-white placeholder-slate-600 transition">
                     </div>
-                    <button id="createRoomBtn" class="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition shadow-lg shadow-amber-500/20 text-sm tracking-wide uppercase">
-                        👑 Create Party
-                    </button>
+                    <button id="createRoomBtn" class="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition shadow-lg shadow-amber-500/20 text-sm tracking-wide uppercase">👑 Create Party</button>
                     <div class="relative flex py-1 items-center">
                         <div class="flex-grow border-t border-slate-800"></div>
                         <span class="flex-shrink mx-4 text-slate-500 text-xs uppercase tracking-widest">or join</span>
@@ -337,20 +565,18 @@
                     </div>
                     <div class="flex gap-2">
                         <input type="text" id="roomCodeInput" placeholder="ROOM CODE" class="flex-1 px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:border-amber-500 text-center text-white tracking-widest font-mono uppercase placeholder-slate-600 text-sm transition">
-                        <button id="joinRoomBtn" class="px-6 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition border border-slate-700">
-                            Join
-                        </button>
+                        <button id="joinRoomBtn" class="px-6 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition border border-slate-700">Join</button>
                     </div>
                 </div>
             </div>
         </section>
 
         <!-- LOBBY -->
-        <section id="screen-lobby" class="hidden w-full max-w-2xl bg-slate-950 p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6">
+        <section id="screen-lobby" class="hidden w-full max-w-2xl bg-slate-950 p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6 m-4">
             <div class="flex justify-between items-center border-b border-slate-800 pb-4">
                 <div>
                     <h2 class="font-display text-2xl font-bold text-white">Game Lobby</h2>
-                    <p class="text-slate-400 text-sm mt-0.5">Share the code — everyone ready up to start.</p>
+                    <p class="text-slate-400 text-sm mt-0.5">Share the code — everyone ready up to start. (2–6 players)</p>
                 </div>
                 <div class="bg-slate-900 px-5 py-3 rounded-xl border border-slate-700 text-center">
                     <span class="block text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-0.5">Room Code</span>
@@ -358,120 +584,122 @@
                 </div>
             </div>
             <div class="space-y-2">
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Players</h3>
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Players (max 6)</h3>
                 <div id="lobbyPlayerList" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
             </div>
             <div class="flex gap-3 pt-4 border-t border-slate-800">
-                <button id="readyBtn" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition cursor-pointer">
-                    ✓ Ready Up
-                </button>
-                <button id="startMatchBtn" class="hidden flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
-                    Start Game ⚔️
-                </button>
+                <button id="readyBtn" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition cursor-pointer">✓ Ready Up</button>
+                <button id="startMatchBtn" class="hidden flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">Start Game ⚔️</button>
             </div>
         </section>
 
-        <!-- GAME -->
-        <section id="screen-game" class="hidden w-full space-y-4">
+        <!-- GAME — perimeter table layout -->
+        <section id="screen-game" class="hidden w-full" style="height:calc(100vh - 56px); position:relative; overflow:hidden;">
 
-            <!-- Turn banner -->
-            <div id="gameTurnBanner" class="p-3 rounded-xl font-black text-center text-base">
-                Waiting...
-            </div>
+            <!-- Felt background -->
+            <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%, #1a6040 0%, #10492e 40%, #08301c 80%, #041a10 100%);z-index:0;"></div>
+            <div style="position:absolute;inset:0;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,0.018) 0px,rgba(255,255,255,0.018) 1px,transparent 1px,transparent 10px);z-index:1;pointer-events:none;"></div>
 
-            <!-- Ability action panel (shown during ability phase) -->
-            <div id="abilityPanel" class="hidden ability-panel bg-slate-950 border-2 border-indigo-500 rounded-2xl p-4 shadow-2xl shadow-indigo-500/10">
-                <div class="flex items-start gap-4">
-                    <div id="abilityIcon" class="text-4xl flex-shrink-0">⚡</div>
-                    <div class="flex-1 min-w-0">
-                        <div id="abilityTitle" class="font-display font-bold text-white text-lg leading-tight">Ability Active</div>
-                        <div id="abilityDesc" class="text-slate-300 text-sm mt-1 leading-relaxed"></div>
-                        <div id="abilityStep" class="mt-2 flex items-center gap-2">
-                            <div id="abilityStepDot1" class="w-2 h-2 rounded-full bg-indigo-400"></div>
-                            <div id="abilityStepDot2" class="hidden w-2 h-2 rounded-full bg-slate-600"></div>
+            <div id="table-root" style="position:relative;z-index:2;">
+
+                <!-- TOP: opponents 1, 2, 3 -->
+                <div id="zone-top"></div>
+
+                <!-- LEFT: opponent 4 -->
+                <div id="zone-left"></div>
+
+                <!-- CENTER: board island + controls -->
+                <div id="zone-center">
+
+                    <!-- Turn banner floats here -->
+                    <div id="gameTurnBanner" class="px-4 py-1.5 rounded-xl font-black text-center text-xs shadow-lg" style="position:relative;transform:none;top:auto;left:auto;">Waiting...</div>
+
+                    <!-- Ability panel (inline above board) -->
+                    <div id="abilityPanel" class="hidden ability-panel bg-slate-950 border-2 border-indigo-500 rounded-xl p-3 shadow-2xl w-full max-w-[260px]">
+                        <div class="flex items-start gap-3">
+                            <div id="abilityIcon" class="text-3xl flex-shrink-0">⚡</div>
+                            <div class="flex-1 min-w-0">
+                                <div id="abilityTitle" class="font-display font-bold text-white text-sm leading-tight">Ability Active</div>
+                                <div id="abilityDesc" class="text-slate-300 text-xs mt-1 leading-relaxed"></div>
+                                <div id="abilityStep" class="mt-1.5 flex items-center gap-1.5">
+                                    <div id="abilityStepDot1" class="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
+                                    <div id="abilityStepDot2" class="hidden w-1.5 h-1.5 rounded-full bg-slate-600"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <div class="table-felt">
-                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
+                    <!-- Board island -->
+                    <div class="board-island flex flex-col items-center gap-3">
 
-                    <!-- Opponents -->
-                    <div id="opponentsContainer" class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                        <span style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:0.15em;">THE BOARD</span>
 
-                    <!-- Board Panel -->
-                    <div class="bg-slate-950/90 p-5 rounded-2xl border border-black/30 flex flex-col items-center space-y-4 sticky top-[80px] shadow-xl">
-                        <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">The Board</span>
-
-                        <!-- Deck + Discard -->
+                        <!-- Deck + Discard row -->
                         <div class="flex gap-5 items-end">
 
                             <!-- Draw Deck -->
-                            <div class="flex flex-col items-center gap-1.5">
-                                <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Deck</span>
-                                <div id="drawDeck" class="draw-deck-stack w-[76px] h-[108px]">
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="board-card-label">Deck</span>
+                                <div id="drawDeck" class="draw-deck-stack" style="width:66px;height:94px;">
                                     <div class="deck-layer-3 w-full h-full"></div>
                                     <div class="deck-layer-2 w-full h-full"></div>
                                     <div class="deck-top w-full h-full flex flex-col items-center justify-center gap-1">
-                                        <span class="text-2xl opacity-40">✦</span>
-                                        <span class="text-[10px] text-indigo-300 font-bold uppercase tracking-widest">Draw</span>
+                                        <span class="text-xl opacity-40">✦</span>
+                                        <span style="font-size:9px;color:#a5b4fc;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;">Draw</span>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Discard -->
-                            <div class="flex flex-col items-center gap-1.5">
-                                <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Discard</span>
-                                <div id="discardPileWrapper" class="discard-stack w-[76px] h-[108px]">
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="board-card-label">Discard</span>
+                                <div id="discardPileWrapper" class="discard-stack" style="width:66px;height:94px;">
                                     <div class="stack-shadow-2 w-full h-full"></div>
                                     <div class="stack-shadow-1 w-full h-full"></div>
-                                    <div id="discardPile" class="stack-top w-full h-full flex flex-col items-center justify-center rounded-[10px] border-2 border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-600 transition">
-                                        <span class="text-xs text-slate-600 font-bold">EMPTY</span>
+                                    <div id="discardPile" class="stack-top w-full h-full flex flex-col items-center justify-center rounded-[8px] border-2 border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-600 transition">
+                                        <span style="font-size:10px;color:#475569;font-weight:700;">EMPTY</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Drawn card display -->
-                        <div id="drawnCardArea" class="hidden flex-col items-center gap-1.5 w-full">
-                            <span class="text-[9px] text-amber-400 font-black uppercase tracking-widest">Card In Hand</span>
+                        <div id="drawnCardArea">
+                            <span style="font-size:9px;color:#fbbf24;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;">Card In Hand</span>
                             <div id="drawnCardDisplay" class="flex justify-center"></div>
-                            <button id="discardDrawnBtn" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs uppercase tracking-wide transition cursor-pointer">
-                                Discard &amp; Use Power
-                            </button>
-                            <button id="discardDrawnNoAbilityBtn" class="hidden w-full py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl text-xs uppercase tracking-wide transition cursor-pointer">
-                                Discard (no power)
-                            </button>
+                            <button id="discardDrawnBtn" class="btn-sm hidden" style="background:#4f46e5;color:white;">⚡ Discard &amp; Use Power</button>
+                            <button id="discardDrawnNoAbilityBtn" class="btn-sm hidden" style="background:#334155;color:#cbd5e1;">Discard (no power)</button>
                         </div>
 
-                        <!-- Instruction -->
-                        <div id="actionInstruction" class="text-xs text-slate-400 text-center bg-slate-900 p-3 rounded-xl border border-slate-800 w-full leading-relaxed min-h-[3rem] flex items-center justify-center">
-                            Select a deck or card to begin.
-                        </div>
+                        <!-- Instruction text -->
+                        <div id="actionInstruction">Select a deck or card to begin.</div>
 
                         <!-- Dutch button -->
-                        <button id="callDutchBtn" class="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl tracking-wider uppercase transition shadow-lg shadow-rose-600/10 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed text-sm">
-                            🗣️ Call "DUTCH!"
-                        </button>
+                        <button id="callDutchBtn">🗣️ Call "DUTCH!"</button>
+
                     </div>
                 </div>
 
-                <!-- Hero hand -->
-                <div id="heroContainer" class="border-t-2 border-dashed border-white/10 pt-4 mt-4"></div>
-            </div>
+                <!-- RIGHT: opponent 5 -->
+                <div id="zone-right"></div>
+
+                <!-- BOTTOM: hero -->
+                <div id="zone-bottom">
+                    <div id="heroContainer"></div>
+                </div>
+
+            </div><!-- /table-root -->
+
         </section>
 
         <!-- ROUND END -->
-        <section id="screen-roundend" class="hidden w-full max-w-2xl bg-slate-950 p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6">
+        <section id="screen-roundend" class="hidden w-full max-w-2xl bg-slate-950 p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6 m-4">
             <div class="text-center space-y-2">
                 <h2 class="font-display text-3xl font-bold text-amber-400">Round Over!</h2>
                 <p id="roundEndSubtitle" class="text-slate-400 text-sm"></p>
             </div>
             <div id="roundEndScores" class="space-y-2"></div>
-            <button id="nextRoundBtn" class="hidden w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition cursor-pointer uppercase tracking-wide">
-                Start Next Round ▶️
-            </button>
+            <button id="nextRoundBtn" class="hidden w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition cursor-pointer uppercase tracking-wide">Start Next Round ▶️</button>
             <p id="nextRoundWaitMsg" class="hidden text-center text-xs text-slate-500">Waiting for host to start the next round...</p>
         </section>
     </main>
@@ -511,16 +739,28 @@
                 </div>
                 <div class="space-y-1">
                     <h4 class="font-bold text-amber-400 uppercase text-xs tracking-wider">Snapping</h4>
-                    <p class="text-xs">If you <em>remember</em> that one of your cards (or an opponent's) matches the top discard card, click it to snap it out! The game won't highlight matches for you — it's all on memory. If you snap an opponent's card, you must give them one of yours in return. Wrong snap = penalty card.</p>
+                    <p class="text-xs">If you <em>remember</em> that one of your cards (or an opponent's) matches the top discard card, click it to snap it out! Wrong snap = penalty card.</p>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Toast container -->
-    <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 items-center pointer-events-none" style="min-width:320px;max-width:92vw;"></div>
+    <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 items-center pointer-events-none" style="min-width:300px;max-width:88vw;margin-right:290px;"></div>
 
-    <!-- Ability notification overlay (full-screen flash) -->
+    <!-- Activity Log Panel -->
+    <div id="activity-log-panel" class="log-collapsed">
+        <div class="log-header" id="log-toggle">
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span class="log-title">📋 Activity Log</span>
+                <span class="log-badge" id="log-badge">new</span>
+            </div>
+            <span id="log-chevron" style="font-size:10px;color:#475569;transition:transform 0.2s;">▲</span>
+        </div>
+        <div id="log-entries"></div>
+    </div>
+
+    <!-- Ability notification overlay -->
     <div id="abilityFlash" class="hidden fixed inset-0 z-30 pointer-events-none flex items-center justify-center">
         <div id="abilityFlashContent" class="text-center space-y-2 p-8 rounded-3xl border-2 shadow-2xl scale-90 opacity-0 transition-all duration-300">
             <div id="abilityFlashIcon" class="text-6xl"></div>
@@ -531,4 +771,4 @@
 
     <script type="module" src="app.js"></script>
 </body>
-</html>s
+</html>

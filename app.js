@@ -793,7 +793,7 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
             </div>
             <span class="score-chip">Pts: <span>${player.totalScore || 0}</span></span>
         </div>
-        <div class="card-grid" style="grid-template-columns: repeat(2, ${cardW}px); gap:${isHero?6:4}px;">
+        <div class="card-grid" style="grid-template-columns: repeat(2, ${cardW}px); gap:${isHero?6:4}px; width:fit-content; margin:0 auto;">
             ${player.cards.map((card, idx) => {
                 const seen = isRevealed(pid, idx);
                 const midAction = isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY';

@@ -157,6 +157,31 @@ function defaultStats() {
     return { gamesPlayed: 0, gamesWon: 0, totalScore: 0, bestScore: null, totalRounds: 0 };
 }
 
+// Preset emoji avatars a signed-in user can pick instead of their Google
+// photo. Deliberately a mixed, casual set rather than any single theme.
+const AVATAR_PRESETS = ['🐱', '🐶', '🦊', '🐻', '🐼', '🦁', '🐸', '🐵', '🦉', '🐯', '🐧', '🦄', '🃏', '🎲', '👑', '🔥', '⭐', '🌙'];
+
+// Renders either a custom emoji avatar or a Google photo into a container
+// element (a plain div, not an <img> — emoji can't be an img src). Falls
+// back cleanly to a "?" if neither is available yet.
+function renderAvatarInto(elId, photoURL, avatarEmoji) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (avatarEmoji) {
+        el.innerHTML = '';
+        el.textContent = avatarEmoji;
+        el.style.backgroundImage = '';
+    } else if (photoURL) {
+        el.textContent = '';
+        el.style.backgroundImage = `url('${photoURL}')`;
+        el.style.backgroundSize = 'cover';
+        el.style.backgroundPosition = 'center';
+    } else {
+        el.textContent = '?';
+        el.style.backgroundImage = '';
+    }
+}
+
 async function loadOrCreateProfile(user) {
     const ref = doc(db, "users", user.uid);
     const snap = await getDoc(ref);
@@ -175,31 +200,34 @@ async function loadOrCreateProfile(user) {
             email: user.email || "",
             photoURL: user.photoURL || "",
             username: user.displayName || "Player",
+            avatarEmoji: null, // null = use Google photo; set to an emoji string to override
             stats: defaultStats()
         };
         await setDoc(ref, currentProfile);
     }
     if (!currentProfile.stats) currentProfile.stats = defaultStats();
+    if (currentProfile.avatarEmoji === undefined) currentProfile.avatarEmoji = null;
 }
 
 function applySignedInUI() {
     const name = currentProfile?.username || currentUser.displayName || "Player";
     const photo = currentUser.photoURL || "";
+    const avatarEmoji = currentProfile?.avatarEmoji || null;
 
     document.getElementById("headerSignInBtn").classList.add("hidden");
     const accountBtn = document.getElementById("headerAccountBtn");
     accountBtn.classList.remove("hidden");
-    document.getElementById("headerAvatar").src = photo;
+    renderAvatarInto("headerAvatar", photo, avatarEmoji);
     document.getElementById("headerAccountName").textContent = name;
 
-    document.getElementById("dropdownAvatar").src = photo;
+    renderAvatarInto("dropdownAvatar", photo, avatarEmoji);
     document.getElementById("dropdownName").textContent = name;
     document.getElementById("dropdownEmail").textContent = currentUser.email || "";
 
     document.getElementById("landingSignInBtn").classList.add("hidden");
     const chip = document.getElementById("landingSignedInChip");
     chip.classList.remove("hidden");
-    document.getElementById("landingAvatar").src = photo;
+    renderAvatarInto("landingAvatar", photo, avatarEmoji);
     document.getElementById("landingSignedInName").textContent = name;
 
     // Pre-fill the username field with the saved custom username, so it's
@@ -263,7 +291,8 @@ document.getElementById("headerAccountBtn").addEventListener("click", () => {
 document.addEventListener("click", (e) => {
     const dropdown = document.getElementById("accountDropdown");
     if (dropdown.classList.contains("hidden")) return;
-    if (!dropdown.contains(e.target) && e.target.id !== "headerAccountBtn") {
+    const clickedAccountBtn = e.target.closest("#headerAccountBtn");
+    if (!dropdown.contains(e.target) && !clickedAccountBtn) {
         dropdown.classList.add("hidden");
     }
 });
@@ -353,6 +382,71 @@ async function renderStatsModal() {
         historyList.innerHTML = `<div class="text-xs text-rose-400 text-center py-3">Couldn't load game history.</div>`;
     }
 }
+
+// ==========================================
+// Edit Profile modal — username + emoji avatar picker
+// ==========================================
+let pendingAvatarChoice = undefined; // undefined = unchanged this session, null = cleared to Google photo, string = chosen emoji
+
+document.getElementById("openEditProfileBtn").addEventListener("click", () => {
+    document.getElementById("accountDropdown").classList.add("hidden");
+    openEditProfileModal();
+});
+document.getElementById("closeEditProfileBtn").addEventListener("click", () => {
+    document.getElementById("editProfileModal").classList.add("hidden");
+});
+
+function openEditProfileModal() {
+    pendingAvatarChoice = undefined;
+    document.getElementById("editProfileUsernameInput").value = currentProfile?.username || currentUser.displayName || "";
+    renderAvatarPickerGrid();
+    document.getElementById("editProfileModal").classList.remove("hidden");
+}
+
+function renderAvatarPickerGrid() {
+    const grid = document.getElementById("avatarPickerGrid");
+    const currentChoice = pendingAvatarChoice !== undefined ? pendingAvatarChoice : (currentProfile?.avatarEmoji || null);
+    grid.innerHTML = AVATAR_PRESETS.map(emoji => {
+        const selected = emoji === currentChoice;
+        return `<button type="button" data-emoji="${emoji}" class="avatar-pick-btn w-10 h-10 rounded-xl flex items-center justify-center text-xl transition border-2 ${selected ? 'border-amber-500 bg-amber-500/10' : 'border-slate-800 bg-slate-950 hover:border-slate-600'}">${emoji}</button>`;
+    }).join('');
+    grid.querySelectorAll(".avatar-pick-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            pendingAvatarChoice = btn.dataset.emoji;
+            renderAvatarPickerGrid();
+        });
+    });
+}
+
+document.getElementById("clearAvatarBtn").addEventListener("click", () => {
+    pendingAvatarChoice = null;
+    renderAvatarPickerGrid();
+});
+
+document.getElementById("saveEditProfileBtn").addEventListener("click", async () => {
+    if (!currentUser) return;
+    const newUsername = document.getElementById("editProfileUsernameInput").value.trim() || currentProfile?.username || "Player";
+    const newAvatarEmoji = pendingAvatarChoice !== undefined ? pendingAvatarChoice : (currentProfile?.avatarEmoji || null);
+
+    currentProfile.username = newUsername;
+    currentProfile.avatarEmoji = newAvatarEmoji;
+    await updateDoc(doc(db, "users", currentUser.uid), { username: newUsername, avatarEmoji: newAvatarEmoji });
+
+    // Keep the landing-page username field in sync with this edit, same as
+    // the existing inline-edit flow does, so create/join room still uses it.
+    const usernameInput = document.getElementById("usernameInput");
+    usernameInput.value = newUsername;
+    usernameInput.dataset.userEdited = "true";
+
+    applySignedInUI();
+
+    const hint = document.getElementById("editProfileSavedHint");
+    hint.classList.remove("hidden");
+    setTimeout(() => {
+        hint.classList.add("hidden");
+        document.getElementById("editProfileModal").classList.add("hidden");
+    }, 900);
+});
 
 // Called once per finished round (see the ROUND_END hook in advanceTurn).
 // Each signed-in client only ever writes ITS OWN profile/history — never

@@ -76,15 +76,7 @@
             color: rgba(99,102,241,0.5);
         }
 
-        /* Snap glow */
-        .snap-eligible {
-            box-shadow: 0 0 0 3px #10b981, 0 0 20px rgba(16,185,129,0.5), 0 4px 12px rgba(0,0,0,0.4) !important;
-            animation: snap-pulse 1s ease-in-out infinite;
-        }
-        @keyframes snap-pulse {
-            0%, 100% { box-shadow: 0 0 0 3px #10b981, 0 0 20px rgba(16,185,129,0.5), 0 4px 12px rgba(0,0,0,0.4); }
-            50% { box-shadow: 0 0 0 4px #10b981, 0 0 30px rgba(16,185,129,0.7), 0 4px 12px rgba(0,0,0,0.4); }
-        }
+        /* Snap glow rule intentionally removed — snapping is memory-based and gets no visual hint */
 
         /* Ability target glow */
         .ability-own-target {
@@ -414,6 +406,10 @@
             <div class="space-y-4 text-sm text-slate-300 leading-relaxed">
                 <p><strong class="text-white">Goal:</strong> Have the lowest total hand score when Dutch is called.</p>
                 <div class="space-y-2">
+                    <h4 class="font-bold text-amber-400 uppercase text-xs tracking-wider">Memorise First</h4>
+                    <p class="text-xs">At the start of each round you may peek at your bottom two cards only (#3 and #4) — memorise them, because you won't get to look again unless an ability lets you.</p>
+                </div>
+                <div class="space-y-2">
                     <h4 class="font-bold text-amber-400 uppercase text-xs tracking-wider">Card Values</h4>
                     <div class="grid grid-cols-2 gap-1.5 text-xs">
                         <div class="bg-slate-950 rounded-lg p-2 flex justify-between"><span>Ace</span><span class="font-bold text-white">1 pt</span></div>
@@ -435,7 +431,7 @@
                 </div>
                 <div class="space-y-1">
                     <h4 class="font-bold text-amber-400 uppercase text-xs tracking-wider">Snapping</h4>
-                    <p class="text-xs">If the top discard matches any card on the board, click it to snap it out! If you snap an opponent's card, you must give them one of yours in return. Wrong snap = penalty card.</p>
+                    <p class="text-xs">If you <em>remember</em> that one of your cards (or an opponent's) matches the top discard card, click it to snap it out! The game won't highlight matches for you — it's all on memory. If you snap an opponent's card, you must give them one of yours in return. Wrong snap = penalty card.</p>
                 </div>
             </div>
         </div>

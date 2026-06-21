@@ -124,7 +124,7 @@ let localPlayerId = Math.random().toString(36).substring(2, 9);
 let roomCode = "";
 let gameState = {};
 let revealed = {};
-let peeksRemaining = 0;
+let initialPeekIdxsRemaining = []; // fixed set of card indices (bottom two) the player must peek at before play
 let roundSeenKey = null;
 let lastAbilityType = null; // track to avoid re-flashing
 
@@ -307,9 +307,40 @@ async function pushState(partial) {
 }
 
 // ==========================================
+// Public event log — lets every player see that *something* happened
+// (a swap, a peek, an ability, a snap) WITHOUT revealing any card identity.
+// Each event has a unique id; clients track the last id they've shown so
+// they don't re-toast on every snapshot, and the player who acted already
+// got their own specific toast, so this is shown to everyone else only.
+// ==========================================
+let lastShownEventId = null;
+
+function makeEvent(message, targetPid = null, targetMessage = null) {
+    return {
+        id: Math.random().toString(36).substring(2, 10),
+        message,
+        targetMessage,
+        actorId: localPlayerId,
+        targetId: targetPid
+    };
+}
+
+function maybeShowPublicEvent() {
+    const evt = gameState.lastEvent;
+    if (!evt || evt.id === lastShownEventId) return;
+    lastShownEventId = evt.id;
+    // The player who performed the action already saw their own specific toast —
+    // don't double-toast them with the generic public version.
+    if (evt.actorId === localPlayerId) return;
+    const isTarget = evt.targetId === localPlayerId;
+    showToast((isTarget && evt.targetMessage) ? evt.targetMessage : evt.message, 'info', 3000);
+}
+
+// ==========================================
 // Global UI Rendering Router
 // ==========================================
 function renderState() {
+    maybeShowPublicEvent();
     landingScreen.classList.add("hidden");
     lobbyScreen.classList.add("hidden");
     gameScreen.classList.add("hidden");
@@ -323,9 +354,12 @@ function renderState() {
         const key = `${roomCode}-${gameState.roundNumber}`;
         if (roundSeenKey !== key) {
             roundSeenKey = key;
-            peeksRemaining = 2;
+            const handSize = gameState.players[localPlayerId]?.cards?.length || 4;
+            // Only the bottom two cards (last two indices) may be peeked at, in order — no choice.
+            initialPeekIdxsRemaining = [handSize - 2, handSize - 1];
             revealed = {};
             lastAbilityType = null;
+            lastShownEventId = gameState.lastEvent?.id || null;
         }
         renderGameBoard();
     } else if (gameState.status === "ROUND_END") {
@@ -503,7 +537,8 @@ function renderGameBoard() {
     dutchBtn.disabled = !(isMyTurn && gameState.turnPhase === 'AWAIT_DRAW' && !gameState.dutchCalledBy);
 
     // Ability panel
-    const isAbilityPhase = isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY' && gameState.ability;
+    const activeAbility = gameState.turnPhase === 'AWAIT_ABILITY' && gameState.ability;
+    const isAbilityPhase = isMyTurn && activeAbility;
     if (isAbilityPhase) {
         const a = gameState.ability;
         showAbilityPanel(a.type, a.step || 1);
@@ -515,6 +550,16 @@ function renderGameBoard() {
             const cfg = ABILITY_CONFIG[a.type];
             if (cfg) flashAbility(cfg.icon, cfg.title, cfg.steps[0], cfg.flashColor);
         }
+    } else if (activeAbility) {
+        // Not my turn, but someone else is resolving an ability — let me know without revealing card values.
+        hideAbilityPanel();
+        const actingName = gameState.players[activeTurnPlayerId]?.name || 'A player';
+        const abilityKey = `${gameState.ability.type}-${gameState.roundNumber}-opp`;
+        if (lastAbilityType !== abilityKey) {
+            lastAbilityType = abilityKey;
+            const cfg = ABILITY_CONFIG[gameState.ability.type];
+            if (cfg) flashAbility(cfg.icon, `${actingName} is using an ability`, `${cfg.title} — wait while they resolve it.`, cfg.flashColor);
+        }
     } else {
         hideAbilityPanel();
     }
@@ -525,8 +570,8 @@ function renderGameBoard() {
 
     if (gameState.pendingGive && gameState.pendingGive.fromPid === localPlayerId) {
         setInstruction(`Choose one of YOUR cards to give to ${gameState.players[gameState.pendingGive.toPid]?.name || 'them'}.`);
-    } else if (peeksRemaining > 0) {
-        setInstruction(`Memorise your cards — peek at ${peeksRemaining} of your own card${peeksRemaining > 1 ? 's' : ''} before play begins.`);
+    } else if (initialPeekIdxsRemaining.length > 0) {
+        setInstruction(`Memorise your bottom cards — click card #${initialPeekIdxsRemaining[0] + 1} to peek at it.`);
     } else if (isMyTurn && gameState.turnPhase === 'AWAIT_DRAW') {
         setInstruction("Your turn — draw from the deck, take the top discard, or call Dutch!");
     } else if (isMyTurn && gameState.turnPhase === 'AWAIT_DECISION') {
@@ -536,7 +581,7 @@ function renderGameBoard() {
     } else if (isAbilityPhase) {
         setInstruction(abilityInstructionText());
     } else {
-        setInstruction(canSnap ? "⚡ You can SNAP any matching card — yours or anyone else's!" : "Watch the board...");
+        setInstruction("Watch the discard pile — if you remember a matching card anywhere on the board, click it to snap!");
     }
 
     // Render player areas
@@ -604,7 +649,8 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
             ${player.cards.map((card, idx) => {
                 const seen = isRevealed(pid, idx);
                 const midAction = isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY';
-                const snapEligible = canSnap && !midAction && !isPendingGiveFrom && topCard && card.name === topCard.name;
+                // NOTE: We intentionally do NOT compute or reveal which cards match the discard pile.
+                // Snapping must be based on the player's own memory, not a visual hint.
 
                 // Ability targeting highlight
                 let abilityClass = '';
@@ -625,7 +671,7 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
 
                 if (isPendingGiveFrom && pid === localPlayerId) abilityClass = 'ability-own-target';
 
-                const extraCardClass = snapEligible ? 'snap-eligible' : abilityClass;
+                const extraCardClass = abilityClass;
 
                 if (seen) {
                     const cc = cardColorClass(seen);
@@ -644,12 +690,10 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
                             <div class="rank">${rank}</div>
                             ${suit && !seen.isJoker ? `<div class="suit-sm">${suit}</div>` : ''}
                         </div>
-                        ${snapEligible ? '<div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);font-size:7px;font-weight:900;color:#10b981;letter-spacing:0.1em;text-transform:uppercase">SNAP!</div>' : ''}
                     </div>`;
                 }
 
                 return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card card-back w-[90px] h-[126px] ${extraCardClass}" style="min-width:0">
-                    ${snapEligible ? '<div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);font-size:7px;font-weight:900;color:#10b981;letter-spacing:0.1em;text-transform:uppercase;z-index:10">SNAP?</div>' : ''}
                     ${!isHero ? `<div style="position:absolute;top:4px;right:6px;font-size:9px;color:rgba(99,102,241,0.5);font-weight:700">#${idx+1}</div>` : `<div style="position:absolute;top:4px;right:6px;font-size:9px;color:rgba(99,102,241,0.5);font-weight:700">#${idx+1}</div>`}
                 </div>`;
             }).join('')}
@@ -670,7 +714,7 @@ document.getElementById("drawDeck").addEventListener("click", async () => {
     if (gameState.status !== 'PLAYING') return;
     if (activePid() !== localPlayerId) return;
     if (gameState.turnPhase !== 'AWAIT_DRAW') return;
-    if (peeksRemaining > 0) { showToast("Finish peeking at your cards first!", 'warning'); return; }
+    if (initialPeekIdxsRemaining.length > 0) { showToast("Finish memorising your bottom cards first!", 'warning'); return; }
     if (!gameState.deck || gameState.deck.length === 0) { showToast("The deck is empty!", 'warning'); return; }
 
     const freshDeck = [...gameState.deck];
@@ -682,7 +726,7 @@ document.getElementById("discardPile").addEventListener("click", async () => {
     if (gameState.status !== 'PLAYING') return;
     if (activePid() !== localPlayerId) return;
     if (gameState.turnPhase !== 'AWAIT_DRAW') return;
-    if (peeksRemaining > 0) { showToast("Finish peeking at your cards first!", 'warning'); return; }
+    if (initialPeekIdxsRemaining.length > 0) { showToast("Finish memorising your bottom cards first!", 'warning'); return; }
     if (!gameState.discard || gameState.discard.length === 0) { showToast("The discard pile is empty!", 'warning'); return; }
 
     const freshDiscard = [...gameState.discard];
@@ -819,6 +863,7 @@ async function handleCardInteraction(pid, idx) {
             pendingGive: null
         });
         showToast(`Card given to ${gameState.players[toPid]?.name || 'them'}.`, 'info', 2000);
+        await pushState({ lastEvent: makeEvent(`${gameState.players[localPlayerId]?.name || 'A player'} handed a card to ${gameState.players[toPid]?.name || 'someone'}.`) });
         return;
     }
 
@@ -837,16 +882,25 @@ async function handleCardInteraction(pid, idx) {
         myCards[idx] = gameState.drawnCard.card;
         const newDiscard = [...gameState.discard, oldCard];
         showToast("Card swapped!", 'success', 1500);
-        await advanceTurn({ [`players.${localPlayerId}.cards`]: myCards, discard: newDiscard, drawnCard: null });
+        const myName = gameState.players[localPlayerId]?.name || 'A player';
+        await advanceTurn({
+            [`players.${localPlayerId}.cards`]: myCards, discard: newDiscard, drawnCard: null,
+            lastEvent: makeEvent(`${myName} swapped their card #${idx + 1}.`)
+        });
         return;
     }
 
-    // 4. Initial peek phase
-    if (peeksRemaining > 0 && pid === localPlayerId) {
+    // 4. Initial peek phase — only the bottom two cards may be peeked, one at a time, in order
+    if (initialPeekIdxsRemaining.length > 0 && pid === localPlayerId) {
+        const nextRequiredIdx = initialPeekIdxsRemaining[0];
+        if (idx !== nextRequiredIdx) {
+            showToast(`Memorise your bottom cards first — click card #${nextRequiredIdx + 1}.`, 'warning', 2000);
+            return;
+        }
         const card = gameState.players[localPlayerId].cards[idx];
-        peeksRemaining -= 1;
+        initialPeekIdxsRemaining = initialPeekIdxsRemaining.slice(1);
         reveal(pid, idx, card, 4000);
-        showToast(`Peeked at card #${idx + 1} — remember it! ${peeksRemaining > 0 ? `${peeksRemaining} peek${peeksRemaining > 1 ? 's' : ''} left.` : 'No more peeks.'}`, 'info', 3000);
+        showToast(`Peeked at card #${idx + 1} — memorise it! ${initialPeekIdxsRemaining.length > 0 ? `${initialPeekIdxsRemaining.length} more to go.` : 'All set — play begins now.'}`, 'info', 3000);
         return;
     }
 
@@ -865,7 +919,8 @@ async function resolveAbilityClick(pid, idx) {
         const card = gameState.players[pid].cards[idx];
         reveal(pid, idx, card, 4000);
         showToast(`👁️ You peeked at your card #${idx + 1} — it's ${card.name}${card.isJoker ? '' : card.suit}!`, 'ability', 3500);
-        await advanceTurn({ ability: null });
+        const myName = gameState.players[localPlayerId]?.name || 'A player';
+        await advanceTurn({ ability: null, lastEvent: makeEvent(`${myName} used the 7/8 ability to look at their own card #${idx + 1}.`) });
         return;
     }
 
@@ -874,7 +929,16 @@ async function resolveAbilityClick(pid, idx) {
         const card = gameState.players[pid].cards[idx];
         reveal(pid, idx, card, 4000);
         showToast(`🔍 Spied on ${gameState.players[pid]?.name}'s card #${idx + 1} — it's ${card.name}${card.isJoker ? '' : card.suit}!`, 'ability', 3500);
-        await advanceTurn({ ability: null });
+        const myName = gameState.players[localPlayerId]?.name || 'A player';
+        const targetName = gameState.players[pid]?.name || 'an opponent';
+        await advanceTurn({
+            ability: null,
+            lastEvent: makeEvent(
+                `${myName} used the 9/10 ability to look at ${targetName}'s card #${idx + 1}.`,
+                pid,
+                `${myName} used the 9/10 ability to look at YOUR card #${idx + 1}.`
+            )
+        });
         return;
     }
 
@@ -891,10 +955,17 @@ async function resolveAbilityClick(pid, idx) {
             myCards[a.ownIdx] = oppCards[idx];
             oppCards[idx] = tmp;
             showToast(`🔀 Swapped with ${gameState.players[pid]?.name}'s card #${idx + 1}!`, 'success', 2500);
+            const myName = gameState.players[localPlayerId]?.name || 'A player';
+            const targetName = gameState.players[pid]?.name || 'an opponent';
             await advanceTurn({
                 [`players.${localPlayerId}.cards`]: myCards,
                 [`players.${pid}.cards`]: oppCards,
-                ability: null
+                ability: null,
+                lastEvent: makeEvent(
+                    `${myName} blind-swapped their card #${a.ownIdx + 1} with ${targetName}'s card #${idx + 1}.`,
+                    pid,
+                    `${myName} blind-swapped their card #${a.ownIdx + 1} with YOUR card #${idx + 1}.`
+                )
             });
         }
         return;
@@ -921,6 +992,7 @@ async function resolveAbilityClick(pid, idx) {
                 );
                 const myCards = [...gameState.players[localPlayerId].cards];
                 const oppCards = [...gameState.players[pid].cards];
+                const myName = gameState.players[localPlayerId]?.name || 'A player';
                 if (doSwap) {
                     const tmp = myCards[a.ownIdx];
                     myCards[a.ownIdx] = oppCards[idx];
@@ -929,11 +1001,23 @@ async function resolveAbilityClick(pid, idx) {
                     await advanceTurn({
                         [`players.${localPlayerId}.cards`]: myCards,
                         [`players.${pid}.cards`]: oppCards,
-                        ability: null
+                        ability: null,
+                        lastEvent: makeEvent(
+                            `${myName} used the Black King ability and swapped their card #${a.ownIdx + 1} with ${oppName}'s card #${idx + 1}.`,
+                            pid,
+                            `${myName} used the Black King ability and swapped their card #${a.ownIdx + 1} with YOUR card #${idx + 1}.`
+                        )
                     });
                 } else {
                     showToast("Kept your cards as they are.", 'info', 1500);
-                    await advanceTurn({ ability: null });
+                    await advanceTurn({
+                        ability: null,
+                        lastEvent: makeEvent(
+                            `${myName} used the Black King ability to look at their own and ${oppName}'s cards, then kept everything as is.`,
+                            pid,
+                            `${myName} used the Black King ability to look at their own card and YOUR card #${idx + 1}, then kept everything as is.`
+                        )
+                    });
                 }
             }, 150);
         }
@@ -954,16 +1038,25 @@ async function attemptSnap(pid, idx) {
         const targetCards = [...gameState.players[pid].cards];
         targetCards.splice(idx, 1);
         const newDiscard = [...gameState.discard, targetCard];
+        const myName = gameState.players[localPlayerId]?.name || 'A player';
         if (pid === localPlayerId) {
             showToast("⚡ Snap! Card removed from your hand!", 'success', 2500);
-            await pushState({ [`players.${pid}.cards`]: targetCards, discard: newDiscard });
+            await pushState({
+                [`players.${pid}.cards`]: targetCards, discard: newDiscard,
+                lastEvent: makeEvent(`${myName} snapped one of their own cards.`)
+            });
         } else {
             const oppName = gameState.players[pid]?.name || 'them';
             showToast(`⚡ Snapped ${oppName}'s card! Now pick one of YOUR cards to give them.`, 'success', 4000);
             await pushState({
                 [`players.${pid}.cards`]: targetCards,
                 discard: newDiscard,
-                pendingGive: { fromPid: localPlayerId, toPid: pid, toIdx: idx }
+                pendingGive: { fromPid: localPlayerId, toPid: pid, toIdx: idx },
+                lastEvent: makeEvent(
+                    `${myName} snapped ${oppName}'s card #${idx + 1}!`,
+                    pid,
+                    `${myName} snapped YOUR card #${idx + 1}!`
+                )
             });
         }
     } else {
@@ -971,7 +1064,11 @@ async function attemptSnap(pid, idx) {
         const freshDeck = [...gameState.deck];
         const penaltyCard = freshDeck.pop();
         const myCards = [...gameState.players[localPlayerId].cards, penaltyCard];
-        await pushState({ deck: freshDeck, [`players.${localPlayerId}.cards`]: myCards });
+        const myName = gameState.players[localPlayerId]?.name || 'A player';
+        await pushState({
+            deck: freshDeck, [`players.${localPlayerId}.cards`]: myCards,
+            lastEvent: makeEvent(`${myName} attempted a snap but got it wrong and took a penalty card.`)
+        });
         showToast("❌ Wrong snap! Penalty card added to your hand.", 'error', 3000);
     }
 }

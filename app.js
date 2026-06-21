@@ -729,76 +729,55 @@ function renderGameBoard() {
     // 2 opps → left, right
     // 3 opps → left, top, right
     // 4 opps → left, top(2), right
-    // 5 opps → left, top(2), right + bottom(1) via extra bottom zone
-    // Actually using: left, right always; top gets extras
-    // Requested rules:
-    // 2 players (1 opp)  → left + right split? No — "left and right" means 1 each side
-    // 2 opps             → left + right
-    // 3 opps             → left + top + right  (one on each side, one top)
-    // 4 opps             → left + top(2) + right
-    // 5 opps             → left + top(2) + right + bottom-extra(1)
-    // 6 opps would be    → left + top(2) + right + bottom-extra(2)
-    // We show an extra bottom zone for overflow (zone-extra-bottom)
+    // 5 opps → left(2), top(2), right
+    // 6 opps → left(2), top(2), right(2)
+    // Side columns can stack up to 2 opponents each so everyone stays
+    // grouped around the board/hero instead of floating in an extra row.
 
     // Assign positions
-    let topPids = [], leftPid = null, rightPid = null, extraBottomPids = [];
+    let topPids = [], leftPids = [], rightPids = [];
 
     if (n === 1) {
-        leftPid = opponents[0]; // just put solo opponent on left
+        leftPids = [opponents[0]]; // just put solo opponent on left
     } else if (n === 2) {
-        leftPid = opponents[0];
-        rightPid = opponents[1];
+        leftPids = [opponents[0]];
+        rightPids = [opponents[1]];
     } else if (n === 3) {
-        leftPid = opponents[0];
+        leftPids = [opponents[0]];
         topPids = [opponents[1]];
-        rightPid = opponents[2];
+        rightPids = [opponents[2]];
     } else if (n === 4) {
-        leftPid = opponents[0];
+        leftPids = [opponents[0]];
         topPids = [opponents[1], opponents[2]];
-        rightPid = opponents[3];
+        rightPids = [opponents[3]];
     } else if (n === 5) {
-        leftPid = opponents[0];
+        leftPids = [opponents[0], opponents[4]];
         topPids = [opponents[1], opponents[2]];
-        rightPid = opponents[3];
-        extraBottomPids = [opponents[4]];
+        rightPids = [opponents[3]];
     } else {
-        leftPid = opponents[0];
+        leftPids = [opponents[0], opponents[4]];
         topPids = [opponents[1], opponents[2]];
-        rightPid = opponents[3];
-        extraBottomPids = opponents.slice(4);
+        rightPids = [opponents[3], opponents[5]];
     }
 
-    if (leftPid) {
-        const el = createPlayerBoardElement(gameState.players[leftPid], leftPid, false, topCard, canSnap, 'side');
+    leftPids.forEach(pid => {
+        const el = createPlayerBoardElement(gameState.players[pid], pid, false, topCard, canSnap, 'side');
         zoneLeft.appendChild(el);
-    }
-    if (rightPid) {
-        const el = createPlayerBoardElement(gameState.players[rightPid], rightPid, false, topCard, canSnap, 'side');
+    });
+    rightPids.forEach(pid => {
+        const el = createPlayerBoardElement(gameState.players[pid], pid, false, topCard, canSnap, 'side');
         zoneRight.appendChild(el);
-    }
+    });
     topPids.forEach(pid => {
         const el = createPlayerBoardElement(gameState.players[pid], pid, false, topCard, canSnap, 'top');
         zoneTop.appendChild(el);
     });
 
-    // Extra bottom opponents (5-6 player games)
-    let extraZone = document.getElementById('zone-extra-bottom');
-    if (extraBottomPids.length > 0) {
-        if (!extraZone) {
-            extraZone = document.createElement('div');
-            extraZone.id = 'zone-extra-bottom';
-            // Insert before zone-bottom in the DOM so it sits in the extra-bar grid row
-            const zoneBottom = document.getElementById('zone-bottom');
-            zoneBottom.parentNode.insertBefore(extraZone, zoneBottom);
-        }
-        extraZone.innerHTML = '';
-        extraBottomPids.forEach(pid => {
-            const el = createPlayerBoardElement(gameState.players[pid], pid, false, topCard, canSnap, 'top');
-            extraZone.appendChild(el);
-        });
-    } else if (extraZone) {
-        extraZone.remove();
-    }
+    // No-op: extra-bottom row removed — overflow opponents now stack in
+    // the left/right side zones instead. Clean up any leftover element
+    // from a previous render/version.
+    const extraZone = document.getElementById('zone-extra-bottom');
+    if (extraZone) extraZone.remove();
 
     const heroObj = gameState.players[localPlayerId];
     if (heroObj) {

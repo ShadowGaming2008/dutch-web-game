@@ -723,18 +723,27 @@ function renderGameBoard() {
     heroContainer.innerHTML = "";
 
     const opponents = Object.keys(gameState.players).filter(pid => pid !== localPlayerId);
-    // Distribute: top gets first 3, left gets 4th, right gets 5th
+    // Layout strategy:
+    // 1 opp  → top
+    // 2 opps → left + right
+    // 3 opps → top + left + right
+    // 4 opps → top(2) + left + right
+    // 5 opps → top(3) + left + right
+    const n = opponents.length;
     opponents.forEach((pid, i) => {
         const playerObj = gameState.players[pid];
-        const el = createPlayerBoardElement(playerObj, pid, false, topCard, canSnap);
-        if (i < 3) {
-            zoneTop.appendChild(el);
-        } else if (i === 3) {
+        const isSide = (n === 2) || (n >= 3 && i >= n - 2);
+        const isLeft  = (n === 2 && i === 0) || (n >= 3 && i === n - 2);
+        const isRight = (n === 2 && i === 1) || (n >= 3 && i === n - 1);
+        const el = createPlayerBoardElement(playerObj, pid, false, topCard, canSnap, isSide);
+        if (isLeft) {
             el.classList.add("side-zone");
             zoneLeft.appendChild(el);
-        } else if (i === 4) {
+        } else if (isRight) {
             el.classList.add("side-zone");
             zoneRight.appendChild(el);
+        } else {
+            zoneTop.appendChild(el);
         }
     });
 
@@ -766,7 +775,7 @@ function reveal(pid, idx, card, ms = NOTIFY_MS) {
     setTimeout(() => { renderGameBoard(); }, ms + 50);
 }
 
-function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
+function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, isSide = false) {
     const root = document.createElement("div");
     const isMyTurn = activePid() === localPlayerId;
     const isPendingGiveFrom = gameState.pendingGive?.fromPid === localPlayerId;
@@ -778,99 +787,81 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
 
     const isActiveTurn = activePid() === pid;
 
-    // Determine card size based on zone
-    const cardW = isHero ? 82 : 64;
-    const cardH = isHero ? 116 : 90;
+    // Card size: hero > top-zone opponents > side-zone opponents
+    const cardW = isHero ? 78 : isSide ? 54 : 60;
+    const cardH = isHero ? 110 : isSide ? 76 : 84;
+    // Side zones show 1 column so they don't need width, top zones show 2 cols
+    const cols = isSide ? 2 : 2;
+    const gap  = isHero ? 6 : 4;
+
+    const cardsHTML = player.cards.map((card, idx) => {
+        const seen = isRevealed(pid, idx);
+
+        let abilityClass = '';
+        if (isAbilityPhase && gameState.ability) {
+            const a = gameState.ability;
+            if (a.type === '78' && pid === localPlayerId) abilityClass = 'ability-own-target';
+            if (a.type === '910' && pid !== localPlayerId) abilityClass = 'ability-opp-target';
+            if (a.type === 'jq') {
+                if (a.step === 1 && pid === localPlayerId) abilityClass = 'ability-own-target';
+                if (a.step === 2 && pid !== localPlayerId) abilityClass = 'ability-opp-target';
+                if (a.step === 2 && pid === localPlayerId && a.ownIdx === idx) abilityClass = 'ability-selected';
+            }
+            if (a.type === 'k') {
+                if (a.step === 1) {
+                    abilityClass = 'ability-opp-target';
+                } else if (a.first) {
+                    const isFirstSlot = a.first.pid === pid && a.first.idx === idx;
+                    const bothWouldBeOwn = a.first.pid === localPlayerId && pid === localPlayerId;
+                    if (isFirstSlot) abilityClass = 'ability-selected';
+                    else if (!bothWouldBeOwn) abilityClass = 'ability-opp-target';
+                }
+            }
+        }
+        if (isPendingGiveFrom && pid === localPlayerId) abilityClass = 'ability-own-target';
+
+        const hl = isHighlighted(pid, idx) ? 'highlight-glow' : '';
+        const extraCardClass = `${abilityClass} ${hl}`.trim();
+
+        if (!card) {
+            return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card ${hl}" style="cursor:default;width:${cardW}px;height:${cardH}px;border-radius:8px;border:2px dashed rgba(100,116,139,0.5);display:flex;align-items:center;justify-content:center">
+                <div class="card-slot-number" style="position:static;background:none;border:none;box-shadow:none;color:#475569">#${idx + 1}</div>
+            </div>`;
+        }
+
+        if (seen) {
+            const cc = cardColorClass(seen);
+            const suit = seen.isJoker ? '🃏' : seen.suit;
+            const rank = seen.isJoker ? '🃏' : seen.name;
+            return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card playing-card card-revealing ${extraCardClass}" style="width:${cardW}px;height:${cardH}px">
+                <div class="card-slot-number">#${idx + 1}</div>
+                <div class="corner-tl ${cc}"><div class="rank">${rank}</div>${suit && !seen.isJoker ? `<div class="suit-sm">${suit}</div>` : ''}</div>
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.07;font-size:2rem" class="${cc}">${suit}</div>
+                <div class="text-center"><div class="text-xl ${cc}">${suit}</div></div>
+                <div class="corner-br ${cc}"><div class="rank">${rank}</div>${suit && !seen.isJoker ? `<div class="suit-sm">${suit}</div>` : ''}</div>
+            </div>`;
+        }
+
+        return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card card-back ${extraCardClass}" style="width:${cardW}px;height:${cardH}px">
+            <div class="card-slot-number">#${idx + 1}</div>
+        </div>`;
+    }).join('');
 
     root.innerHTML = `
         <div class="player-meta">
             <div class="player-name-row">
                 ${isActiveTurn ? '<div class="turn-dot"></div>' : ''}
-                <span style="font-size:12px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px">${player.name}</span>
+                <span style="font-size:${isSide?11:12}px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${isSide?80:90}px">${player.name}</span>
                 ${isHero ? '<span class="status-badge" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.25)">You</span>' : ''}
                 ${gameState.dutchCalledBy === pid ? '<span class="status-badge" style="background:rgba(239,68,68,0.15);color:#fca5a5;border:1px solid rgba(239,68,68,0.25);animation:dot-pulse 1s infinite">Dutch!</span>' : ''}
                 ${isPendingGiveTo ? '<span class="status-badge" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.25)">Receiving</span>' : ''}
             </div>
             <span class="score-chip">Pts: <span>${player.totalScore || 0}</span></span>
         </div>
-        <div class="card-grid" style="grid-template-columns: repeat(2, ${cardW}px); gap:${isHero?6:4}px; width:fit-content; margin:0 auto;">
-            ${player.cards.map((card, idx) => {
-                const seen = isRevealed(pid, idx);
-                const midAction = isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY';
-                // NOTE: We intentionally do NOT compute or reveal which cards match the discard pile.
-                // Snapping must be based on the player's own memory, not a visual hint.
-
-                // Ability targeting highlight
-                let abilityClass = '';
-                if (isAbilityPhase && gameState.ability) {
-                    const a = gameState.ability;
-                    if (a.type === '78' && pid === localPlayerId) {
-                        abilityClass = 'ability-own-target';
-                    }
-                    if (a.type === '910' && pid !== localPlayerId) {
-                        abilityClass = 'ability-opp-target';
-                    }
-                    if (a.type === 'jq') {
-                        if (a.step === 1 && pid === localPlayerId) abilityClass = 'ability-own-target';
-                        if (a.step === 2 && pid !== localPlayerId) abilityClass = 'ability-opp-target';
-                        if (a.step === 2 && pid === localPlayerId && a.ownIdx === idx) abilityClass = 'ability-selected';
-                    }
-                    if (a.type === 'k') {
-                        // Step 1: every card on the board is a valid first pick.
-                        // Step 2: every card is valid EXCEPT the one already chosen,
-                        // and except your own cards if you already picked your own.
-                        if (a.step === 1) {
-                            abilityClass = 'ability-opp-target';
-                        } else if (a.first) {
-                            const isFirstSlot = a.first.pid === pid && a.first.idx === idx;
-                            const bothWouldBeOwn = a.first.pid === localPlayerId && pid === localPlayerId;
-                            if (isFirstSlot) abilityClass = 'ability-selected';
-                            else if (!bothWouldBeOwn) abilityClass = 'ability-opp-target';
-                        }
-                    }
-                }
-
-                if (isPendingGiveFrom && pid === localPlayerId) abilityClass = 'ability-own-target';
-
-                const hl = isHighlighted(pid, idx) ? 'highlight-glow' : '';
-                const extraCardClass = `${abilityClass} ${hl}`.trim();
-
-                // Empty slot — a card was snapped away from here earlier this
-                // round. Render distinctly from a real face-down card so no
-                // one mistakes it for a card still in play, and skip the
-                // click handler entirely (handled by the guard in
-                // handleCardInteraction, but no point making it look clickable).
-                if (!card) {
-                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card ${hl}" style="min-width:0;cursor:default;width:${cardW}px;height:${cardH}px;border-radius:8px;border:2px dashed rgba(100,116,139,0.5);display:flex;align-items:center;justify-content:center">
-                        <div class="card-slot-number" style="position:static;background:none;border:none;box-shadow:none;color:#475569">#${idx + 1}</div>
-                    </div>`;
-                }
-
-                if (seen) {
-                    const cc = cardColorClass(seen);
-                    const suit = seen.isJoker ? '🃏' : seen.suit;
-                    const rank = seen.isJoker ? '🃏' : seen.name;
-                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card playing-card card-revealing ${extraCardClass}" style="min-width:0;width:${cardW}px;height:${cardH}px">
-                        <div class="card-slot-number">#${idx + 1}</div>
-                        <div class="corner-tl ${cc}">
-                            <div class="rank">${rank}</div>
-                            ${suit && !seen.isJoker ? `<div class="suit-sm">${suit}</div>` : ''}
-                        </div>
-                        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.07;font-size:2.5rem" class="${cc}">${suit}</div>
-                        <div class="text-center">
-                            <div class="text-xl ${cc}">${suit}</div>
-                        </div>
-                        <div class="corner-br ${cc}">
-                            <div class="rank">${rank}</div>
-                            ${suit && !seen.isJoker ? `<div class="suit-sm">${suit}</div>` : ''}
-                        </div>
-                    </div>`;
-                }
-
-                return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card card-back ${extraCardClass}" style="min-width:0;width:${cardW}px;height:${cardH}px">
-                    <div class="card-slot-number">#${idx + 1}</div>
-                </div>`;
-            }).join('')}
+        <div class="card-scroll-area">
+            <div style="display:grid;grid-template-columns:repeat(${cols},${cardW}px);gap:${gap}px;width:fit-content;margin:0 auto;">
+                ${cardsHTML}
+            </div>
         </div>
     `;
 

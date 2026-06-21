@@ -151,7 +151,7 @@
         .draw-deck-stack .deck-top::before { content: ''; position: absolute; inset: 5px; border: 1px solid rgba(99,102,241,0.4); border-radius: 4px; }
 
         /* Card grid compact */
-        .card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; width: fit-content; margin: 0 auto; }
+        .card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
 
         @keyframes drawn-pop {
             0% { transform: scale(0.7) translateY(-10px); opacity: 0; }
@@ -162,7 +162,7 @@
         /* Toast */
         .toast-enter { animation: toast-in 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards; }
         @keyframes toast-in {
-            0% { transform: translateY(-12px) scale(0.95); opacity: 0; }
+            0% { transform: translateY(20px) scale(0.9); opacity: 0; }
             100% { transform: translateY(0) scale(1); opacity: 1; }
         }
 
@@ -199,7 +199,7 @@
             width: 100%;
             max-width: 100vw;
             height: calc(100vh - 56px);
-            min-height: 520px;
+            min-height: 500px;
             grid-template-areas:
                 "top-bar    top-bar     top-bar"
                 "left-zone  center-zone right-zone"
@@ -211,7 +211,7 @@
             overflow: hidden;
         }
 
-        /* Top zone — opponents 1, 2, 3 (up to 3 across the top) */
+        /* Top zone — 1 or 2 opponents across the top */
         #zone-top {
             grid-area: top-bar;
             display: flex;
@@ -223,22 +223,28 @@
             min-width: 0;
         }
 
-        /* Left zone — opponent 4 */
+        /* Left zone — opponents on the left side */
         #zone-left {
             grid-area: left-zone;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            padding: 6px 8px 6px 10px;
+            gap: 6px;
+            padding: 4px 6px 4px 8px;
+            min-width: 0;
+            overflow: hidden;
         }
 
-        /* Right zone — opponent 5 */
+        /* Right zone — opponents on the right side */
         #zone-right {
             grid-area: right-zone;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            padding: 6px 10px 6px 8px;
+            gap: 6px;
+            padding: 4px 8px 4px 6px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         /* Center zone — board island */
@@ -248,7 +254,9 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            gap: 8px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         /* Bottom zone — hero player */
@@ -291,15 +299,24 @@
             transition: border-color 0.2s;
             flex: 1;
             min-width: 0;
-            max-width: 200px;
+            max-width: 190px;
             overflow: hidden;
         }
         .opp-zone.active-turn {
             border-color: rgba(251, 191, 36, 0.4);
             box-shadow: 0 0 18px rgba(251,191,36,0.12);
         }
+        /* Side zone: cards scroll vertically, fixed width */
         .opp-zone.side-zone {
-            max-width: 200px;
+            max-width: 158px;
+            flex: none;
+        }
+        .opp-zone.side-zone .card-scroll-area {
+            max-height: 220px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: #334155 transparent;
         }
 
         /* Hero zone at bottom */
@@ -314,6 +331,14 @@
             position: relative;
             box-shadow: 0 0 30px rgba(245,158,11,0.08);
             overflow: hidden;
+        }
+        /* Hero card area scrolls if too many cards */
+        .hero-zone .card-scroll-area {
+            max-height: 160px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: #b45309 transparent;
         }
 
         /* Player status badge area */
@@ -400,10 +425,10 @@
         /* ========== ACTIVITY LOG ========== */
         #activity-log-panel {
             position: fixed;
-            bottom: 10px;
-            right: 10px;
-            width: 240px;
-            max-height: 280px;
+            bottom: 12px;
+            right: 12px;
+            width: 270px;
+            max-height: 300px;
             background: rgba(8,15,30,0.95);
             border: 1px solid rgba(255,255,255,0.08);
             border-radius: 14px;
@@ -602,7 +627,7 @@
         </section>
 
         <!-- GAME — perimeter table layout -->
-        <section id="screen-game" class="hidden w-full" style="height:calc(100vh - 56px); position:relative; overflow:hidden; max-width:100vw;">
+        <section id="screen-game" class="hidden w-full" style="height:calc(100vh - 56px); position:relative; overflow:hidden;">
 
             <!-- Felt background -->
             <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%, #1a6040 0%, #10492e 40%, #08301c 80%, #041a10 100%);z-index:0;"></div>
@@ -753,8 +778,8 @@
         </div>
     </div>
 
-    <!-- Toast container — top-left, below header -->
-    <div id="toastContainer" class="fixed z-50 flex flex-col gap-2 pointer-events-none" style="top:64px;left:12px;max-width:320px;"></div>
+    <!-- Toast container -->
+    <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 items-center pointer-events-none" style="min-width:300px;max-width:88vw;margin-right:290px;"></div>
 
     <!-- Activity Log Panel -->
     <div id="activity-log-panel" class="log-collapsed">

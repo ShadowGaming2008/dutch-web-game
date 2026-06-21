@@ -76,6 +76,32 @@
             color: rgba(99,102,241,0.5);
         }
 
+        /* Card position number badge — shown on every face-down card so players
+           can reliably refer to "card #2" etc. without ambiguity. Needs to be
+           legible against the dark indigo card-back gradient. */
+        .card-slot-number {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 800;
+            font-family: 'Inter', sans-serif;
+            color: #fde68a;
+            background: rgba(15, 15, 35, 0.85);
+            border: 1px solid rgba(251, 191, 36, 0.55);
+            border-radius: 6px;
+            line-height: 1;
+            letter-spacing: 0.02em;
+            z-index: 3;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+        }
+
         /* Snap glow rule intentionally removed — snapping is memory-based and gets no visual hint */
 
         /* Ability target glow */

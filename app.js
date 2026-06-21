@@ -673,11 +673,23 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
 
                 const extraCardClass = abilityClass;
 
+                // Empty slot — a card was snapped away from here earlier this
+                // round. Render distinctly from a real face-down card so no
+                // one mistakes it for a card still in play, and skip the
+                // click handler entirely (handled by the guard in
+                // handleCardInteraction, but no point making it look clickable).
+                if (!card) {
+                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card w-[90px] h-[126px] rounded-[10px] border-2 border-dashed border-slate-700/60 flex items-center justify-center" style="min-width:0;cursor:default">
+                        <div class="card-slot-number" style="position:static;background:none;border:none;box-shadow:none;color:#475569">#${idx + 1}</div>
+                    </div>`;
+                }
+
                 if (seen) {
                     const cc = cardColorClass(seen);
                     const suit = seen.isJoker ? '🃏' : seen.suit;
                     const rank = seen.isJoker ? '🃏' : seen.name;
                     return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card playing-card card-revealing w-[90px] h-[126px] ${extraCardClass}" style="min-width:0">
+                        <div class="card-slot-number">#${idx + 1}</div>
                         <div class="corner-tl ${cc}">
                             <div class="rank">${rank}</div>
                             ${suit && !seen.isJoker ? `<div class="suit-sm">${suit}</div>` : ''}
@@ -694,7 +706,7 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
                 }
 
                 return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card card-back w-[90px] h-[126px] ${extraCardClass}" style="min-width:0">
-                    ${!isHero ? `<div style="position:absolute;top:4px;right:6px;font-size:9px;color:rgba(99,102,241,0.5);font-weight:700">#${idx+1}</div>` : `<div style="position:absolute;top:4px;right:6px;font-size:9px;color:rgba(99,102,241,0.5);font-weight:700">#${idx+1}</div>`}
+                    <div class="card-slot-number">#${idx + 1}</div>
                 </div>`;
             }).join('')}
         </div>
@@ -710,16 +722,47 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
 // ==========================================
 // Draw / Discard pile interactions
 // ==========================================
+
+// When the draw deck runs out, the discard pile (minus its top card, which
+// must stay face-up and in play) is shuffled and becomes the new deck.
+// Returns { card, deck, discard } on success, or null if there's truly
+// nowhere left to draw from (deck empty AND discard has 0-1 cards).
+function reshuffleDiscardIntoDeckIfNeeded(deck, discard) {
+    if (deck.length > 0) return { deck, discard };
+    if (!discard || discard.length <= 1) return null; // nothing to reshuffle (need to keep the top card)
+    const topCard = discard[discard.length - 1];
+    const rest = discard.slice(0, -1);
+    const reshuffled = rest.sort(() => Math.random() - 0.5);
+    showToast("🔄 Deck empty — reshuffled the discard pile!", 'info', 2500);
+    return { deck: reshuffled, discard: [topCard] };
+}
+
+// Draws one card from the deck, reshuffling the discard pile in first if the
+// deck is empty. Used both for a normal turn draw and for snap penalty cards.
+// Returns { card, deck, discard } or null if there are no cards anywhere.
+async function drawCardReplenishingIfNeeded() {
+    let deck = [...(gameState.deck || [])];
+    let discard = [...(gameState.discard || [])];
+    const replenished = reshuffleDiscardIntoDeckIfNeeded(deck, discard);
+    if (!replenished) {
+        showToast("No cards left to draw — deck and discard are both empty!", 'warning');
+        return null;
+    }
+    deck = replenished.deck;
+    discard = replenished.discard;
+    const card = deck.pop();
+    return { card, deck, discard };
+}
+
 document.getElementById("drawDeck").addEventListener("click", async () => {
     if (gameState.status !== 'PLAYING') return;
     if (activePid() !== localPlayerId) return;
     if (gameState.turnPhase !== 'AWAIT_DRAW') return;
     if (initialPeekIdxsRemaining.length > 0) { showToast("Finish memorising your bottom cards first!", 'warning'); return; }
-    if (!gameState.deck || gameState.deck.length === 0) { showToast("The deck is empty!", 'warning'); return; }
 
-    const freshDeck = [...gameState.deck];
-    const card = freshDeck.pop();
-    await pushState({ deck: freshDeck, drawnCard: { card, source: 'deck' }, turnPhase: 'AWAIT_DECISION' });
+    const drawn = await drawCardReplenishingIfNeeded();
+    if (!drawn) return;
+    await pushState({ deck: drawn.deck, discard: drawn.discard, drawnCard: { card: drawn.card, source: 'deck' }, turnPhase: 'AWAIT_DECISION' });
 });
 
 document.getElementById("discardPile").addEventListener("click", async () => {
@@ -795,7 +838,7 @@ async function advanceTurn(extraFields = {}) {
     if (dutchCalledBy && finalTurnsLeft !== null && finalTurnsLeft <= 0) {
         const updatedPlayers = { ...gameState.players };
         Object.keys(updatedPlayers).forEach(pid => {
-            const handScore = updatedPlayers[pid].cards.reduce((sum, c) => sum + (c.score || 0), 0);
+            const handScore = updatedPlayers[pid].cards.reduce((sum, c) => sum + (c ? (c.score || 0) : 0), 0);
             updatedPlayers[pid] = {
                 ...updatedPlayers[pid],
                 totalScore: (updatedPlayers[pid].totalScore || 0) + handScore,
@@ -852,11 +895,12 @@ async function handleCardInteraction(pid, idx) {
         if (pid !== localPlayerId) return;
         const giverCards = [...gameState.players[localPlayerId].cards];
         const givenCard = giverCards[idx];
-        giverCards.splice(idx, 1);
+        if (!givenCard) return; // can't give away an already-empty slot
+        giverCards[idx] = null; // leave the giver's slot empty in place, don't shift other cards
         const toPid = gameState.pendingGive.toPid;
         const toIdx = gameState.pendingGive.toIdx;
         const receiverCards = [...gameState.players[toPid].cards];
-        receiverCards.splice(toIdx, 0, givenCard);
+        receiverCards[toIdx] = givenCard; // drop straight into the slot that was just snapped
         await pushState({
             [`players.${localPlayerId}.cards`]: giverCards,
             [`players.${toPid}.cards`]: receiverCards,
@@ -869,6 +913,21 @@ async function handleCardInteraction(pid, idx) {
 
     const isMyTurn = activePid() === localPlayerId;
 
+    // Guard: an empty slot (card already snapped away earlier this round)
+    // can't be peeked at or swapped-with during an ability, nor snapped
+    // again. It's fine during the initial peek (exempt, see below) and it's
+    // fine as a target when swapping in a freshly-drawn card (case 3) —
+    // dropping a drawn card into a gap is exactly how you'd refill it.
+    const clickedCard = gameState.players[pid]?.cards?.[idx];
+    const isInitialPeekClick = initialPeekIdxsRemaining.length > 0 && pid === localPlayerId;
+    const isDrawnCardSwapClick = isMyTurn && gameState.turnPhase === 'AWAIT_DECISION' && pid === localPlayerId;
+    if (!isInitialPeekClick && !isDrawnCardSwapClick && !clickedCard) {
+        if (isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY') {
+            showToast("That slot is empty — pick a card that's actually there.", 'warning', 2000);
+        }
+        return;
+    }
+
     // 2. Resolving an active special ability
     if (isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY' && gameState.ability) {
         await resolveAbilityClick(pid, idx);
@@ -880,7 +939,9 @@ async function handleCardInteraction(pid, idx) {
         const myCards = [...gameState.players[localPlayerId].cards];
         const oldCard = myCards[idx];
         myCards[idx] = gameState.drawnCard.card;
-        const newDiscard = [...gameState.discard, oldCard];
+        // If that slot was already empty (e.g. snapped away earlier this round),
+        // there's nothing to discard — just fill the gap, nothing goes to the pile.
+        const newDiscard = oldCard ? [...gameState.discard, oldCard] : gameState.discard;
         showToast("Card swapped!", 'success', 1500);
         const myName = gameState.players[localPlayerId]?.name || 'A player';
         await advanceTurn({
@@ -1028,6 +1089,20 @@ async function resolveAbilityClick(pid, idx) {
 // ==========================================
 // Snap
 // ==========================================
+// NOTE ON HAND ARRAYS: a player's `cards` array always keeps its original
+// slot positions for the whole round. Removing a card (successful snap)
+// sets that slot to `null` rather than splicing it out — splicing would
+// shift every later card down an index, silently reshuffling the player's
+// own memorised layout. Likewise, adding a card back in (a given-away card,
+// or a penalty card) fills the first available `null` slot if one exists,
+// and only appends a brand new slot at the end if the hand has no gaps.
+function firstEmptySlot(cards) {
+    for (let i = 0; i < cards.length; i++) {
+        if (cards[i] === null || cards[i] === undefined) return i;
+    }
+    return -1;
+}
+
 async function attemptSnap(pid, idx) {
     if (!gameState.discard || gameState.discard.length === 0) return;
     const topCard = gameState.discard[gameState.discard.length - 1];
@@ -1036,7 +1111,7 @@ async function attemptSnap(pid, idx) {
 
     if (targetCard.name === topCard.name) {
         const targetCards = [...gameState.players[pid].cards];
-        targetCards.splice(idx, 1);
+        targetCards[idx] = null; // leave the slot empty in place — don't shift other cards
         const newDiscard = [...gameState.discard, targetCard];
         const myName = gameState.players[localPlayerId]?.name || 'A player';
         if (pid === localPlayerId) {
@@ -1060,13 +1135,19 @@ async function attemptSnap(pid, idx) {
             });
         }
     } else {
-        if (!gameState.deck || gameState.deck.length === 0) return;
-        const freshDeck = [...gameState.deck];
-        const penaltyCard = freshDeck.pop();
-        const myCards = [...gameState.players[localPlayerId].cards, penaltyCard];
+        const drawn = await drawCardReplenishingIfNeeded();
+        if (!drawn) return; // both deck and discard were empty — nothing to penalize with
+        const myCards = [...gameState.players[localPlayerId].cards];
+        const emptyIdx = firstEmptySlot(myCards);
+        if (emptyIdx !== -1) {
+            myCards[emptyIdx] = drawn.card;
+        } else {
+            myCards.push(drawn.card); // no empty slot — genuinely grow the hand by one
+        }
         const myName = gameState.players[localPlayerId]?.name || 'A player';
         await pushState({
-            deck: freshDeck, [`players.${localPlayerId}.cards`]: myCards,
+            deck: drawn.deck, discard: drawn.discard,
+            [`players.${localPlayerId}.cards`]: myCards,
             lastEvent: makeEvent(`${myName} attempted a snap but got it wrong and took a penalty card.`)
         });
         showToast("❌ Wrong snap! Penalty card added to your hand.", 'error', 3000);

@@ -20,7 +20,7 @@ const db = getFirestore(app);
 // ==========================================
 // Toast System
 // ==========================================
-function showToast(message, type = 'info', duration = 3000) {
+function showToast(message, type = 'info', duration = NOTIFY_MS) {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
     const configs = {
@@ -31,7 +31,7 @@ function showToast(message, type = 'info', duration = 3000) {
         ability: { bg: 'bg-indigo-900 border-indigo-500', text: 'text-indigo-100',  icon: '⚡' },
     };
     const c = configs[type] || configs.info;
-    toast.className = `toast-enter flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl text-sm font-medium ${c.bg} ${c.text}`;
+    toast.className = `toast-enter flex items-center gap-3 px-5 py-3.5 rounded-xl border-2 shadow-2xl text-[15px] leading-snug font-semibold ${c.bg} ${c.text}`;
     toast.innerHTML = `<span class="text-lg flex-shrink-0">${c.icon}</span><span>${message}</span>`;
     container.appendChild(toast);
     setTimeout(() => {
@@ -71,7 +71,7 @@ function flashAbility(icon, title, desc, colorClass = 'bg-slate-950 border-indig
             content.style.opacity = '0';
             content.style.transform = 'scale(0.9)';
         }, 300);
-    }, 2000);
+    }, NOTIFY_MS);
 }
 
 // ==========================================
@@ -124,9 +124,29 @@ let localPlayerId = Math.random().toString(36).substring(2, 9);
 let roomCode = "";
 let gameState = {};
 let revealed = {};
+let highlightMap = {};      // key `${pid}-${idx}` -> timestamp until which a glow highlight shows (no card value, just "something happened here")
 let initialPeekIdxsRemaining = []; // fixed set of card indices (bottom two) the player must peek at before play
 let roundSeenKey = null;
 let lastAbilityType = null; // track to avoid re-flashing
+let lastHighlightEventId = null;
+
+// Standard duration (ms) for toasts and the matching on-card highlight/reveal,
+// so a notification and the card it's talking about stay visible together
+// long enough to actually read. King ability gets extra time since it's two steps.
+const NOTIFY_MS = 4500;
+const KING_NOTIFY_MS = 6000;
+
+function highlightSlots(slots, ms = NOTIFY_MS) {
+    const until = Date.now() + ms;
+    (slots || []).forEach(({ pid, idx }) => { highlightMap[`${pid}-${idx}`] = until; });
+    renderGameBoard();
+    setTimeout(() => renderGameBoard(), ms + 50);
+}
+
+function isHighlighted(pid, idx) {
+    const until = highlightMap[`${pid}-${idx}`];
+    return !!until && Date.now() < until;
+}
 
 const isBlack = (suit) => suit === '♠' || suit === '♣';
 const isRed = (suit) => suit === '♥' || suit === '♦';
@@ -139,6 +159,14 @@ const isSpecial = (card) => {
     if (card.name === 'K' && isBlack(card.suit)) return 'k';
     return null;
 };
+
+// "their own card #2" / "Bob's card #3" — used for King-ability messaging,
+// where either slot involved could belong to the local player or to any
+// number of different opponents.
+function describeSlot(pid, idx) {
+    const who = pid === localPlayerId ? 'their own' : `${gameState.players[pid]?.name || 'a player'}'s`;
+    return `${who} card #${idx + 1}`;
+}
 
 const createDeck = () => {
     const suits = ['♠', '♥', '♦', '♣'];
@@ -225,7 +253,7 @@ const ABILITY_CONFIG = {
         title: 'Black King — Spy & Swap',
         color: 'border-slate-400',
         flashColor: 'bg-slate-950 border-slate-300',
-        steps: ['Pick one of YOUR cards to peek at.', "Now pick an OPPONENT'S card — you'll see it, then decide to swap."],
+        steps: ["Pick ANY card to peek at — yours or an opponent's.", "Pick a second card (any player, but not two of your own) to peek at, then decide whether to swap them."],
     },
 };
 
@@ -315,13 +343,14 @@ async function pushState(partial) {
 // ==========================================
 let lastShownEventId = null;
 
-function makeEvent(message, targetPid = null, targetMessage = null) {
+function makeEvent(message, targetPid = null, targetMessage = null, highlights = []) {
     return {
         id: Math.random().toString(36).substring(2, 10),
         message,
         targetMessage,
         actorId: localPlayerId,
-        targetId: targetPid
+        targetId: targetPid,
+        highlights
     };
 }
 
@@ -333,7 +362,20 @@ function maybeShowPublicEvent() {
     // don't double-toast them with the generic public version.
     if (evt.actorId === localPlayerId) return;
     const isTarget = evt.targetId === localPlayerId;
-    showToast((isTarget && evt.targetMessage) ? evt.targetMessage : evt.message, 'info', 3000);
+    showToast((isTarget && evt.targetMessage) ? evt.targetMessage : evt.message, 'info', NOTIFY_MS);
+}
+
+// Every event also carries a list of board slots that just changed or were
+// looked at. We show a glow on those slots for every client (including the
+// actor) WITHOUT revealing any card value — that's exactly the "I can see
+// something happened here" feedback you get sitting at a real table.
+function maybeApplyEventHighlights() {
+    const evt = gameState.lastEvent;
+    if (!evt || evt.id === lastHighlightEventId) return;
+    lastHighlightEventId = evt.id;
+    if (evt.highlights && evt.highlights.length) {
+        highlightSlots(evt.highlights, NOTIFY_MS);
+    }
 }
 
 // ==========================================
@@ -341,6 +383,7 @@ function maybeShowPublicEvent() {
 // ==========================================
 function renderState() {
     maybeShowPublicEvent();
+    maybeApplyEventHighlights();
     landingScreen.classList.add("hidden");
     lobbyScreen.classList.add("hidden");
     gameScreen.classList.add("hidden");
@@ -358,8 +401,10 @@ function renderState() {
             // Only the bottom two cards (last two indices) may be peeked at, in order — no choice.
             initialPeekIdxsRemaining = [handSize - 2, handSize - 1];
             revealed = {};
+            highlightMap = {};
             lastAbilityType = null;
             lastShownEventId = gameState.lastEvent?.id || null;
+            lastHighlightEventId = gameState.lastEvent?.id || null;
         }
         renderGameBoard();
     } else if (gameState.status === "ROUND_END") {
@@ -615,7 +660,7 @@ function isRevealed(pid, idx) {
     return r.card;
 }
 
-function reveal(pid, idx, card, ms = 3500) {
+function reveal(pid, idx, card, ms = NOTIFY_MS) {
     revealed[`${pid}-${idx}`] = { card, until: Date.now() + ms };
     renderGameBoard();
     setTimeout(() => { renderGameBoard(); }, ms + 50);
@@ -656,10 +701,10 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
                 let abilityClass = '';
                 if (isAbilityPhase && gameState.ability) {
                     const a = gameState.ability;
-                    if ((a.type === '78' || (a.type === 'k' && a.step === 1)) && pid === localPlayerId) {
+                    if (a.type === '78' && pid === localPlayerId) {
                         abilityClass = 'ability-own-target';
                     }
-                    if ((a.type === '910' || (a.type === 'k' && a.step === 2)) && pid !== localPlayerId) {
+                    if (a.type === '910' && pid !== localPlayerId) {
                         abilityClass = 'ability-opp-target';
                     }
                     if (a.type === 'jq') {
@@ -667,11 +712,25 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
                         if (a.step === 2 && pid !== localPlayerId) abilityClass = 'ability-opp-target';
                         if (a.step === 2 && pid === localPlayerId && a.ownIdx === idx) abilityClass = 'ability-selected';
                     }
+                    if (a.type === 'k') {
+                        // Step 1: every card on the board is a valid first pick.
+                        // Step 2: every card is valid EXCEPT the one already chosen,
+                        // and except your own cards if you already picked your own.
+                        if (a.step === 1) {
+                            abilityClass = 'ability-opp-target';
+                        } else if (a.first) {
+                            const isFirstSlot = a.first.pid === pid && a.first.idx === idx;
+                            const bothWouldBeOwn = a.first.pid === localPlayerId && pid === localPlayerId;
+                            if (isFirstSlot) abilityClass = 'ability-selected';
+                            else if (!bothWouldBeOwn) abilityClass = 'ability-opp-target';
+                        }
+                    }
                 }
 
                 if (isPendingGiveFrom && pid === localPlayerId) abilityClass = 'ability-own-target';
 
-                const extraCardClass = abilityClass;
+                const hl = isHighlighted(pid, idx) ? 'highlight-glow' : '';
+                const extraCardClass = `${abilityClass} ${hl}`.trim();
 
                 // Empty slot — a card was snapped away from here earlier this
                 // round. Render distinctly from a real face-down card so no
@@ -679,7 +738,7 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
                 // click handler entirely (handled by the guard in
                 // handleCardInteraction, but no point making it look clickable).
                 if (!card) {
-                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card w-[90px] h-[126px] rounded-[10px] border-2 border-dashed border-slate-700/60 flex items-center justify-center" style="min-width:0;cursor:default">
+                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card ${hl} w-[90px] h-[126px] rounded-[10px] border-2 border-dashed border-slate-700/60 flex items-center justify-center" style="min-width:0;cursor:default">
                         <div class="card-slot-number" style="position:static;background:none;border:none;box-shadow:none;color:#475569">#${idx + 1}</div>
                     </div>`;
                 }
@@ -733,7 +792,7 @@ function reshuffleDiscardIntoDeckIfNeeded(deck, discard) {
     const topCard = discard[discard.length - 1];
     const rest = discard.slice(0, -1);
     const reshuffled = rest.sort(() => Math.random() - 0.5);
-    showToast("🔄 Deck empty — reshuffled the discard pile!", 'info', 2500);
+    showToast("🔄 Deck empty — reshuffled the discard pile!", 'info', NOTIFY_MS);
     return { deck: reshuffled, discard: [topCard] };
 }
 
@@ -788,7 +847,7 @@ document.getElementById("discardDrawnBtn").addEventListener("click", async () =>
         await pushState({
             discard: newDiscard, drawnCard: null,
             turnPhase: 'AWAIT_ABILITY',
-            ability: { type: abilityType, step: 1, ownIdx: null, oppPid: null, oppIdx: null }
+            ability: { type: abilityType, step: 1, ownIdx: null, oppPid: null, oppIdx: null, first: null, second: null }
         });
     } else {
         await advanceTurn({ discard: newDiscard, drawnCard: null });
@@ -906,8 +965,9 @@ async function handleCardInteraction(pid, idx) {
             [`players.${toPid}.cards`]: receiverCards,
             pendingGive: null
         });
-        showToast(`Card given to ${gameState.players[toPid]?.name || 'them'}.`, 'info', 2000);
-        await pushState({ lastEvent: makeEvent(`${gameState.players[localPlayerId]?.name || 'A player'} handed a card to ${gameState.players[toPid]?.name || 'someone'}.`) });
+        showToast(`Card given to ${gameState.players[toPid]?.name || 'them'}.`, 'info', NOTIFY_MS);
+        highlightSlots([{ pid: localPlayerId, idx }, { pid: toPid, idx: toIdx }], NOTIFY_MS);
+        await pushState({ lastEvent: makeEvent(`${gameState.players[localPlayerId]?.name || 'A player'} handed a card to ${gameState.players[toPid]?.name || 'someone'}.`, toPid, null, [{ pid: localPlayerId, idx }, { pid: toPid, idx: toIdx }]) });
         return;
     }
 
@@ -923,7 +983,7 @@ async function handleCardInteraction(pid, idx) {
     const isDrawnCardSwapClick = isMyTurn && gameState.turnPhase === 'AWAIT_DECISION' && pid === localPlayerId;
     if (!isInitialPeekClick && !isDrawnCardSwapClick && !clickedCard) {
         if (isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY') {
-            showToast("That slot is empty — pick a card that's actually there.", 'warning', 2000);
+            showToast("That slot is empty — pick a card that's actually there.", 'warning', NOTIFY_MS);
         }
         return;
     }
@@ -942,11 +1002,11 @@ async function handleCardInteraction(pid, idx) {
         // If that slot was already empty (e.g. snapped away earlier this round),
         // there's nothing to discard — just fill the gap, nothing goes to the pile.
         const newDiscard = oldCard ? [...gameState.discard, oldCard] : gameState.discard;
-        showToast("Card swapped!", 'success', 1500);
+        showToast("Card swapped!", 'success', NOTIFY_MS);
         const myName = gameState.players[localPlayerId]?.name || 'A player';
         await advanceTurn({
             [`players.${localPlayerId}.cards`]: myCards, discard: newDiscard, drawnCard: null,
-            lastEvent: makeEvent(`${myName} swapped their card #${idx + 1}.`)
+            lastEvent: makeEvent(`${myName} swapped their card #${idx + 1}.`, null, null, [{ pid: localPlayerId, idx }])
         });
         return;
     }
@@ -955,13 +1015,13 @@ async function handleCardInteraction(pid, idx) {
     if (initialPeekIdxsRemaining.length > 0 && pid === localPlayerId) {
         const nextRequiredIdx = initialPeekIdxsRemaining[0];
         if (idx !== nextRequiredIdx) {
-            showToast(`Memorise your bottom cards first — click card #${nextRequiredIdx + 1}.`, 'warning', 2000);
+            showToast(`Memorise your bottom cards first — click card #${nextRequiredIdx + 1}.`, 'warning', NOTIFY_MS);
             return;
         }
         const card = gameState.players[localPlayerId].cards[idx];
         initialPeekIdxsRemaining = initialPeekIdxsRemaining.slice(1);
-        reveal(pid, idx, card, 4000);
-        showToast(`Peeked at card #${idx + 1} — memorise it! ${initialPeekIdxsRemaining.length > 0 ? `${initialPeekIdxsRemaining.length} more to go.` : 'All set — play begins now.'}`, 'info', 3000);
+        reveal(pid, idx, card, NOTIFY_MS);
+        showToast(`Peeked at card #${idx + 1} — memorise it! ${initialPeekIdxsRemaining.length > 0 ? `${initialPeekIdxsRemaining.length} more to go.` : 'All set — play begins now.'}`, 'info', NOTIFY_MS);
         return;
     }
 
@@ -976,20 +1036,20 @@ async function resolveAbilityClick(pid, idx) {
     const a = gameState.ability;
 
     if (a.type === '78') {
-        if (pid !== localPlayerId) { showToast("Pick one of YOUR OWN cards to peek at.", 'warning', 2000); return; }
+        if (pid !== localPlayerId) { showToast("Pick one of YOUR OWN cards to peek at.", 'warning', NOTIFY_MS); return; }
         const card = gameState.players[pid].cards[idx];
-        reveal(pid, idx, card, 4000);
-        showToast(`👁️ You peeked at your card #${idx + 1} — it's ${card.name}${card.isJoker ? '' : card.suit}!`, 'ability', 3500);
+        reveal(pid, idx, card, NOTIFY_MS);
+        showToast(`👁️ You peeked at your card #${idx + 1} — it's ${card.name}${card.isJoker ? '' : card.suit}!`, 'ability', NOTIFY_MS);
         const myName = gameState.players[localPlayerId]?.name || 'A player';
-        await advanceTurn({ ability: null, lastEvent: makeEvent(`${myName} used the 7/8 ability to look at their own card #${idx + 1}.`) });
+        await advanceTurn({ ability: null, lastEvent: makeEvent(`${myName} used the 7/8 ability to look at their own card #${idx + 1}.`, null, null, [{ pid, idx }]) });
         return;
     }
 
     if (a.type === '910') {
-        if (pid === localPlayerId) { showToast("Pick an OPPONENT'S card to spy on.", 'warning', 2000); return; }
+        if (pid === localPlayerId) { showToast("Pick an OPPONENT'S card to spy on.", 'warning', NOTIFY_MS); return; }
         const card = gameState.players[pid].cards[idx];
-        reveal(pid, idx, card, 4000);
-        showToast(`🔍 Spied on ${gameState.players[pid]?.name}'s card #${idx + 1} — it's ${card.name}${card.isJoker ? '' : card.suit}!`, 'ability', 3500);
+        reveal(pid, idx, card, NOTIFY_MS);
+        showToast(`🔍 Spied on ${gameState.players[pid]?.name}'s card #${idx + 1} — it's ${card.name}${card.isJoker ? '' : card.suit}!`, 'ability', NOTIFY_MS);
         const myName = gameState.players[localPlayerId]?.name || 'A player';
         const targetName = gameState.players[pid]?.name || 'an opponent';
         await advanceTurn({
@@ -997,7 +1057,8 @@ async function resolveAbilityClick(pid, idx) {
             lastEvent: makeEvent(
                 `${myName} used the 9/10 ability to look at ${targetName}'s card #${idx + 1}.`,
                 pid,
-                `${myName} used the 9/10 ability to look at YOUR card #${idx + 1}.`
+                `${myName} used the 9/10 ability to look at YOUR card #${idx + 1}.`,
+                [{ pid, idx }]
             )
         });
         return;
@@ -1005,17 +1066,17 @@ async function resolveAbilityClick(pid, idx) {
 
     if (a.type === 'jq') {
         if (a.step === 1) {
-            if (pid !== localPlayerId) { showToast("First, pick one of YOUR OWN cards to swap.", 'warning', 2000); return; }
-            showToast("✓ Your card selected. Now pick an opponent's card to swap with.", 'ability', 2500);
+            if (pid !== localPlayerId) { showToast("First, pick one of YOUR OWN cards to swap.", 'warning', NOTIFY_MS); return; }
+            showToast("✓ Your card selected. Now pick an opponent's card to swap with.", 'ability', NOTIFY_MS);
             await pushState({ ability: { ...a, step: 2, ownIdx: idx } });
         } else {
-            if (pid === localPlayerId) { showToast("Now pick an OPPONENT'S card to swap with.", 'warning', 2000); return; }
+            if (pid === localPlayerId) { showToast("Now pick an OPPONENT'S card to swap with.", 'warning', NOTIFY_MS); return; }
             const myCards = [...gameState.players[localPlayerId].cards];
             const oppCards = [...gameState.players[pid].cards];
             const tmp = myCards[a.ownIdx];
             myCards[a.ownIdx] = oppCards[idx];
             oppCards[idx] = tmp;
-            showToast(`🔀 Swapped with ${gameState.players[pid]?.name}'s card #${idx + 1}!`, 'success', 2500);
+            showToast(`🔀 Swapped with ${gameState.players[pid]?.name}'s card #${idx + 1}!`, 'success', NOTIFY_MS);
             const myName = gameState.players[localPlayerId]?.name || 'A player';
             const targetName = gameState.players[pid]?.name || 'an opponent';
             await advanceTurn({
@@ -1025,7 +1086,8 @@ async function resolveAbilityClick(pid, idx) {
                 lastEvent: makeEvent(
                     `${myName} blind-swapped their card #${a.ownIdx + 1} with ${targetName}'s card #${idx + 1}.`,
                     pid,
-                    `${myName} blind-swapped their card #${a.ownIdx + 1} with YOUR card #${idx + 1}.`
+                    `${myName} blind-swapped their card #${a.ownIdx + 1} with YOUR card #${idx + 1}.`,
+                    [{ pid: localPlayerId, idx: a.ownIdx }, { pid, idx }]
                 )
             });
         }
@@ -1034,54 +1096,82 @@ async function resolveAbilityClick(pid, idx) {
 
     if (a.type === 'k') {
         if (a.step === 1) {
-            if (pid !== localPlayerId) { showToast("First, pick one of YOUR OWN cards to peek at.", 'warning', 2000); return; }
+            // First card: ANY card, yours or any opponent's.
             const card = gameState.players[pid].cards[idx];
-            reveal(pid, idx, card, 8000);
-            showToast(`👑 Your card #${idx + 1} is ${card.name}${card.isJoker ? '' : card.suit}. Now spy on an opponent's card.`, 'ability', 3500);
-            await pushState({ ability: { ...a, step: 2, ownIdx: idx } });
-        } else {
-            if (pid === localPlayerId) { showToast("Now pick an OPPONENT'S card to peek at.", 'warning', 2000); return; }
-            const card = gameState.players[pid].cards[idx];
-            reveal(pid, idx, card, 8000);
-            const oppName = gameState.players[pid]?.name || 'opponent';
-            setTimeout(async () => {
-                const doSwap = await showChoiceModal(
-                    `👑 ${oppName}'s card is ${card.name}${card.isJoker ? '' : card.suit}!`,
-                    "You've peeked at both cards. Do you want to swap them?",
-                    '🔄 Swap!',
-                    'bg-indigo-600 hover:bg-indigo-500'
-                );
-                const myCards = [...gameState.players[localPlayerId].cards];
-                const oppCards = [...gameState.players[pid].cards];
-                const myName = gameState.players[localPlayerId]?.name || 'A player';
-                if (doSwap) {
-                    const tmp = myCards[a.ownIdx];
-                    myCards[a.ownIdx] = oppCards[idx];
-                    oppCards[idx] = tmp;
-                    showToast(`🔄 Swapped your card #${a.ownIdx + 1} with ${oppName}'s card #${idx + 1}!`, 'success', 2500);
-                    await advanceTurn({
-                        [`players.${localPlayerId}.cards`]: myCards,
-                        [`players.${pid}.cards`]: oppCards,
-                        ability: null,
-                        lastEvent: makeEvent(
-                            `${myName} used the Black King ability and swapped their card #${a.ownIdx + 1} with ${oppName}'s card #${idx + 1}.`,
-                            pid,
-                            `${myName} used the Black King ability and swapped their card #${a.ownIdx + 1} with YOUR card #${idx + 1}.`
-                        )
-                    });
-                } else {
-                    showToast("Kept your cards as they are.", 'info', 1500);
-                    await advanceTurn({
-                        ability: null,
-                        lastEvent: makeEvent(
-                            `${myName} used the Black King ability to look at their own and ${oppName}'s cards, then kept everything as is.`,
-                            pid,
-                            `${myName} used the Black King ability to look at their own card and YOUR card #${idx + 1}, then kept everything as is.`
-                        )
-                    });
-                }
-            }, 150);
+            reveal(pid, idx, card, KING_NOTIFY_MS);
+            showToast(`👑 First card — ${describeSlot(pid, idx)} is ${card.name}${card.isJoker ? '' : card.suit}. Now pick a second card to peek at.`, 'ability', KING_NOTIFY_MS);
+            await pushState({ ability: { ...a, step: 2, first: { pid, idx } } });
+            return;
         }
+
+        // Second card: any card EXCEPT the one already picked, and you may
+        // not pick two of your own — every other combination is fair game
+        // (two different opponents, two of the same opponent, or yours + theirs).
+        if (a.first && a.first.pid === pid && a.first.idx === idx) {
+            showToast("That's the card you already picked — choose a different one.", 'warning', NOTIFY_MS);
+            return;
+        }
+        if (a.first && a.first.pid === localPlayerId && pid === localPlayerId) {
+            showToast("You can't peek at two of your own cards — pick an opponent's card.", 'warning', NOTIFY_MS);
+            return;
+        }
+
+        const firstPid = a.first.pid;
+        const firstIdx = a.first.idx;
+        const card = gameState.players[pid].cards[idx];
+        reveal(pid, idx, card, KING_NOTIFY_MS);
+        const secondPid = pid;
+        const secondIdx = idx;
+
+        setTimeout(async () => {
+            const doSwap = await showChoiceModal(
+                `👑 Second card — ${describeSlot(secondPid, secondIdx)} is ${card.name}${card.isJoker ? '' : card.suit}!`,
+                `You peeked at ${describeSlot(firstPid, firstIdx)} and ${describeSlot(secondPid, secondIdx)}. Swap those two cards with each other?`,
+                '🔄 Swap!',
+                'bg-indigo-600 hover:bg-indigo-500'
+            );
+            const myName = gameState.players[localPlayerId]?.name || 'A player';
+            const involvesMe = firstPid === localPlayerId || secondPid === localPlayerId;
+            const otherPid = firstPid === localPlayerId ? secondPid : (secondPid === localPlayerId ? firstPid : null);
+
+            if (doSwap) {
+                const firstCards = [...gameState.players[firstPid].cards];
+                const secondCards = firstPid === secondPid ? firstCards : [...gameState.players[secondPid].cards];
+                const tmp = firstCards[firstIdx];
+                firstCards[firstIdx] = secondCards[secondIdx];
+                secondCards[secondIdx] = tmp;
+
+                const updates = { [`players.${firstPid}.cards`]: firstCards };
+                if (firstPid !== secondPid) updates[`players.${secondPid}.cards`] = secondCards;
+
+                showToast(`🔄 Swapped ${describeSlot(firstPid, firstIdx)} with ${describeSlot(secondPid, secondIdx)}!`, 'success', NOTIFY_MS);
+
+                const publicMsg = `${myName} used the Black King ability and swapped ${describeSlot(firstPid, firstIdx)} with ${describeSlot(secondPid, secondIdx)}.`;
+                let targetMsg = null;
+                if (involvesMe && otherPid) {
+                    const myIdx = firstPid === localPlayerId ? firstIdx : secondIdx;
+                    const otherIdx = firstPid === otherPid ? firstIdx : secondIdx;
+                    targetMsg = `${myName} used the Black King ability and swapped YOUR card #${otherIdx + 1} with their own card #${myIdx + 1}.`;
+                }
+
+                await advanceTurn({
+                    ...updates,
+                    ability: null,
+                    lastEvent: makeEvent(publicMsg, otherPid, targetMsg, [{ pid: firstPid, idx: firstIdx }, { pid: secondPid, idx: secondIdx }])
+                });
+            } else {
+                showToast("Kept everything as is.", 'info', NOTIFY_MS);
+                await advanceTurn({
+                    ability: null,
+                    lastEvent: makeEvent(
+                        `${myName} used the Black King ability to peek at two cards, then kept everything as is.`,
+                        otherPid,
+                        otherPid ? `${myName} used the Black King ability to peek at your card and another, then kept everything as is.` : null,
+                        [{ pid: firstPid, idx: firstIdx }, { pid: secondPid, idx: secondIdx }]
+                    )
+                });
+            }
+        }, 150);
         return;
     }
 }
@@ -1115,14 +1205,16 @@ async function attemptSnap(pid, idx) {
         const newDiscard = [...gameState.discard, targetCard];
         const myName = gameState.players[localPlayerId]?.name || 'A player';
         if (pid === localPlayerId) {
-            showToast("⚡ Snap! Card removed from your hand!", 'success', 2500);
+            showToast("⚡ Snap! Card removed from your hand!", 'success', NOTIFY_MS);
+            highlightSlots([{ pid, idx }], NOTIFY_MS);
             await pushState({
                 [`players.${pid}.cards`]: targetCards, discard: newDiscard,
-                lastEvent: makeEvent(`${myName} snapped one of their own cards.`)
+                lastEvent: makeEvent(`${myName} snapped one of their own cards.`, null, null, [{ pid, idx }])
             });
         } else {
             const oppName = gameState.players[pid]?.name || 'them';
-            showToast(`⚡ Snapped ${oppName}'s card! Now pick one of YOUR cards to give them.`, 'success', 4000);
+            showToast(`⚡ Snapped ${oppName}'s card! Now pick one of YOUR cards to give them.`, 'success', NOTIFY_MS);
+            highlightSlots([{ pid, idx }], NOTIFY_MS);
             await pushState({
                 [`players.${pid}.cards`]: targetCards,
                 discard: newDiscard,
@@ -1130,7 +1222,8 @@ async function attemptSnap(pid, idx) {
                 lastEvent: makeEvent(
                     `${myName} snapped ${oppName}'s card #${idx + 1}!`,
                     pid,
-                    `${myName} snapped YOUR card #${idx + 1}!`
+                    `${myName} snapped YOUR card #${idx + 1}!`,
+                    [{ pid, idx }]
                 )
             });
         }
@@ -1139,18 +1232,20 @@ async function attemptSnap(pid, idx) {
         if (!drawn) return; // both deck and discard were empty — nothing to penalize with
         const myCards = [...gameState.players[localPlayerId].cards];
         const emptyIdx = firstEmptySlot(myCards);
+        const penaltyIdx = emptyIdx !== -1 ? emptyIdx : myCards.length;
         if (emptyIdx !== -1) {
             myCards[emptyIdx] = drawn.card;
         } else {
             myCards.push(drawn.card); // no empty slot — genuinely grow the hand by one
         }
         const myName = gameState.players[localPlayerId]?.name || 'A player';
+        highlightSlots([{ pid: localPlayerId, idx: penaltyIdx }], NOTIFY_MS);
         await pushState({
             deck: drawn.deck, discard: drawn.discard,
             [`players.${localPlayerId}.cards`]: myCards,
             lastEvent: makeEvent(`${myName} attempted a snap but got it wrong and took a penalty card.`)
         });
-        showToast("❌ Wrong snap! Penalty card added to your hand.", 'error', 3000);
+        showToast("❌ Wrong snap! Penalty card added to your hand.", 'error', NOTIFY_MS);
     }
 }
 

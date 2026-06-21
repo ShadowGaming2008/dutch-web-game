@@ -248,9 +248,61 @@
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        /* ========== TABLE / FELT LOOK ========== */
+        body {
+            background:
+                radial-gradient(ellipse at 50% -10%, #2a1c12 0%, #1a120b 45%, #0c0805 100%);
+            background-attachment: fixed;
+        }
+        .table-felt {
+            position: relative;
+            background:
+                radial-gradient(ellipse at 50% 0%, #1d6b43 0%, #146238 35%, #0d4426 70%, #082d19 100%);
+            border: 10px solid #3e2517;
+            border-radius: 28px;
+            box-shadow:
+                inset 0 0 70px rgba(0,0,0,0.55),
+                inset 0 2px 0 rgba(255,255,255,0.06),
+                0 14px 40px rgba(0,0,0,0.65);
+            padding: 1.25rem;
+        }
+        .table-felt::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 10px);
+            mix-blend-mode: overlay;
+        }
+        .table-felt::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            box-shadow: inset 0 0 110px rgba(0,0,0,0.45);
+        }
+        .table-rail {
+            border: 6px solid #5c3a22;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #6b4226 0%, #4a2c17 100%);
+            box-shadow: inset 0 2px 4px rgba(255,255,255,0.15), inset 0 -3px 6px rgba(0,0,0,0.4);
+        }
+
+        /* Synced "something happened here" highlight — used for swaps, peeks,
+           snaps. Shows for exactly as long as the matching toast notification. */
+        .highlight-glow {
+            box-shadow: 0 0 0 3px #2dd4bf, 0 0 22px rgba(45,212,191,0.55), 0 4px 12px rgba(0,0,0,0.4) !important;
+            animation: highlight-pulse 1.1s ease-in-out infinite;
+        }
+        @keyframes highlight-pulse {
+            0%, 100% { box-shadow: 0 0 0 3px #2dd4bf, 0 0 22px rgba(45,212,191,0.5); }
+            50% { box-shadow: 0 0 0 5px #2dd4bf, 0 0 34px rgba(45,212,191,0.8); }
+        }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen selection:bg-amber-500 selection:text-slate-900">
+<body class="text-slate-100 min-h-screen selection:bg-amber-500 selection:text-slate-900">
 
     <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur p-4 sticky top-0 z-40 flex justify-between items-center">
         <h1 class="font-display text-2xl font-black tracking-wide text-amber-400 flex items-center gap-2">
@@ -342,70 +394,72 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
+            <div class="table-felt">
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
 
-                <!-- Opponents -->
-                <div id="opponentsContainer" class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                    <!-- Opponents -->
+                    <div id="opponentsContainer" class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4"></div>
 
-                <!-- Board Panel -->
-                <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-col items-center space-y-4 sticky top-[80px]">
-                    <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">The Board</span>
+                    <!-- Board Panel -->
+                    <div class="bg-slate-950/90 p-5 rounded-2xl border border-black/30 flex flex-col items-center space-y-4 sticky top-[80px] shadow-xl">
+                        <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">The Board</span>
 
-                    <!-- Deck + Discard -->
-                    <div class="flex gap-5 items-end">
+                        <!-- Deck + Discard -->
+                        <div class="flex gap-5 items-end">
 
-                        <!-- Draw Deck -->
-                        <div class="flex flex-col items-center gap-1.5">
-                            <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Deck</span>
-                            <div id="drawDeck" class="draw-deck-stack w-[76px] h-[108px]">
-                                <div class="deck-layer-3 w-full h-full"></div>
-                                <div class="deck-layer-2 w-full h-full"></div>
-                                <div class="deck-top w-full h-full flex flex-col items-center justify-center gap-1">
-                                    <span class="text-2xl opacity-40">✦</span>
-                                    <span class="text-[10px] text-indigo-300 font-bold uppercase tracking-widest">Draw</span>
+                            <!-- Draw Deck -->
+                            <div class="flex flex-col items-center gap-1.5">
+                                <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Deck</span>
+                                <div id="drawDeck" class="draw-deck-stack w-[76px] h-[108px]">
+                                    <div class="deck-layer-3 w-full h-full"></div>
+                                    <div class="deck-layer-2 w-full h-full"></div>
+                                    <div class="deck-top w-full h-full flex flex-col items-center justify-center gap-1">
+                                        <span class="text-2xl opacity-40">✦</span>
+                                        <span class="text-[10px] text-indigo-300 font-bold uppercase tracking-widest">Draw</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Discard -->
+                            <div class="flex flex-col items-center gap-1.5">
+                                <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Discard</span>
+                                <div id="discardPileWrapper" class="discard-stack w-[76px] h-[108px]">
+                                    <div class="stack-shadow-2 w-full h-full"></div>
+                                    <div class="stack-shadow-1 w-full h-full"></div>
+                                    <div id="discardPile" class="stack-top w-full h-full flex flex-col items-center justify-center rounded-[10px] border-2 border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-600 transition">
+                                        <span class="text-xs text-slate-600 font-bold">EMPTY</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Discard -->
-                        <div class="flex flex-col items-center gap-1.5">
-                            <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Discard</span>
-                            <div id="discardPileWrapper" class="discard-stack w-[76px] h-[108px]">
-                                <div class="stack-shadow-2 w-full h-full"></div>
-                                <div class="stack-shadow-1 w-full h-full"></div>
-                                <div id="discardPile" class="stack-top w-full h-full flex flex-col items-center justify-center rounded-[10px] border-2 border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-600 transition">
-                                    <span class="text-xs text-slate-600 font-bold">EMPTY</span>
-                                </div>
-                            </div>
+                        <!-- Drawn card display -->
+                        <div id="drawnCardArea" class="hidden flex-col items-center gap-1.5 w-full">
+                            <span class="text-[9px] text-amber-400 font-black uppercase tracking-widest">Card In Hand</span>
+                            <div id="drawnCardDisplay" class="flex justify-center"></div>
+                            <button id="discardDrawnBtn" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs uppercase tracking-wide transition cursor-pointer">
+                                Discard &amp; Use Power
+                            </button>
+                            <button id="discardDrawnNoAbilityBtn" class="hidden w-full py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl text-xs uppercase tracking-wide transition cursor-pointer">
+                                Discard (no power)
+                            </button>
                         </div>
-                    </div>
 
-                    <!-- Drawn card display -->
-                    <div id="drawnCardArea" class="hidden flex-col items-center gap-1.5 w-full">
-                        <span class="text-[9px] text-amber-400 font-black uppercase tracking-widest">Card In Hand</span>
-                        <div id="drawnCardDisplay" class="flex justify-center"></div>
-                        <button id="discardDrawnBtn" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs uppercase tracking-wide transition cursor-pointer">
-                            Discard &amp; Use Power
-                        </button>
-                        <button id="discardDrawnNoAbilityBtn" class="hidden w-full py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl text-xs uppercase tracking-wide transition cursor-pointer">
-                            Discard (no power)
+                        <!-- Instruction -->
+                        <div id="actionInstruction" class="text-xs text-slate-400 text-center bg-slate-900 p-3 rounded-xl border border-slate-800 w-full leading-relaxed min-h-[3rem] flex items-center justify-center">
+                            Select a deck or card to begin.
+                        </div>
+
+                        <!-- Dutch button -->
+                        <button id="callDutchBtn" class="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl tracking-wider uppercase transition shadow-lg shadow-rose-600/10 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed text-sm">
+                            🗣️ Call "DUTCH!"
                         </button>
                     </div>
-
-                    <!-- Instruction -->
-                    <div id="actionInstruction" class="text-xs text-slate-400 text-center bg-slate-900 p-3 rounded-xl border border-slate-800 w-full leading-relaxed min-h-[3rem] flex items-center justify-center">
-                        Select a deck or card to begin.
-                    </div>
-
-                    <!-- Dutch button -->
-                    <button id="callDutchBtn" class="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl tracking-wider uppercase transition shadow-lg shadow-rose-600/10 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed text-sm">
-                        🗣️ Call "DUTCH!"
-                    </button>
                 </div>
-            </div>
 
-            <!-- Hero hand -->
-            <div id="heroContainer" class="border-t-2 border-dashed border-slate-800 pt-4"></div>
+                <!-- Hero hand -->
+                <div id="heroContainer" class="border-t-2 border-dashed border-white/10 pt-4 mt-4"></div>
+            </div>
         </section>
 
         <!-- ROUND END -->
@@ -464,7 +518,7 @@
     </div>
 
     <!-- Toast container -->
-    <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 items-center pointer-events-none" style="min-width:300px;max-width:90vw;"></div>
+    <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 items-center pointer-events-none" style="min-width:320px;max-width:92vw;"></div>
 
     <!-- Ability notification overlay (full-screen flash) -->
     <div id="abilityFlash" class="hidden fixed inset-0 z-30 pointer-events-none flex items-center justify-center">

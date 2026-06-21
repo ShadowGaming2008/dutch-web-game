@@ -787,8 +787,7 @@ function renderGameBoard() {
         if (!extraZone) {
             extraZone = document.createElement('div');
             extraZone.id = 'zone-extra-bottom';
-            extraZone.style.cssText = 'display:flex;justify-content:center;gap:8px;padding:0 8px 4px;';
-            // Insert before zone-bottom in the DOM
+            // Insert before zone-bottom in the DOM so it sits in the extra-bar grid row
             const zoneBottom = document.getElementById('zone-bottom');
             zoneBottom.parentNode.insertBefore(extraZone, zoneBottom);
         }

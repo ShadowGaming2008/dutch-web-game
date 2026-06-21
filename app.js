@@ -18,17 +18,84 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ==========================================
+// Custom Modal System (replaces alert/confirm)
+// ==========================================
+function showToast(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    const colors = {
+        info: 'bg-slate-800 border-slate-600 text-slate-100',
+        success: 'bg-emerald-900 border-emerald-500 text-emerald-100',
+        error: 'bg-rose-900 border-rose-500 text-rose-100',
+        warning: 'bg-amber-900 border-amber-500 text-amber-100'
+    };
+    const icons = { info: 'ℹ️', success: '✅', error: '❌', warning: '⚠️' };
+    toast.className = `flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl text-sm font-medium transition-all duration-300 opacity-0 translate-y-2 ${colors[type]}`;
+    toast.innerHTML = `<span>${icons[type]}</span><span>${message}</span>`;
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0', 'translate-y-2');
+    });
+    setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
+
+function showConfirm(message, subtext = '') {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4';
+        overlay.innerHTML = `
+            <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl animate-in">
+                <p class="text-white font-bold text-lg leading-snug">${message}</p>
+                ${subtext ? `<p class="text-slate-400 text-sm">${subtext}</p>` : ''}
+                <div class="flex gap-3 pt-2">
+                    <button class="cancel-btn flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl transition">Cancel</button>
+                    <button class="confirm-btn flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl transition">Confirm</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        overlay.querySelector('.confirm-btn').onclick = () => { overlay.remove(); resolve(true); };
+        overlay.querySelector('.cancel-btn').onclick = () => { overlay.remove(); resolve(false); };
+        overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } };
+    });
+}
+
+function showChoiceModal(message, subtext, confirmLabel, confirmClass = 'bg-rose-600 hover:bg-rose-500') {
+    return showConfirmCustom(message, subtext, confirmLabel, confirmClass);
+}
+
+function showConfirmCustom(message, subtext, confirmLabel, confirmClass) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4';
+        overlay.innerHTML = `
+            <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+                <p class="text-white font-bold text-lg leading-snug">${message}</p>
+                ${subtext ? `<p class="text-slate-400 text-sm">${subtext}</p>` : ''}
+                <div class="flex gap-3 pt-2">
+                    <button class="cancel-btn flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl transition">No thanks</button>
+                    <button class="confirm-btn flex-1 py-3 ${confirmClass} text-white font-bold rounded-xl transition">${confirmLabel}</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        overlay.querySelector('.confirm-btn').onclick = () => { overlay.remove(); resolve(true); };
+        overlay.querySelector('.cancel-btn').onclick = () => { overlay.remove(); resolve(false); };
+        overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } };
+    });
+}
+
+// ==========================================
 // State
 // ==========================================
 let localPlayerId = Math.random().toString(36).substring(2, 9);
 let roomCode = "";
 let gameState = {};
 
-// Local-only "what I can currently see" state (peeking is visual only,
-// Firestore itself does not enforce hidden info)
-let revealed = {};        // key `${pid}-${idx}` -> { card, until }
-let peeksRemaining = 0;   // initial peek allowance for this round
-let roundSeenKey = null;  // tracks which round we've already reset peeks for
+let revealed = {};
+let peeksRemaining = 0;
+let roundSeenKey = null;
 
 const isBlack = (suit) => suit === '♠' || suit === '♣';
 const isRed = (suit) => suit === '♥' || suit === '♦';
@@ -41,7 +108,6 @@ const isSpecial = (card) => {
     return null;
 };
 
-// Card Deck Generation
 const createDeck = () => {
     const suits = ['♠', '♥', '♦', '♣'];
     const values = [
@@ -53,7 +119,7 @@ const createDeck = () => {
     suits.forEach(suit => {
         values.forEach(val => {
             let actualValue = val.v;
-            if (val.n === 'K' && isRed(suit)) actualValue = -2; // Red King Rule
+            if (val.n === 'K' && isRed(suit)) actualValue = -2;
             deck.push({ id: Math.random().toString(36).substring(2, 7), suit, name: val.n, score: actualValue, color: isRed(suit) ? 'text-rose-500' : 'text-slate-200' });
         });
     });
@@ -62,7 +128,6 @@ const createDeck = () => {
     return deck.sort(() => Math.random() - 0.5);
 };
 
-// DOM Routing Elements
 const landingScreen = document.getElementById("screen-landing");
 const lobbyScreen = document.getElementById("screen-lobby");
 const gameScreen = document.getElementById("screen-game");
@@ -102,11 +167,10 @@ document.getElementById("createRoomBtn").addEventListener("click", async () => {
 document.getElementById("joinRoomBtn").addEventListener("click", async () => {
     const name = document.getElementById("usernameInput").value.trim() || "Player";
     const enteredCode = document.getElementById("roomCodeInput").value.trim().toUpperCase();
-    if (!enteredCode) return alert("Enter valid party code.");
+    if (!enteredCode) { showToast("Enter a valid room code.", 'warning'); return; }
 
     roomCode = enteredCode;
     const roomRef = doc(db, "rooms", roomCode);
-
     await updateDoc(roomRef, {
         [`players.${localPlayerId}`]: { name, ready: false, cards: [], totalScore: 0 },
         turnOrder: arrayUnion(localPlayerId)
@@ -140,8 +204,6 @@ function renderState() {
         renderLobby();
     } else if (gameState.status === "PLAYING") {
         gameScreen.classList.remove("hidden");
-
-        // Detect a fresh round start to reset local peek allowance
         const key = `${roomCode}-${gameState.roundNumber}`;
         if (roundSeenKey !== key) {
             roundSeenKey = key;
@@ -246,7 +308,6 @@ function renderGameBoard() {
         turnBanner.className = "bg-slate-800 text-slate-400 p-3 rounded-xl font-bold text-center text-sm";
     }
 
-    // Discard pile
     const discPile = document.getElementById("discardPile");
     if (gameState.discard && gameState.discard.length > 0) {
         const topCard = gameState.discard[gameState.discard.length - 1];
@@ -259,7 +320,6 @@ function renderGameBoard() {
         discPile.innerHTML = `<span class="text-xs text-slate-600 font-bold">EMPTY</span>`;
     }
 
-    // Draw deck visual + drawn card preview (only meaningful to the active player locally)
     const drawDeckEl = document.getElementById("drawDeck");
     if (isMyTurn && gameState.turnPhase === 'AWAIT_DECISION' && gameState.drawnCard) {
         const c = gameState.drawnCard.card;
@@ -271,7 +331,6 @@ function renderGameBoard() {
         drawDeckEl.innerHTML = `<span class="text-3xl">🎴</span><span class="text-[10px] text-indigo-300 font-bold mt-2">DRAW</span>`;
     }
 
-    // Discard-drawn-card button visibility
     const discardDrawnBtn = document.getElementById("discardDrawnBtn");
     if (isMyTurn && gameState.turnPhase === 'AWAIT_DECISION' && gameState.drawnCard && gameState.drawnCard.source === 'deck') {
         discardDrawnBtn.classList.remove("hidden");
@@ -279,28 +338,29 @@ function renderGameBoard() {
         discardDrawnBtn.classList.add("hidden");
     }
 
-    // Call Dutch button
     const dutchBtn = document.getElementById("callDutchBtn");
     dutchBtn.disabled = !(isMyTurn && gameState.turnPhase === 'AWAIT_DRAW' && !gameState.dutchCalledBy);
 
-    // Instruction text
+    // Snap highlight: show which cards are snappable
+    const topCard = gameState.discard?.[gameState.discard.length - 1];
+    const canSnap = topCard && gameState.status === 'PLAYING' && !gameState.pendingGive;
+
     if (gameState.pendingGive && gameState.pendingGive.fromPid === localPlayerId) {
-        setInstruction(`Snap successful! Click one of YOUR cards to hand to ${gameState.players[gameState.pendingGive.toPid]?.name || 'opponent'}.`);
+        setInstruction(`Snap! Now pick one of YOUR cards to give to ${gameState.players[gameState.pendingGive.toPid]?.name || 'them'}.`);
     } else if (peeksRemaining > 0) {
-        setInstruction(`Memorize your hand: click ${peeksRemaining} of your own card(s) to peek before play begins.`);
+        setInstruction(`Quick — peek at ${peeksRemaining} of your own card${peeksRemaining > 1 ? 's' : ''} to memorise them before play starts.`);
     } else if (isMyTurn && gameState.turnPhase === 'AWAIT_DRAW') {
-        setInstruction("Your turn: draw from the deck, take the discard, or call Dutch!");
+        setInstruction("Your turn: draw from the deck, take the top discard, or call Dutch!");
     } else if (isMyTurn && gameState.turnPhase === 'AWAIT_DECISION') {
         setInstruction(gameState.drawnCard.source === 'deck'
-            ? "Click one of your cards to swap it in, or discard the drawn card to trigger its power."
-            : "Click one of your cards to swap it for the discard pile's top card.");
+            ? "Swap it into your hand by clicking a card, or discard it to use its power."
+            : "Click one of your cards to swap it with the card you picked up.");
     } else if (isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY') {
         setInstruction(abilityInstructionText());
     } else {
-        setInstruction("Watch the board — you can SNAP any time if you spot a matching card on the discard pile!");
+        setInstruction(canSnap ? "You can SNAP any card — yours or anyone else's — if it matches the discard pile!" : "Watch the board...");
     }
 
-    // Players
     const oppsContainer = document.getElementById("opponentsContainer");
     oppsContainer.innerHTML = "";
     const heroContainer = document.getElementById("heroContainer");
@@ -309,9 +369,9 @@ function renderGameBoard() {
     Object.keys(gameState.players).forEach(pid => {
         const playerObj = gameState.players[pid];
         if (pid === localPlayerId) {
-            heroContainer.appendChild(createPlayerBoardElement(playerObj, pid, true));
+            heroContainer.appendChild(createPlayerBoardElement(playerObj, pid, true, topCard, canSnap));
         } else {
-            oppsContainer.appendChild(createPlayerBoardElement(playerObj, pid, false));
+            oppsContainer.appendChild(createPlayerBoardElement(playerObj, pid, false, topCard, canSnap));
         }
     });
 }
@@ -319,10 +379,10 @@ function renderGameBoard() {
 function abilityInstructionText() {
     const a = gameState.ability;
     if (!a) return "";
-    if (a.type === '78') return "Power: click one of YOUR cards to peek at it.";
-    if (a.type === '910') return "Power: click one of an OPPONENT's cards to peek at it.";
-    if (a.type === 'jq') return a.step === 1 ? "Power: click one of YOUR cards to swap (blind)." : "Now click an OPPONENT's card to complete the blind swap.";
-    if (a.type === 'k') return a.step === 1 ? "Power: click one of YOUR cards to look at it." : "Now click an OPPONENT's card to look at it, then choose whether to swap.";
+    if (a.type === '78') return "7/8 power: click one of YOUR cards to peek at it.";
+    if (a.type === '910') return "9/10 power: click an OPPONENT'S card to peek at it.";
+    if (a.type === 'jq') return a.step === 1 ? "J/Q power: click one of YOUR cards to swap (blind)." : "Now click an OPPONENT'S card to complete the swap.";
+    if (a.type === 'k') return a.step === 1 ? "Black King: click one of YOUR cards to peek at it." : "Now click an OPPONENT'S card — then decide if you want to swap.";
     return "";
 }
 
@@ -336,34 +396,47 @@ function isRevealed(pid, idx) {
 function reveal(pid, idx, card, ms = 3500) {
     revealed[`${pid}-${idx}`] = { card, until: Date.now() + ms };
     renderGameBoard();
-    setTimeout(() => {
-        renderGameBoard();
-    }, ms + 50);
+    setTimeout(() => { renderGameBoard(); }, ms + 50);
 }
 
-function createPlayerBoardElement(player, pid, isHero) {
+function createPlayerBoardElement(player, pid, isHero, topCard, canSnap) {
     const root = document.createElement("div");
-    root.className = isHero ? "bg-slate-950 p-6 rounded-2xl border-2 border-amber-500/50 space-y-4 shadow-xl w-full" : "bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3";
+    root.className = isHero
+        ? "bg-slate-950 p-6 rounded-2xl border-2 border-amber-500/50 space-y-4 shadow-xl w-full"
+        : "bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3";
+
+    const isPendingGiveFrom = gameState.pendingGive?.fromPid === localPlayerId;
+    const isPendingGiveTo = gameState.pendingGive?.toPid === pid;
 
     root.innerHTML = `
         <div class="flex justify-between items-center">
-            <h3 class="font-bold text-white flex items-center gap-2">
-                <span>${player.name}</span> ${isHero ? '<span class="text-xs font-bold uppercase tracking-widest bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">You</span>' : ''}
-                ${gameState.dutchCalledBy === pid ? '<span class="text-xs font-bold uppercase tracking-widest bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded">Called Dutch!</span>' : ''}
+            <h3 class="font-bold text-white flex items-center gap-2 flex-wrap">
+                <span>${player.name}</span>
+                ${isHero ? '<span class="text-xs font-bold uppercase tracking-widest bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">You</span>' : ''}
+                ${gameState.dutchCalledBy === pid ? '<span class="text-xs font-bold uppercase tracking-widest bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded animate-pulse">Called Dutch!</span>' : ''}
+                ${isPendingGiveTo ? '<span class="text-xs font-bold uppercase tracking-widest bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded">Receiving card...</span>' : ''}
             </h3>
             <span class="text-xs font-mono text-slate-400">Score: ${player.totalScore || 0}</span>
         </div>
         <div class="card-grid max-w-[200px] mx-auto">
             ${player.cards.map((card, idx) => {
                 const seen = isRevealed(pid, idx);
+                // Snap highlight: a card glows if canSnap AND it matches the top of discard
+                // But only if we're not in the middle of something that blocks snapping
+                const isMyTurn = activePid() === localPlayerId;
+                const midAction = isMyTurn && (gameState.turnPhase === 'AWAIT_ABILITY');
+                const snapEligible = canSnap && !midAction && !isPendingGiveFrom && topCard && card.name === topCard.name;
+
                 if (seen) {
-                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card w-20 h-28 bg-slate-900 border-2 border-amber-400 rounded-xl flex flex-col items-center justify-center cursor-pointer select-none shadow transition">
+                    return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card w-20 h-28 bg-slate-900 border-2 ${snapEligible ? 'border-emerald-400 shadow-emerald-400/30 shadow-lg' : 'border-amber-400'} rounded-xl flex flex-col items-center justify-center cursor-pointer select-none shadow transition hover:scale-105 active:scale-95">
                         <span class="text-2xl ${seen.color}">${seen.suit}</span>
                         <span class="text-sm font-black text-white">${seen.name}</span>
+                        ${snapEligible ? '<span class="text-[8px] text-emerald-400 font-black uppercase tracking-widest mt-1">SNAP!</span>' : ''}
                     </div>`;
                 }
-                return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card w-20 h-28 bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 hover:border-amber-400 rounded-xl flex flex-col items-center justify-center cursor-pointer select-none relative shadow transition shadow-black/50 overflow-hidden">
+                return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card w-20 h-28 bg-gradient-to-br from-slate-800 to-slate-900 border ${snapEligible ? 'border-emerald-400/60 shadow-emerald-400/20 shadow-lg animate-pulse' : 'border-slate-700 hover:border-amber-400'} rounded-xl flex flex-col items-center justify-center cursor-pointer select-none relative shadow transition hover:scale-105 active:scale-95 overflow-hidden">
                     <span class="text-xs text-slate-500 font-bold">#${idx + 1}</span>
+                    ${snapEligible ? '<span class="text-[8px] text-emerald-400 font-black uppercase tracking-widest mt-1">SNAP?</span>' : ''}
                 </div>`;
             }).join('')}
         </div>
@@ -383,8 +456,8 @@ document.getElementById("drawDeck").addEventListener("click", async () => {
     if (gameState.status !== 'PLAYING') return;
     if (activePid() !== localPlayerId) return;
     if (gameState.turnPhase !== 'AWAIT_DRAW') return;
-    if (peeksRemaining > 0) return alert("Finish peeking at your own cards first!");
-    if (!gameState.deck || gameState.deck.length === 0) return alert("Deck is empty!");
+    if (peeksRemaining > 0) { showToast("Finish peeking at your cards first!", 'warning'); return; }
+    if (!gameState.deck || gameState.deck.length === 0) { showToast("The deck is empty!", 'warning'); return; }
 
     const freshDeck = [...gameState.deck];
     const card = freshDeck.pop();
@@ -399,8 +472,8 @@ document.getElementById("discardPile").addEventListener("click", async () => {
     if (gameState.status !== 'PLAYING') return;
     if (activePid() !== localPlayerId) return;
     if (gameState.turnPhase !== 'AWAIT_DRAW') return;
-    if (peeksRemaining > 0) return alert("Finish peeking at your own cards first!");
-    if (!gameState.discard || gameState.discard.length === 0) return alert("Discard pile is empty!");
+    if (peeksRemaining > 0) { showToast("Finish peeking at your cards first!", 'warning'); return; }
+    if (!gameState.discard || gameState.discard.length === 0) { showToast("The discard pile is empty!", 'warning'); return; }
 
     const freshDiscard = [...gameState.discard];
     const card = freshDiscard.pop();
@@ -437,7 +510,13 @@ document.getElementById("discardDrawnBtn").addEventListener("click", async () =>
 document.getElementById("callDutchBtn").addEventListener("click", async () => {
     if (activePid() !== localPlayerId) return;
     if (gameState.turnPhase !== 'AWAIT_DRAW' || gameState.dutchCalledBy) return;
-    if (!confirm('Call "Dutch!"? Every other player gets one final turn, then the round ends and scores are revealed.')) return;
+    const confirmed = await showChoiceModal(
+        '🗣️ Call "Dutch!"?',
+        'Every other player gets one final turn, then scores are revealed. Make sure your hand is low!',
+        'Call it!',
+        'bg-rose-600 hover:bg-rose-500'
+    );
+    if (!confirmed) return;
 
     await advanceTurn({
         dutchCalledBy: localPlayerId,
@@ -466,7 +545,6 @@ async function advanceTurn(extraFields = {}) {
     };
 
     if (dutchCalledBy && finalTurnsLeft !== null && finalTurnsLeft <= 0) {
-        // Round over - score it
         const updatedPlayers = { ...gameState.players };
         Object.keys(updatedPlayers).forEach(pid => {
             const handScore = updatedPlayers[pid].cards.reduce((sum, c) => sum + (c.score || 0), 0);
@@ -511,14 +589,14 @@ function renderRoundEnd() {
 }
 
 // ==========================================
-// Card click interaction (turn actions, abilities, peeking, snapping)
+// Card click interaction
 // ==========================================
 async function handleCardInteraction(pid, idx) {
     if (gameState.status !== 'PLAYING') return;
 
-    // 1. Resolving a "give a card away" after a successful snap on an opponent
+    // 1. Resolving a "give a card away" after snapping an opponent's card
     if (gameState.pendingGive && gameState.pendingGive.fromPid === localPlayerId) {
-        if (pid !== localPlayerId) return;
+        if (pid !== localPlayerId) return; // must pick from your own hand
         const giverCards = [...gameState.players[localPlayerId].cards];
         const givenCard = giverCards[idx];
         giverCards.splice(idx, 1);
@@ -559,7 +637,7 @@ async function handleCardInteraction(pid, idx) {
         return;
     }
 
-    // 4. Initial peek phase (before round play really gets going)
+    // 4. Initial peek phase
     if (peeksRemaining > 0 && pid === localPlayerId) {
         const card = gameState.players[localPlayerId].cards[idx];
         peeksRemaining -= 1;
@@ -567,9 +645,9 @@ async function handleCardInteraction(pid, idx) {
         return;
     }
 
-    // 5. Otherwise: treat as a SNAP attempt (only valid out-of-turn-action moments)
+    // 5. Snap attempt - can snap ANY card (yours or opponent's) if it matches discard
     if (isMyTurn && (gameState.turnPhase === 'AWAIT_DECISION' || gameState.turnPhase === 'AWAIT_ABILITY')) {
-        return; // mid-action, ignore stray clicks
+        return; // mid-action, ignore
     }
     await attemptSnap(pid, idx);
 }
@@ -623,8 +701,14 @@ async function resolveAbilityClick(pid, idx) {
             if (pid === localPlayerId) return;
             const card = gameState.players[pid].cards[idx];
             reveal(pid, idx, card, 8000);
+            const oppName = gameState.players[pid]?.name || 'opponent';
             setTimeout(async () => {
-                const doSwap = confirm("King's power: swap your peeked card with this opponent's peeked card?");
+                const doSwap = await showChoiceModal(
+                    `Swap with ${oppName}'s card?`,
+                    "You've peeked at both. Do you want to swap your card with theirs?",
+                    '🔄 Swap!',
+                    'bg-indigo-600 hover:bg-indigo-500'
+                );
                 const myCards = [...gameState.players[localPlayerId].cards];
                 const oppCards = [...gameState.players[pid].cards];
                 if (doSwap) {
@@ -645,6 +729,9 @@ async function resolveAbilityClick(pid, idx) {
     }
 }
 
+// ==========================================
+// Snap — can snap any card (own OR opponent) if it matches discard
+// ==========================================
 async function attemptSnap(pid, idx) {
     if (!gameState.discard || gameState.discard.length === 0) return;
     const topCard = gameState.discard[gameState.discard.length - 1];
@@ -658,11 +745,15 @@ async function attemptSnap(pid, idx) {
         const newDiscard = [...gameState.discard, targetCard];
 
         if (pid === localPlayerId) {
+            // Snapped own card — just remove it
+            showToast("Snap! Nice one 🎉", 'success', 2000);
             await pushState({
                 [`players.${pid}.cards`]: targetCards,
                 discard: newDiscard
             });
         } else {
+            // Snapped opponent's card — they get the slot back, you must give a card
+            showToast(`Snap on ${gameState.players[pid]?.name || 'them'}! Now give them one of your cards.`, 'success', 3500);
             await pushState({
                 [`players.${pid}.cards`]: targetCards,
                 discard: newDiscard,
@@ -670,7 +761,7 @@ async function attemptSnap(pid, idx) {
             });
         }
     } else {
-        // Failed snap penalty: draw a card into your own hand
+        // Failed snap penalty
         if (!gameState.deck || gameState.deck.length === 0) return;
         const freshDeck = [...gameState.deck];
         const penaltyCard = freshDeck.pop();
@@ -679,7 +770,7 @@ async function attemptSnap(pid, idx) {
             deck: freshDeck,
             [`players.${localPlayerId}.cards`]: myCards
         });
-        alert("Wrong snap! You drew a penalty card.");
+        showToast("Wrong snap! You draw a penalty card. 😬", 'error', 3000);
     }
 }
 

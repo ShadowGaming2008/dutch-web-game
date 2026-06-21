@@ -199,18 +199,19 @@
             width: 100%;
             max-width: 1100px;
             margin: 0 auto;
-            height: calc(100vh - 56px);
-            min-height: 500px;
+            min-height: calc(100vh - 56px);
+            max-height: calc(100vh - 56px);
+            overflow-y: auto;
             grid-template-areas:
                 "top-bar    top-bar     top-bar"
                 "left-zone  center-zone right-zone"
                 "extra-bar  extra-bar   extra-bar"
                 "bottom-bar bottom-bar  bottom-bar";
             grid-template-columns: minmax(165px, 1fr) minmax(280px, auto) minmax(165px, 1fr);
-            grid-template-rows: auto 1fr auto auto;
-            gap: 0;
+            grid-template-rows: auto auto auto auto;
+            align-content: safe center;
+            gap: 6px;
             position: relative;
-            overflow: hidden;
             box-sizing: border-box;
         }
 

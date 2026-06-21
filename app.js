@@ -724,40 +724,24 @@ function renderGameBoard() {
 
     const opponents = Object.keys(gameState.players).filter(pid => pid !== localPlayerId);
     const n = opponents.length;
-    // Layout rules:
-    // 1 opp  → left
-    // 2 opps → left, right
-    // 3 opps → left, top, right
-    // 4 opps → left, top(2), right
-    // 5 opps → left(2), top(2), right
-    // 6 opps → left(2), top(2), right(2)
-    // Side columns can stack up to 2 opponents each so everyone stays
-    // grouped around the board/hero instead of floating in an extra row.
+    // Layout rules (n = number of opponents, hero is always on the bottom):
+    // 1 opp  → top(1)
+    // 2 opps → left(1), right(1)
+    // 3 opps → left(1), top(1), right(1)
+    // 4 opps → left(1), top(2), right(1)
+    // 5 opps → left(1), top(3), right(1)
+    // Left and right always hold exactly 1 each (once n >= 2); every
+    // remaining opponent beyond that goes to the top row.
 
     // Assign positions
     let topPids = [], leftPids = [], rightPids = [];
 
     if (n === 1) {
-        leftPids = [opponents[0]]; // just put solo opponent on left
-    } else if (n === 2) {
+        topPids = [opponents[0]];
+    } else {
         leftPids = [opponents[0]];
         rightPids = [opponents[1]];
-    } else if (n === 3) {
-        leftPids = [opponents[0]];
-        topPids = [opponents[1]];
-        rightPids = [opponents[2]];
-    } else if (n === 4) {
-        leftPids = [opponents[0]];
-        topPids = [opponents[1], opponents[2]];
-        rightPids = [opponents[3]];
-    } else if (n === 5) {
-        leftPids = [opponents[0], opponents[4]];
-        topPids = [opponents[1], opponents[2]];
-        rightPids = [opponents[3]];
-    } else {
-        leftPids = [opponents[0], opponents[4]];
-        topPids = [opponents[1], opponents[2]];
-        rightPids = [opponents[3], opponents[5]];
+        topPids = opponents.slice(2);
     }
 
     leftPids.forEach(pid => {
@@ -773,9 +757,9 @@ function renderGameBoard() {
         zoneTop.appendChild(el);
     });
 
-    // No-op: extra-bottom row removed — overflow opponents now stack in
-    // the left/right side zones instead. Clean up any leftover element
-    // from a previous render/version.
+    // No-op: extra-bottom row removed — every opponent now lives in the
+    // left/top/right zones. Clean up any leftover element from a
+    // previous render/version.
     const extraZone = document.getElementById('zone-extra-bottom');
     if (extraZone) extraZone.remove();
 

@@ -723,34 +723,87 @@ function renderGameBoard() {
     heroContainer.innerHTML = "";
 
     const opponents = Object.keys(gameState.players).filter(pid => pid !== localPlayerId);
-    // Layout strategy:
-    // 1 opp  → top
-    // 2 opps → left + right
-    // 3 opps → top + left + right
-    // 4 opps → top(2) + left + right
-    // 5 opps → top(3) + left + right
     const n = opponents.length;
-    opponents.forEach((pid, i) => {
-        const playerObj = gameState.players[pid];
-        const isSide = (n === 2) || (n >= 3 && i >= n - 2);
-        const isLeft  = (n === 2 && i === 0) || (n >= 3 && i === n - 2);
-        const isRight = (n === 2 && i === 1) || (n >= 3 && i === n - 1);
-        const el = createPlayerBoardElement(playerObj, pid, false, topCard, canSnap, isSide);
-        if (isLeft) {
-            el.classList.add("side-zone");
-            zoneLeft.appendChild(el);
-        } else if (isRight) {
-            el.classList.add("side-zone");
-            zoneRight.appendChild(el);
-        } else {
-            zoneTop.appendChild(el);
-        }
+    // Layout rules:
+    // 1 opp  → left
+    // 2 opps → left, right
+    // 3 opps → left, top, right
+    // 4 opps → left, top(2), right
+    // 5 opps → left, top(2), right + bottom(1) via extra bottom zone
+    // Actually using: left, right always; top gets extras
+    // Requested rules:
+    // 2 players (1 opp)  → left + right split? No — "left and right" means 1 each side
+    // 2 opps             → left + right
+    // 3 opps             → left + top + right  (one on each side, one top)
+    // 4 opps             → left + top(2) + right
+    // 5 opps             → left + top(2) + right + bottom-extra(1)
+    // 6 opps would be    → left + top(2) + right + bottom-extra(2)
+    // We show an extra bottom zone for overflow (zone-extra-bottom)
+
+    // Assign positions
+    let topPids = [], leftPid = null, rightPid = null, extraBottomPids = [];
+
+    if (n === 1) {
+        leftPid = opponents[0]; // just put solo opponent on left
+    } else if (n === 2) {
+        leftPid = opponents[0];
+        rightPid = opponents[1];
+    } else if (n === 3) {
+        leftPid = opponents[0];
+        topPids = [opponents[1]];
+        rightPid = opponents[2];
+    } else if (n === 4) {
+        leftPid = opponents[0];
+        topPids = [opponents[1], opponents[2]];
+        rightPid = opponents[3];
+    } else if (n === 5) {
+        leftPid = opponents[0];
+        topPids = [opponents[1], opponents[2]];
+        rightPid = opponents[3];
+        extraBottomPids = [opponents[4]];
+    } else {
+        leftPid = opponents[0];
+        topPids = [opponents[1], opponents[2]];
+        rightPid = opponents[3];
+        extraBottomPids = opponents.slice(4);
+    }
+
+    if (leftPid) {
+        const el = createPlayerBoardElement(gameState.players[leftPid], leftPid, false, topCard, canSnap, 'side');
+        zoneLeft.appendChild(el);
+    }
+    if (rightPid) {
+        const el = createPlayerBoardElement(gameState.players[rightPid], rightPid, false, topCard, canSnap, 'side');
+        zoneRight.appendChild(el);
+    }
+    topPids.forEach(pid => {
+        const el = createPlayerBoardElement(gameState.players[pid], pid, false, topCard, canSnap, 'top');
+        zoneTop.appendChild(el);
     });
 
-    // Hero
+    // Extra bottom opponents (5-6 player games)
+    let extraZone = document.getElementById('zone-extra-bottom');
+    if (extraBottomPids.length > 0) {
+        if (!extraZone) {
+            extraZone = document.createElement('div');
+            extraZone.id = 'zone-extra-bottom';
+            extraZone.style.cssText = 'display:flex;justify-content:center;gap:8px;padding:0 8px 4px;';
+            // Insert before zone-bottom in the DOM
+            const zoneBottom = document.getElementById('zone-bottom');
+            zoneBottom.parentNode.insertBefore(extraZone, zoneBottom);
+        }
+        extraZone.innerHTML = '';
+        extraBottomPids.forEach(pid => {
+            const el = createPlayerBoardElement(gameState.players[pid], pid, false, topCard, canSnap, 'top');
+            extraZone.appendChild(el);
+        });
+    } else if (extraZone) {
+        extraZone.remove();
+    }
+
     const heroObj = gameState.players[localPlayerId];
     if (heroObj) {
-        heroContainer.appendChild(createPlayerBoardElement(heroObj, localPlayerId, true, topCard, canSnap));
+        heroContainer.appendChild(createPlayerBoardElement(heroObj, localPlayerId, true, topCard, canSnap, 'hero'));
     }
 }
 
@@ -775,24 +828,31 @@ function reveal(pid, idx, card, ms = NOTIFY_MS) {
     setTimeout(() => { renderGameBoard(); }, ms + 50);
 }
 
-function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, isSide = false) {
+function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, zone = 'top') {
     const root = document.createElement("div");
     const isMyTurn = activePid() === localPlayerId;
     const isPendingGiveFrom = gameState.pendingGive?.fromPid === localPlayerId;
     const isPendingGiveTo = gameState.pendingGive?.toPid === pid;
     const isAbilityPhase = isMyTurn && gameState.turnPhase === 'AWAIT_ABILITY' && gameState.ability;
+    const isActiveTurn = activePid() === pid;
+    const isSide = zone === 'side';
 
     root.className = isHero ? "hero-zone" : "opp-zone";
-    if (!isHero && activePid() === pid) root.classList.add("active-turn");
+    if (!isHero && isActiveTurn) root.classList.add("active-turn");
+    if (isSide) root.classList.add("side-zone");
 
-    const isActiveTurn = activePid() === pid;
+    // Card sizes per zone
+    const cardW = isHero ? 76 : isSide ? 52 : 58;
+    const cardH = isHero ? 108 : isSide ? 73 : 82;
+    const gap   = isHero ? 6 : 4;
+    // Side zone: 2-col still fits 2×52=104+4=108px wide; top zone: 2×58=116+4=120px
+    const cols  = 2;
 
-    // Card size: hero > top-zone opponents > side-zone opponents
-    const cardW = isHero ? 78 : isSide ? 54 : 60;
-    const cardH = isHero ? 110 : isSide ? 76 : 84;
-    // Side zones show 1 column so they don't need width, top zones show 2 cols
-    const cols = isSide ? 2 : 2;
-    const gap  = isHero ? 6 : 4;
+    // Scroll only needed when more than 4 cards
+    const cardCount = player.cards.filter(Boolean).length + player.cards.filter(c => c === null).length;
+    const needsScroll = player.cards.length > 4;
+    // Max heights: side zones are constrained by viewport middle row
+    const scrollMaxH = isHero ? 150 : isSide ? 200 : 160;
 
     const cardsHTML = player.cards.map((card, idx) => {
         const seen = isRevealed(pid, idx);
@@ -825,43 +885,42 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, isSide 
 
         if (!card) {
             return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card ${hl}" style="cursor:default;width:${cardW}px;height:${cardH}px;border-radius:8px;border:2px dashed rgba(100,116,139,0.5);display:flex;align-items:center;justify-content:center">
-                <div class="card-slot-number" style="position:static;background:none;border:none;box-shadow:none;color:#475569">#${idx + 1}</div>
+                <div class="card-slot-number" style="position:static;background:none;border:none;box-shadow:none;color:#475569">#${idx+1}</div>
             </div>`;
         }
-
         if (seen) {
             const cc = cardColorClass(seen);
             const suit = seen.isJoker ? '🃏' : seen.suit;
             const rank = seen.isJoker ? '🃏' : seen.name;
             return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card playing-card card-revealing ${extraCardClass}" style="width:${cardW}px;height:${cardH}px">
-                <div class="card-slot-number">#${idx + 1}</div>
+                <div class="card-slot-number">#${idx+1}</div>
                 <div class="corner-tl ${cc}"><div class="rank">${rank}</div>${suit && !seen.isJoker ? `<div class="suit-sm">${suit}</div>` : ''}</div>
                 <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.07;font-size:2rem" class="${cc}">${suit}</div>
                 <div class="text-center"><div class="text-xl ${cc}">${suit}</div></div>
                 <div class="corner-br ${cc}"><div class="rank">${rank}</div>${suit && !seen.isJoker ? `<div class="suit-sm">${suit}</div>` : ''}</div>
             </div>`;
         }
-
         return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card card-back ${extraCardClass}" style="width:${cardW}px;height:${cardH}px">
-            <div class="card-slot-number">#${idx + 1}</div>
+            <div class="card-slot-number">#${idx+1}</div>
         </div>`;
     }).join('');
+
+    const gridStyle = `display:grid;grid-template-columns:repeat(${cols},${cardW}px);gap:${gap}px;width:fit-content;margin:0 auto;`;
+    const scrollStyle = needsScroll ? `max-height:${scrollMaxH}px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:#334155 transparent;` : '';
 
     root.innerHTML = `
         <div class="player-meta">
             <div class="player-name-row">
                 ${isActiveTurn ? '<div class="turn-dot"></div>' : ''}
-                <span style="font-size:${isSide?11:12}px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${isSide?80:90}px">${player.name}</span>
+                <span style="font-size:${isSide?10:12}px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${isSide?70:90}px">${player.name}</span>
                 ${isHero ? '<span class="status-badge" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.25)">You</span>' : ''}
                 ${gameState.dutchCalledBy === pid ? '<span class="status-badge" style="background:rgba(239,68,68,0.15);color:#fca5a5;border:1px solid rgba(239,68,68,0.25);animation:dot-pulse 1s infinite">Dutch!</span>' : ''}
                 ${isPendingGiveTo ? '<span class="status-badge" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.25)">Receiving</span>' : ''}
             </div>
             <span class="score-chip">Pts: <span>${player.totalScore || 0}</span></span>
         </div>
-        <div class="card-scroll-area">
-            <div style="display:grid;grid-template-columns:repeat(${cols},${cardW}px);gap:${gap}px;width:fit-content;margin:0 auto;">
-                ${cardsHTML}
-            </div>
+        <div style="${scrollStyle}">
+            <div style="${gridStyle}">${cardsHTML}</div>
         </div>
     `;
 

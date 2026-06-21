@@ -162,7 +162,7 @@
         /* Toast */
         .toast-enter { animation: toast-in 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards; }
         @keyframes toast-in {
-            0% { transform: translateY(20px) scale(0.9); opacity: 0; }
+            0% { transform: translateY(-12px) scale(0.95); opacity: 0; }
             100% { transform: translateY(0) scale(1); opacity: 1; }
         }
 
@@ -209,45 +209,45 @@
             gap: 0;
             position: relative;
             overflow: hidden;
+            box-sizing: border-box;
         }
 
-        /* Top zone — 1 or 2 opponents across the top */
         #zone-top {
             grid-area: top-bar;
             display: flex;
             justify-content: center;
             gap: 8px;
-            padding: 8px 10px 4px;
+            padding: 8px 8px 4px;
             align-items: flex-start;
             overflow: hidden;
             min-width: 0;
+            flex-shrink: 0;
         }
 
-        /* Left zone — opponents on the left side */
         #zone-left {
             grid-area: left-zone;
             display: flex;
             flex-direction: column;
             justify-content: center;
             gap: 6px;
-            padding: 4px 6px 4px 8px;
+            padding: 4px 4px 4px 8px;
             min-width: 0;
             overflow: hidden;
+            flex-shrink: 0;
         }
 
-        /* Right zone — opponents on the right side */
         #zone-right {
             grid-area: right-zone;
             display: flex;
             flex-direction: column;
             justify-content: center;
             gap: 6px;
-            padding: 4px 8px 4px 6px;
+            padding: 4px 8px 4px 4px;
             min-width: 0;
             overflow: hidden;
+            flex-shrink: 0;
         }
 
-        /* Center zone — board island */
         #zone-center {
             grid-area: center-zone;
             display: flex;
@@ -259,23 +259,23 @@
             overflow: hidden;
         }
 
-        /* Bottom zone — hero player */
         #zone-bottom {
             grid-area: bottom-bar;
-            padding: 4px 10px 8px;
+            padding: 4px 8px 8px;
             display: flex;
             justify-content: center;
             overflow: hidden;
             min-width: 0;
+            flex-shrink: 0;
         }
 
         /* The felt island in the center */
         .board-island {
             background: radial-gradient(ellipse at 50% 30%, #1d6b43 0%, #146238 40%, #0d4426 80%, #082d19 100%);
-            border: 8px solid #3e2517;
-            border-radius: 24px;
-            box-shadow: inset 0 0 50px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.05), 0 10px 30px rgba(0,0,0,0.6);
-            padding: 12px;
+            border: 6px solid #3e2517;
+            border-radius: 20px;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.05), 0 8px 24px rgba(0,0,0,0.6);
+            padding: 10px;
             position: relative;
         }
         .board-island::before {
@@ -288,7 +288,7 @@
             mix-blend-mode: overlay;
         }
 
-        /* Opponent player zone card */
+        /* Opponent player zone */
         .opp-zone {
             background: rgba(15,23,42,0.85);
             border: 1px solid rgba(255,255,255,0.08);
@@ -299,25 +299,28 @@
             transition: border-color 0.2s;
             flex: 1;
             min-width: 0;
-            max-width: 190px;
+            max-width: 185px;
             overflow: hidden;
         }
         .opp-zone.active-turn {
             border-color: rgba(251, 191, 36, 0.4);
             box-shadow: 0 0 18px rgba(251,191,36,0.12);
         }
-        /* Side zone: cards scroll vertically, fixed width */
+        /* Side zones are narrower */
         .opp-zone.side-zone {
-            max-width: 158px;
+            max-width: 148px;
             flex: none;
+            width: 148px;
         }
-        .opp-zone.side-zone .card-scroll-area {
-            max-height: 220px;
+        /* Scroll wrapper — only scrolls when >4 cards */
+        .card-scroll-area {
             overflow-y: auto;
             overflow-x: hidden;
             scrollbar-width: thin;
             scrollbar-color: #334155 transparent;
         }
+        .card-scroll-area::-webkit-scrollbar { width: 3px; }
+        .card-scroll-area::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
 
         /* Hero zone at bottom */
         .hero-zone {
@@ -326,19 +329,11 @@
             border-radius: 16px;
             padding: 8px 12px;
             backdrop-filter: blur(4px);
-            max-width: 520px;
+            max-width: 480px;
             width: 100%;
             position: relative;
             box-shadow: 0 0 30px rgba(245,158,11,0.08);
             overflow: hidden;
-        }
-        /* Hero card area scrolls if too many cards */
-        .hero-zone .card-scroll-area {
-            max-height: 160px;
-            overflow-y: auto;
-            overflow-x: hidden;
-            scrollbar-width: thin;
-            scrollbar-color: #b45309 transparent;
         }
 
         /* Player status badge area */
@@ -779,7 +774,7 @@
     </div>
 
     <!-- Toast container -->
-    <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 items-center pointer-events-none" style="min-width:300px;max-width:88vw;margin-right:290px;"></div>
+    <div id="toastContainer" class="fixed z-50 flex flex-col gap-2 pointer-events-none" style="top:64px;left:12px;max-width:300px;"></div>
 
     <!-- Activity Log Panel -->
     <div id="activity-log-panel" class="log-collapsed">

@@ -6,170 +6,453 @@
     <title>Dutch - The Card Game</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
-        .card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
-        .perspective { perspective: 1000px; }
-        .rotate-y-180 { transform: rotateY(180deg); }
-        .transform-style-3d { transform-style: preserve-3d; }
-        .backface-hidden { backface-visibility: hidden; }
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700;800&display=swap');
+
+        :root {
+            --card-red: #ef4444;
+            --card-black: #f1f5f9;
+            --card-face: #fefce8;
+            --card-back-from: #1e1b4b;
+            --card-back-to: #0f0f23;
+        }
+
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Playfair Display', serif; }
+
+        /* ========== CARD STYLES ========== */
+        .playing-card {
+            background: var(--card-face);
+            border-radius: 10px;
+            border: 1px solid #d4d0c8;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.6);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+        .playing-card:hover { transform: translateY(-4px) scale(1.04); box-shadow: 0 8px 20px rgba(0,0,0,0.5); }
+        .playing-card:active { transform: translateY(-1px) scale(0.98); }
+
+        .playing-card .corner-tl { position: absolute; top: 4px; left: 6px; line-height: 1; }
+        .playing-card .corner-br { position: absolute; bottom: 4px; right: 6px; line-height: 1; transform: rotate(180deg); }
+        .playing-card .center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0.08; pointer-events: none; }
+
+        .playing-card .rank { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 1.1rem; line-height: 1; }
+        .playing-card .suit-sm { font-size: 0.7rem; line-height: 1; }
+        .playing-card .suit-center { font-size: 2rem; }
+
+        .card-red { color: var(--card-red); }
+        .card-black { color: #1e293b; }
+        .card-joker { color: #7c3aed; }
+
+        /* Card back */
+        .card-back {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #0f0f23 100%);
+            border-radius: 10px;
+            border: 2px solid #3730a3;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(99,102,241,0.3);
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            user-select: none;
+        }
+        .card-back:hover { transform: translateY(-4px) scale(1.04); box-shadow: 0 8px 20px rgba(0,0,0,0.5); }
+        .card-back:active { transform: translateY(-1px) scale(0.98); }
+        .card-back::before {
+            content: '';
+            position: absolute;
+            inset: 6px;
+            border: 1px solid rgba(99,102,241,0.4);
+            border-radius: 5px;
+        }
+        .card-back::after {
+            content: '✦';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%,-50%);
+            font-size: 1.4rem;
+            color: rgba(99,102,241,0.5);
+        }
+
+        /* Snap glow */
+        .snap-eligible {
+            box-shadow: 0 0 0 3px #10b981, 0 0 20px rgba(16,185,129,0.5), 0 4px 12px rgba(0,0,0,0.4) !important;
+            animation: snap-pulse 1s ease-in-out infinite;
+        }
+        @keyframes snap-pulse {
+            0%, 100% { box-shadow: 0 0 0 3px #10b981, 0 0 20px rgba(16,185,129,0.5), 0 4px 12px rgba(0,0,0,0.4); }
+            50% { box-shadow: 0 0 0 4px #10b981, 0 0 30px rgba(16,185,129,0.7), 0 4px 12px rgba(0,0,0,0.4); }
+        }
+
+        /* Ability target glow */
+        .ability-own-target {
+            box-shadow: 0 0 0 3px #f59e0b, 0 0 20px rgba(245,158,11,0.5), 0 4px 12px rgba(0,0,0,0.4) !important;
+            animation: ability-pulse-amber 1s ease-in-out infinite;
+        }
+        @keyframes ability-pulse-amber {
+            0%, 100% { box-shadow: 0 0 0 3px #f59e0b, 0 0 20px rgba(245,158,11,0.5); }
+            50% { box-shadow: 0 0 0 4px #f59e0b, 0 0 30px rgba(245,158,11,0.7); }
+        }
+        .ability-opp-target {
+            box-shadow: 0 0 0 3px #818cf8, 0 0 20px rgba(129,140,248,0.5), 0 4px 12px rgba(0,0,0,0.4) !important;
+            animation: ability-pulse-indigo 1s ease-in-out infinite;
+        }
+        @keyframes ability-pulse-indigo {
+            0%, 100% { box-shadow: 0 0 0 3px #818cf8, 0 0 20px rgba(129,140,248,0.5); }
+            50% { box-shadow: 0 0 0 4px #818cf8, 0 0 30px rgba(129,140,248,0.7); }
+        }
+        .ability-selected {
+            box-shadow: 0 0 0 3px #34d399, 0 0 20px rgba(52,211,153,0.5) !important;
+        }
+
+        /* Peek reveal animation */
+        @keyframes card-reveal {
+            0% { transform: scale(0.8) rotateY(90deg); opacity: 0; }
+            60% { transform: scale(1.1) rotateY(-5deg); }
+            100% { transform: scale(1) rotateY(0deg); opacity: 1; }
+        }
+        .card-revealing { animation: card-reveal 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+
+        /* Ability banner */
+        .ability-banner {
+            animation: banner-drop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+        }
+        @keyframes banner-drop {
+            0% { transform: translateY(-20px) scale(0.9); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        /* Swap animation */
+        @keyframes swap-flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; background: #7c3aed; }
+        }
+        .swapping { animation: swap-flash 0.6s ease 2; }
+
+        /* Discard pile stack effect */
+        .discard-stack { position: relative; }
+        .discard-stack .stack-shadow-2 {
+            position: absolute;
+            inset: 0;
+            background: #1e1b4b;
+            border-radius: 10px;
+            transform: translateX(-3px) translateY(3px);
+            z-index: 0;
+        }
+        .discard-stack .stack-shadow-1 {
+            position: absolute;
+            inset: 0;
+            background: #1e293b;
+            border-radius: 10px;
+            transform: translateX(-1.5px) translateY(1.5px);
+            z-index: 1;
+        }
+        .discard-stack .stack-top { position: relative; z-index: 2; }
+
+        /* Draw deck stack */
+        .draw-deck-stack { position: relative; }
+        .draw-deck-stack .deck-layer-3 {
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, #1e1b4b, #0f0f23);
+            border: 2px solid #3730a3;
+            border-radius: 10px;
+            transform: translateX(-4px) translateY(-4px);
+        }
+        .draw-deck-stack .deck-layer-2 {
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, #1e1b4b, #0f0f23);
+            border: 2px solid #3730a3;
+            border-radius: 10px;
+            transform: translateX(-2px) translateY(-2px);
+        }
+        .draw-deck-stack .deck-top {
+            position: relative;
+            z-index: 2;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #0f0f23 100%);
+            border-radius: 10px;
+            border: 2px solid #4f46e5;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(99,102,241,0.3);
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+        .draw-deck-stack .deck-top:hover { transform: translateY(-3px); }
+        .draw-deck-stack .deck-top::before {
+            content: '';
+            position: absolute;
+            inset: 6px;
+            border: 1px solid rgba(99,102,241,0.4);
+            border-radius: 5px;
+        }
+
+        /* Card grid */
+        .card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+        /* Drawn card display in draw area */
+        .drawn-card-display {
+            animation: drawn-pop 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+        }
+        @keyframes drawn-pop {
+            0% { transform: scale(0.7) translateY(-10px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+        /* Toast */
+        .toast-enter { animation: toast-in 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        @keyframes toast-in {
+            0% { transform: translateY(20px) scale(0.9); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        /* Ability overlay panel */
+        .ability-panel {
+            animation: panel-slide 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+        }
+        @keyframes panel-slide {
+            0% { transform: translateY(10px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Turn banner pulse */
+        .my-turn-banner {
+            background: linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b);
+            background-size: 200% 100%;
+            animation: banner-shimmer 2s ease infinite;
+        }
+        @keyframes banner-shimmer {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen font-sans selection:bg-amber-500 selection:text-slate-900">
+<body class="bg-slate-900 text-slate-100 min-h-screen selection:bg-amber-500 selection:text-slate-900">
 
-    <header class="border-b border-slate-800 bg-slate-950/50 backdrop-blur p-4 sticky top-0 z-50 flex justify-between items-center">
-        <h1 class="text-2xl font-black tracking-wider text-amber-500 flex items-center gap-2">
-            ♠️ <span>DUTCH</span> ♦️
+    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur p-4 sticky top-0 z-40 flex justify-between items-center">
+        <h1 class="font-display text-2xl font-black tracking-wide text-amber-400 flex items-center gap-2">
+            ♠ DUTCH ♦
         </h1>
-        <button id="rulesBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-sm font-semibold rounded-lg transition">
-            📜 Rules Cheat Sheet
+        <button id="rulesBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-sm font-semibold rounded-lg transition border border-slate-700">
+            📜 Rules
         </button>
     </header>
 
-    <main class="max-w-6xl mx-auto p-4 min-h-[calc(100vh-73px)] flex flex-col justify-center items-center">
-        
-        <section id="screen-landing" class="w-full max-w-md bg-slate-950 p-8 rounded-2xl border border-slate-800 shadow-2xl text-center space-y-6">
-            <div class="space-y-2">
-                <h2 class="text-3xl font-bold text-white">Welcome to Dutch</h2>
-                <p class="text-slate-400 text-sm">A fast-paced multiplayer game of memory, strategy, and deception.</p>
-            </div>
-            
-            <div class="space-y-4 pt-4">
-                <div class="space-y-2">
-                    <label class="block text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Your Display Name</label>
-                    <input type="text" id="usernameInput" placeholder="Enter name..." class="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:border-amber-500 text-white">
+    <main class="max-w-6xl mx-auto p-4 min-h-[calc(100vh-65px)] flex flex-col justify-center items-center">
+
+        <!-- LANDING -->
+        <section id="screen-landing" class="w-full max-w-md space-y-6">
+            <div class="bg-slate-950 p-8 rounded-2xl border border-slate-800 shadow-2xl text-center space-y-6">
+                <div class="space-y-1">
+                    <div class="font-display text-5xl font-black text-amber-400 tracking-wide">DUTCH</div>
+                    <p class="text-slate-400 text-sm">Memory, strategy, and deception — all in your hand.</p>
                 </div>
-
-                <button id="createRoomBtn" class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl transition shadow-lg shadow-amber-500/10 cursor-pointer">
-                    👑 Create New Party
-                </button>
-
-                <div class="relative flex py-2 items-center">
-                    <div class="flex-grow border-t border-slate-800"></div>
-                    <span class="flex-shrink mx-4 text-slate-500 text-xs uppercase tracking-widest">Or Join Existing</span>
-                    <div class="flex-grow border-t border-slate-800"></div>
-                </div>
-
-                <div class="flex gap-2">
-                    <input type="text" id="roomCodeInput" placeholder="Room Code" class="w-2/3 px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:border-amber-500 text-center text-white tracking-widest font-mono uppercase">
-                    <button id="joinRoomBtn" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl transition cursor-pointer">
-                        Join
+                <div class="space-y-4 pt-2">
+                    <div class="space-y-1.5">
+                        <label class="block text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Your Name</label>
+                        <input type="text" id="usernameInput" placeholder="Enter display name..." class="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:border-amber-500 text-white placeholder-slate-600 transition">
+                    </div>
+                    <button id="createRoomBtn" class="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition shadow-lg shadow-amber-500/20 text-sm tracking-wide uppercase">
+                        👑 Create Party
                     </button>
+                    <div class="relative flex py-1 items-center">
+                        <div class="flex-grow border-t border-slate-800"></div>
+                        <span class="flex-shrink mx-4 text-slate-500 text-xs uppercase tracking-widest">or join</span>
+                        <div class="flex-grow border-t border-slate-800"></div>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="roomCodeInput" placeholder="ROOM CODE" class="flex-1 px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:border-amber-500 text-center text-white tracking-widest font-mono uppercase placeholder-slate-600 text-sm transition">
+                        <button id="joinRoomBtn" class="px-6 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition border border-slate-700">
+                            Join
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>
 
+        <!-- LOBBY -->
         <section id="screen-lobby" class="hidden w-full max-w-2xl bg-slate-950 p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6">
             <div class="flex justify-between items-center border-b border-slate-800 pb-4">
                 <div>
-                    <h2 class="text-2xl font-bold text-white">Game Lobby</h2>
-                    <p class="text-slate-400 text-sm">Waiting for players to ready up...</p>
+                    <h2 class="font-display text-2xl font-bold text-white">Game Lobby</h2>
+                    <p class="text-slate-400 text-sm mt-0.5">Share the code — everyone ready up to start.</p>
                 </div>
-                <div class="bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 text-center">
-                    <span class="block text-[10px] text-slate-500 uppercase font-bold tracking-wider">Room Code</span>
-                    <span id="lobbyCodeDisplay" class="text-xl font-mono font-bold text-amber-400 uppercase tracking-widest">-----</span>
+                <div class="bg-slate-900 px-5 py-3 rounded-xl border border-slate-700 text-center">
+                    <span class="block text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-0.5">Room Code</span>
+                    <span id="lobbyCodeDisplay" class="text-2xl font-mono font-black text-amber-400 uppercase tracking-widest">-----</span>
                 </div>
             </div>
-
             <div class="space-y-2">
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Players Joined</h3>
-                <div id="lobbyPlayerList" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    </div>
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Players</h3>
+                <div id="lobbyPlayerList" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
             </div>
-
             <div class="flex gap-3 pt-4 border-t border-slate-800">
-                <button id="readyBtn" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition cursor-pointer">
-                    Set Ready
+                <button id="readyBtn" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition cursor-pointer">
+                    ✓ Ready Up
                 </button>
-                <button id="startMatchBtn" class="hidden flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                <button id="startMatchBtn" class="hidden flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
                     Start Game ⚔️
                 </button>
             </div>
         </section>
 
-        <section id="screen-game" class="hidden w-full space-y-6">
-            <div id="gameTurnBanner" class="bg-amber-500 text-slate-950 p-3 rounded-xl font-bold text-center text-lg animate-pulse">
-                It's Your Turn!
+        <!-- GAME -->
+        <section id="screen-game" class="hidden w-full space-y-4">
+
+            <!-- Turn banner -->
+            <div id="gameTurnBanner" class="p-3 rounded-xl font-black text-center text-base">
+                Waiting...
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-                <div id="opponentsContainer" class="lg:col-span-3 space-y-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Ability action panel (shown during ability phase) -->
+            <div id="abilityPanel" class="hidden ability-panel bg-slate-950 border-2 border-indigo-500 rounded-2xl p-4 shadow-2xl shadow-indigo-500/10">
+                <div class="flex items-start gap-4">
+                    <div id="abilityIcon" class="text-4xl flex-shrink-0">⚡</div>
+                    <div class="flex-1 min-w-0">
+                        <div id="abilityTitle" class="font-display font-bold text-white text-lg leading-tight">Ability Active</div>
+                        <div id="abilityDesc" class="text-slate-300 text-sm mt-1 leading-relaxed"></div>
+                        <div id="abilityStep" class="mt-2 flex items-center gap-2">
+                            <div id="abilityStepDot1" class="w-2 h-2 rounded-full bg-indigo-400"></div>
+                            <div id="abilityStepDot2" class="hidden w-2 h-2 rounded-full bg-slate-600"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
+
+                <!-- Opponents -->
+                <div id="opponentsContainer" class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+                <!-- Board Panel -->
+                <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-col items-center space-y-4 sticky top-[80px]">
+                    <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">The Board</span>
+
+                    <!-- Deck + Discard -->
+                    <div class="flex gap-5 items-end">
+
+                        <!-- Draw Deck -->
+                        <div class="flex flex-col items-center gap-1.5">
+                            <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Deck</span>
+                            <div id="drawDeck" class="draw-deck-stack w-[76px] h-[108px]">
+                                <div class="deck-layer-3 w-full h-full"></div>
+                                <div class="deck-layer-2 w-full h-full"></div>
+                                <div class="deck-top w-full h-full flex flex-col items-center justify-center gap-1">
+                                    <span class="text-2xl opacity-40">✦</span>
+                                    <span class="text-[10px] text-indigo-300 font-bold uppercase tracking-widest">Draw</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Discard -->
+                        <div class="flex flex-col items-center gap-1.5">
+                            <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Discard</span>
+                            <div id="discardPileWrapper" class="discard-stack w-[76px] h-[108px]">
+                                <div class="stack-shadow-2 w-full h-full"></div>
+                                <div class="stack-shadow-1 w-full h-full"></div>
+                                <div id="discardPile" class="stack-top w-full h-full flex flex-col items-center justify-center rounded-[10px] border-2 border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-600 transition">
+                                    <span class="text-xs text-slate-600 font-bold">EMPTY</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center space-y-4">
-                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">The Board</span>
-                    <div class="flex gap-6">
-                        <div id="drawDeck" class="w-24 h-36 bg-gradient-to-br from-indigo-900 to-slate-950 border-2 border-indigo-500 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:scale-105 transition active:scale-95 shadow-lg shadow-indigo-500/20">
-                            <span class="text-3xl">🎴</span>
-                            <span class="text-[10px] text-indigo-300 font-bold mt-2">DRAW</span>
-                        </div>
-                        <div id="discardPile" class="w-24 h-36 bg-slate-900 border-2 border-slate-700 rounded-xl flex flex-col items-center justify-center relative cursor-pointer hover:scale-105 transition shadow-md">
-                            <span class="text-xs text-slate-500 font-bold">EMPTY</span>
-                        </div>
+                    <!-- Drawn card display -->
+                    <div id="drawnCardArea" class="hidden flex-col items-center gap-1.5 w-full">
+                        <span class="text-[9px] text-amber-400 font-black uppercase tracking-widest">Card In Hand</span>
+                        <div id="drawnCardDisplay" class="flex justify-center"></div>
+                        <button id="discardDrawnBtn" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs uppercase tracking-wide transition cursor-pointer">
+                            Discard &amp; Use Power
+                        </button>
+                        <button id="discardDrawnNoAbilityBtn" class="hidden w-full py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl text-xs uppercase tracking-wide transition cursor-pointer">
+                            Discard (no power)
+                        </button>
                     </div>
-                    
-                    <div id="actionInstruction" class="text-xs text-slate-400 font-medium text-center bg-slate-900 p-2 rounded-lg border border-slate-800 w-full">
+
+                    <!-- Instruction -->
+                    <div id="actionInstruction" class="text-xs text-slate-400 text-center bg-slate-900 p-3 rounded-xl border border-slate-800 w-full leading-relaxed min-h-[3rem] flex items-center justify-center">
                         Select a deck or card to begin.
                     </div>
 
-                    <button id="discardDrawnBtn" class="hidden w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl tracking-wide uppercase transition cursor-pointer text-sm">
-                        ⬇️ Discard Drawn Card
-                    </button>
-
-                    <button id="callDutchBtn" class="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl tracking-wider uppercase transition shadow-lg shadow-rose-600/20 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                    <!-- Dutch button -->
+                    <button id="callDutchBtn" class="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl tracking-wider uppercase transition shadow-lg shadow-rose-600/10 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed text-sm">
                         🗣️ Call "DUTCH!"
                     </button>
                 </div>
             </div>
 
-            <div id="heroContainer" class="border-t-2 border-dashed border-slate-800 pt-6">
-                </div>
+            <!-- Hero hand -->
+            <div id="heroContainer" class="border-t-2 border-dashed border-slate-800 pt-4"></div>
         </section>
 
+        <!-- ROUND END -->
         <section id="screen-roundend" class="hidden w-full max-w-2xl bg-slate-950 p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6">
             <div class="text-center space-y-2">
-                <h2 class="text-3xl font-bold text-amber-400">Round Over!</h2>
+                <h2 class="font-display text-3xl font-bold text-amber-400">Round Over!</h2>
                 <p id="roundEndSubtitle" class="text-slate-400 text-sm"></p>
             </div>
             <div id="roundEndScores" class="space-y-2"></div>
-            <button id="nextRoundBtn" class="hidden w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition cursor-pointer">
+            <button id="nextRoundBtn" class="hidden w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition cursor-pointer uppercase tracking-wide">
                 Start Next Round ▶️
             </button>
             <p id="nextRoundWaitMsg" class="hidden text-center text-xs text-slate-500">Waiting for host to start the next round...</p>
         </section>
     </main>
 
+    <!-- Rules Modal -->
     <div id="rulesModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 max-h-[85vh] overflow-y-auto space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                <h3 class="text-xl font-bold text-amber-500">Dutch Cheat Sheet</h3>
-                <button id="closeRulesBtn" class="text-slate-400 hover:text-white text-xl font-bold">✕</button>
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="font-display text-xl font-bold text-amber-400">Dutch — Cheat Sheet</h3>
+                <button id="closeRulesBtn" class="text-slate-400 hover:text-white text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 transition">✕</button>
             </div>
-            <div class="space-y-3 text-sm text-slate-300 leading-relaxed">
-                <p><strong>Goal:</strong> Have the lowest card score at the end of the round. Call <em>"Dutch!"</em> when you think you have achieved this.</p>
-                <h4 class="font-bold text-white uppercase text-xs tracking-wider pt-2 border-t border-slate-800/50 text-amber-400">Card Scoring Values:</h4>
-                <ul class="list-disc pl-5 space-y-1 text-xs">
-                    <li><strong>Ace:</strong> 1 point</li>
-                    <li><strong>2 - 10:</strong> Face value</li>
-                    <li><strong>Jack / Queen:</strong> 10 points</li>
-                    <li><strong>Black King:</strong> 10 points</li>
-                    <li><strong>Red King:</strong> -2 points (Jackpot!)</li>
-                    <li><strong>Joker:</strong> 0 points</li>
-                </ul>
-                <h4 class="font-bold text-white uppercase text-xs tracking-wider pt-2 border-t border-slate-800/50 text-amber-400">Special Card Abilities:</h4>
-                <ul class="list-disc pl-5 space-y-1 text-xs">
-                    <li><strong>7 or 8:</strong> Look at 1 of your own cards.</li>
-                    <li><strong>9 or 10:</strong> Look at 1 opponent's card.</li>
-                    <li><strong>Black J or Q:</strong> Blindly swap any 1 of your cards with an opponent.</li>
-                    <li><strong>Black King:</strong> Look at 1 of your cards AND 1 opponent's card, then swap if you want.</li>
-                </ul>
-                <h4 class="font-bold text-white uppercase text-xs tracking-wider pt-2 border-t border-slate-800/50 text-amber-400">Snapping:</h4>
-                <p class="text-xs">If the top discarded card matches any card on the board, you can click it instantly to discard your match out-of-turn!</p>
+            <div class="space-y-4 text-sm text-slate-300 leading-relaxed">
+                <p><strong class="text-white">Goal:</strong> Have the lowest total hand score when Dutch is called.</p>
+                <div class="space-y-2">
+                    <h4 class="font-bold text-amber-400 uppercase text-xs tracking-wider">Card Values</h4>
+                    <div class="grid grid-cols-2 gap-1.5 text-xs">
+                        <div class="bg-slate-950 rounded-lg p-2 flex justify-between"><span>Ace</span><span class="font-bold text-white">1 pt</span></div>
+                        <div class="bg-slate-950 rounded-lg p-2 flex justify-between"><span>2 – 10</span><span class="font-bold text-white">Face value</span></div>
+                        <div class="bg-slate-950 rounded-lg p-2 flex justify-between"><span>Jack / Queen</span><span class="font-bold text-white">10 pts</span></div>
+                        <div class="bg-slate-950 rounded-lg p-2 flex justify-between"><span>Black King</span><span class="font-bold text-white">10 pts</span></div>
+                        <div class="bg-slate-950 rounded-lg p-2 flex justify-between"><span class="text-rose-400">Red King ♥♦</span><span class="font-bold text-rose-400">−2 pts!</span></div>
+                        <div class="bg-slate-950 rounded-lg p-2 flex justify-between"><span class="text-purple-400">Joker 🃏</span><span class="font-bold text-purple-400">0 pts!</span></div>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <h4 class="font-bold text-amber-400 uppercase text-xs tracking-wider">Special Abilities (discard to activate)</h4>
+                    <div class="space-y-1.5 text-xs">
+                        <div class="bg-slate-950 rounded-lg p-2.5 flex gap-2"><span class="text-amber-400 font-bold w-20 flex-shrink-0">7 or 8</span><span>Peek at one of YOUR own cards.</span></div>
+                        <div class="bg-slate-950 rounded-lg p-2.5 flex gap-2"><span class="text-indigo-400 font-bold w-20 flex-shrink-0">9 or 10</span><span>Peek at one OPPONENT'S card.</span></div>
+                        <div class="bg-slate-950 rounded-lg p-2.5 flex gap-2"><span class="text-slate-300 font-bold w-20 flex-shrink-0">Black J/Q</span><span>Blind swap — one of your cards for an opponent's.</span></div>
+                        <div class="bg-slate-950 rounded-lg p-2.5 flex gap-2"><span class="text-slate-300 font-bold w-20 flex-shrink-0">Black K</span><span>Peek at one of your cards AND one opponent's, then optionally swap.</span></div>
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <h4 class="font-bold text-amber-400 uppercase text-xs tracking-wider">Snapping</h4>
+                    <p class="text-xs">If the top discard matches any card on the board, click it to snap it out! If you snap an opponent's card, you must give them one of yours in return. Wrong snap = penalty card.</p>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Toast notification container -->
-    <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 items-center pointer-events-none" style="min-width:280px;max-width:90vw;"></div>
+    <!-- Toast container -->
+    <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 items-center pointer-events-none" style="min-width:300px;max-width:90vw;"></div>
+
+    <!-- Ability notification overlay (full-screen flash) -->
+    <div id="abilityFlash" class="hidden fixed inset-0 z-30 pointer-events-none flex items-center justify-center">
+        <div id="abilityFlashContent" class="text-center space-y-2 p-8 rounded-3xl border-2 shadow-2xl scale-90 opacity-0 transition-all duration-300">
+            <div id="abilityFlashIcon" class="text-6xl"></div>
+            <div id="abilityFlashTitle" class="font-display text-3xl font-black text-white"></div>
+            <div id="abilityFlashDesc" class="text-base font-medium text-slate-200"></div>
+        </div>
+    </div>
 
     <script type="module" src="app.js"></script>
 </body>
-</html>
+</html>s

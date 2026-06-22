@@ -166,7 +166,63 @@ let lastResolvedVoteKickAt = null;     // dedupes the public toast/log line for 
 // and loads/creates a matching profile doc that the rest of the app can read.
 
 function defaultStats() {
-    return { gamesPlayed: 0, gamesWon: 0, totalScore: 0, bestScore: null, totalRounds: 0 };
+    return { gamesPlayed: 0, gamesWon: 0, totalScore: 0, bestScore: null, totalRounds: 0, xp: 0 };
+}
+
+// ==========================================
+// XP / Level system
+// ==========================================
+const LEVEL_NAMES = [
+    '', // 0 unused
+    'Fresh Dealer', 'Card Shuffler', 'Apprentice', 'Novice Player', 'Keen Eye',
+    'Street Gambler', 'Sharp Mind', 'Table Regular', 'Calculated Risk', 'Steady Hand',
+    'Dutch Initiate', 'Bluff Artist', 'Memory Keeper', 'Clever Counter', 'Hand Reader',
+    'Dutch Veteran', 'Odds Maker', 'Card Hawk', 'Sharp Shooter', 'Mind Bender',
+    'Dutch Expert', 'Ghost Hand', 'Cold Blood', 'Stack Watcher', 'Ace Hunter',
+    'Dutch Master', 'Phantom Player', 'The Calculator', 'Iron Memory', 'Table Ghost',
+    'Elite Dealer', 'Shadow Trader', 'Dutch Sage', 'The Deceiver', 'Card Whisperer',
+    'Dutch Legend', 'Grand Tactician', 'The Manipulator', 'Void Walker', 'Time Lord',
+    'Dutch Grandmaster', 'The Omniscient', 'Dutch God', 'The Untouchable', 'Card Sovereign',
+    'Eternal Dutch', 'The Immortal', 'Dutch Supreme', 'Beyond Mortal', 'Dutch Transcendent'
+];
+
+function xpForLevel(level) {
+    // XP needed to reach this level from level 1
+    if (level <= 1) return 0;
+    // Grows: 200 * level^1.5 per level, cumulative
+    let total = 0;
+    for (let i = 2; i <= level; i++) {
+        total += Math.floor(200 * Math.pow(i, 1.5));
+    }
+    return total;
+}
+
+function getLevelFromXP(xp) {
+    let level = 1;
+    while (level < 50 && xp >= xpForLevel(level + 1)) level++;
+    return level;
+}
+
+function xpForCurrentLevel(xp) {
+    const level = getLevelFromXP(xp);
+    return xp - xpForLevel(level);
+}
+
+function xpToNextLevel(xp) {
+    const level = getLevelFromXP(xp);
+    if (level >= 50) return 0;
+    return xpForLevel(level + 1) - xpForLevel(level);
+}
+
+function calcXPGained(won, myScore, playerCount) {
+    let xp = 50; // base for completing a round
+    if (won) xp += 100;
+    // Score bonus: lower score = more XP (up to 80 bonus for score 0)
+    const scoreBonus = Math.max(0, 80 - myScore * 2);
+    xp += scoreBonus;
+    // More players = bigger game, slight bonus
+    xp += (playerCount - 2) * 10;
+    return Math.round(xp);
 }
 
 // Preset emoji avatars a signed-in user can pick instead of their Google
@@ -218,6 +274,7 @@ async function loadOrCreateProfile(user) {
         await setDoc(ref, currentProfile);
     }
     if (!currentProfile.stats) currentProfile.stats = defaultStats();
+    if (currentProfile.stats.xp === undefined) currentProfile.stats.xp = 0;
     if (currentProfile.avatarEmoji === undefined) currentProfile.avatarEmoji = null;
 }
 
@@ -361,37 +418,53 @@ async function renderStatsModal() {
     `;
 
     const historyList = document.getElementById("statsHistoryList");
-    historyList.innerHTML = `<div class="text-xs text-slate-500 text-center py-3">Loading...</div>`;
-    try {
-        const historyRef = collection(db, "users", currentUser.uid, "gameHistory");
-        const q = query(historyRef, orderBy("date", "desc"), limit(15));
-        const snaps = await getDocs(q);
-        if (snaps.empty) {
-            historyList.innerHTML = `<div class="text-xs text-slate-500 text-center py-3">No games played yet — go win some!</div>`;
-            return;
-        }
-        historyList.innerHTML = snaps.docs.map(d => {
-            const h = d.data();
-            const date = h.date?.toDate ? h.date.toDate() : new Date(h.date);
-            const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-            const won = h.placement === 1;
-            return `
-                <div class="flex justify-between items-center bg-slate-950 border border-slate-800 rounded-lg px-3 py-2">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <span class="text-base flex-shrink-0">${won ? '🏆' : '·'}</span>
-                        <div class="min-w-0">
-                            <div class="text-xs font-semibold text-white truncate">Room ${h.roomCode || '—'}</div>
-                            <div class="text-[10px] text-slate-500">${dateStr} · ${h.playerCount || '?'} players</div>
-                        </div>
+    if (historyList) {
+        historyList.innerHTML = '';
+    }
+    // Render level & XP card
+    const levelCard = document.getElementById("statsLevelCard");
+    if (levelCard) {
+        const xp = stats.xp || 0;
+        const level = getLevelFromXP(xp);
+        const levelName = LEVEL_NAMES[level] || 'Legend';
+        const curLevelXP = xpForCurrentLevel(xp);
+        const nextXP = xpToNextLevel(xp);
+        const progressPct = level >= 50 ? 100 : Math.round((curLevelXP / nextXP) * 100);
+        const tierColor = level >= 41 ? '#f59e0b' : level >= 31 ? '#a78bfa' : level >= 21 ? '#38bdf8' : level >= 11 ? '#34d399' : '#94a3b8';
+        const tierBg = level >= 41 ? 'rgba(245,158,11,0.12)' : level >= 31 ? 'rgba(167,139,250,0.12)' : level >= 21 ? 'rgba(56,189,248,0.12)' : level >= 11 ? 'rgba(52,211,153,0.12)' : 'rgba(148,163,184,0.08)';
+        levelCard.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div style="width:52px;height:52px;border-radius:12px;background:${tierBg};border:2px solid ${tierColor};display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;">
+                    <div style="font-size:18px;font-weight:900;color:${tierColor};font-family:'Playfair Display',serif;line-height:1">${level}</div>
+                    <div style="font-size:8px;color:${tierColor};opacity:0.7;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">LVL</div>
+                </div>
+                <div style="flex:1;min-width:0">
+                    <div style="color:#f1f5f9;font-weight:700;font-size:14px;margin-bottom:1px">${levelName}</div>
+                    <div style="color:#64748b;font-size:11px;margin-bottom:6px">${xp.toLocaleString()} XP total</div>
+                    <div style="background:rgba(255,255,255,0.06);border-radius:4px;height:6px;overflow:hidden">
+                        <div style="height:100%;width:${progressPct}%;background:linear-gradient(90deg,${tierColor},${tierColor}cc);border-radius:4px;transition:width 0.5s ease"></div>
                     </div>
-                    <div class="text-right flex-shrink-0">
-                        <div class="text-sm font-mono font-bold ${won ? 'text-amber-400' : 'text-slate-300'}">${h.score}</div>
-                        <div class="text-[10px] text-slate-500">#${h.placement} place</div>
+                    <div style="display:flex;justify-content:space-between;margin-top:3px">
+                        <div style="font-size:10px;color:#475569">${level >= 50 ? 'Max Level!' : `${curLevelXP.toLocaleString()} / ${nextXP.toLocaleString()} XP`}</div>
+                        ${level < 50 ? `<div style="font-size:10px;color:#475569">Next: ${LEVEL_NAMES[level+1] || ''}</div>` : ''}
                     </div>
-                </div>`;
-        }).join('');
-    } catch (err) {
-        historyList.innerHTML = `<div class="text-xs text-rose-400 text-center py-3">Couldn't load game history.</div>`;
+                </div>
+            </div>
+            <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#fbbf24">+50 XP</div>
+                    <div style="font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-top:1px">Per Round</div>
+                </div>
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#34d399">+100 XP</div>
+                    <div style="font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-top:1px">Win Bonus</div>
+                </div>
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#38bdf8">+80 XP</div>
+                    <div style="font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-top:1px">Low Score</div>
+                </div>
+            </div>
+        `;
     }
 }
 
@@ -502,15 +575,31 @@ async function recordRoundResultForCurrentUser(roundKey) {
 
     const ref = doc(db, "users", currentUser.uid);
     const stats = currentProfile.stats || defaultStats();
+    const playerCount = Object.keys(gameState.players).length;
+    const xpGained = calcXPGained(won, myScore, playerCount);
+    const oldXP = stats.xp || 0;
+    const newXP = oldXP + xpGained;
+    const oldLevel = getLevelFromXP(oldXP);
+    const newLevel = getLevelFromXP(newXP);
     const updatedStats = {
         gamesPlayed: stats.gamesPlayed + 1,
         gamesWon: stats.gamesWon + (won ? 1 : 0),
         totalScore: stats.totalScore + myScore,
         bestScore: stats.bestScore === null ? myScore : Math.min(stats.bestScore, myScore),
-        totalRounds: stats.totalRounds + 1
+        totalRounds: stats.totalRounds + 1,
+        xp: newXP
     };
     currentProfile.stats = updatedStats;
     await updateDoc(ref, { stats: updatedStats });
+
+    // Show XP gained toast (and level-up if applicable)
+    setTimeout(() => {
+        if (newLevel > oldLevel) {
+            showToast(`🎉 Level Up! You're now Level ${newLevel} — ${LEVEL_NAMES[newLevel] || 'Legend'}!`, 'success', 6000);
+        } else {
+            showToast(`⭐ +${xpGained} XP earned!`, 'info', 3500);
+        }
+    }, 1500);
 
     // Also write a public leaderboard entry at /leaderboard/{uid}
     // This collection is readable by all, unlike /users which is private.
@@ -616,6 +705,8 @@ async function openLeaderboard() {
             const rowStyle = isMe
                 ? 'background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.4);'
                 : 'background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.05);';
+            const playerXP = stats.xp || 0;
+            const playerLevel = getLevelFromXP(playerXP);
 
             return `
                 <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;${rowStyle}">
@@ -629,7 +720,7 @@ async function openLeaderboard() {
                     </div>
                     <div style="text-align:right;flex-shrink:0">
                         <div style="color:#fbbf24;font-weight:700;font-size:13px">${stats.gamesWon} wins</div>
-                        ${stats.bestScore !== null ? `<div style="color:#475569;font-size:11px">best: ${stats.bestScore}</div>` : ''}
+                        <div style="color:#64748b;font-size:11px">Lv. ${playerLevel}</div>
                     </div>
                 </div>`;
         });

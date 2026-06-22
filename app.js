@@ -444,6 +444,23 @@ document.getElementById("saveEditProfileBtn").addEventListener("click", async ()
     currentProfile.avatarEmoji = newAvatarEmoji;
     await updateDoc(doc(db, "users", currentUser.uid), { username: newUsername, avatarEmoji: newAvatarEmoji });
 
+    // Keep the public leaderboard entry in sync too — otherwise a name/avatar
+    // change here wouldn't show up on the leaderboard until the next time
+    // this user finishes a round (see recordRoundResultForCurrentUser).
+    // Uses merge so it's safe even if this user has no leaderboard doc yet
+    // (e.g. they've never finished a round) — stats/updatedAt then just stay
+    // whatever they already were, or are simply absent until a round completes.
+    try {
+        const lbRef = doc(db, "leaderboard", currentUser.uid);
+        await setDoc(lbRef, {
+            displayName: newUsername,
+            avatarEmoji: newAvatarEmoji,
+            photoURL: currentProfile.photoURL || null
+        }, { merge: true });
+    } catch (lbErr) {
+        console.warn("Could not sync leaderboard entry:", lbErr);
+    }
+
     // Keep the landing-page username field in sync with this edit, same as
     // the existing inline-edit flow does, so create/join room still uses it.
     const usernameInput = document.getElementById("usernameInput");

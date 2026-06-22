@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
     getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion,
-    collection, addDoc, query, orderBy, limit, getDocs
+    collection, addDoc, query, orderBy, limit, getDocs, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
     getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
@@ -143,6 +143,18 @@ let lastHighlightEventId = null;
 let currentUser = null;        // Firebase Auth user object, or null if signed out / guest
 let currentProfile = null;     // users/{uid} Firestore doc data, or null
 let statsWrittenForRound = null; // roundSeenKey already written to stats, to avoid double-counting on re-render
+
+// ==========================================
+// Vote-to-kick configuration
+// ==========================================
+const VOTE_KICK_DURATION_MS = 30000;   // how long a vote stays open before it auto-fails
+const VOTE_KICK_THRESHOLD_RATIO = 0.5; // > 50% of eligible voters must vote yes (strict majority)
+const MIN_PLAYERS_TO_REMAIN = 2;       // can't kick if it would drop the room below this
+let voteKickTimerInterval = null;      // client-side ticking interval for the live countdown display
+let voteKickModalShownForId = null;    // which gameState.voteKick "session" (by startedAt) we've already rendered a modal for, so we don't recreate it every snapshot tick
+let lastResolvedVoteKickAt = null;     // dedupes the public toast/log line for a just-finished vote
+
+// ==========================================
 
 // ==========================================
 // Accounts — Google Sign-In, profile doc, stats, history
@@ -838,6 +850,7 @@ function renderState() {
 
     if (gameState.status === "LOBBY") {
         lobbyScreen.classList.remove("hidden");
+        closeVoteKickModal();
         renderLobby();
     } else if (gameState.status === "PLAYING") {
         gameScreen.classList.remove("hidden");
@@ -854,8 +867,10 @@ function renderState() {
             lastHighlightEventId = gameState.lastEvent?.id || null;
         }
         renderGameBoard();
+        renderVoteKickModal();
     } else if (gameState.status === "ROUND_END") {
         roundEndScreen.classList.remove("hidden");
+        closeVoteKickModal();
         renderRoundEnd();
         // Each signed-in client records its OWN result for this finished round.
         // Keyed the same way as roundSeenKey so it can never double-count if
@@ -923,6 +938,46 @@ async function dealNewRound() {
 
 document.getElementById("startMatchBtn").addEventListener("click", dealNewRound);
 document.getElementById("nextRoundBtn").addEventListener("click", dealNewRound);
+
+// ==========================================
+// End Game — host-only, offered alongside "Start Next Round" on the
+// round-end screen. Returns everyone to the lobby for this same room
+// (same code, same seated players) rather than dissolving the room or
+// sending people back to the landing screen. Each player's cumulative
+// totalScore is intentionally left untouched — this is a "stop here for
+// now" action, not a "wipe the scoreboard" action, so the room's running
+// standings are still there if the host starts a fresh game later.
+// Nothing here touches per-account Firestore stats (users/{uid}.stats) —
+// those are already finalized at the moment a round ends (see
+// recordRoundResultForCurrentUser, hooked into the ROUND_END render branch),
+// so ending the game afterward has nothing left to record or undo.
+// ==========================================
+async function endGame() {
+    const updatedPlayers = { ...gameState.players };
+    Object.keys(updatedPlayers).forEach(pid => {
+        updatedPlayers[pid] = { ...updatedPlayers[pid], ready: false, cards: [] };
+    });
+    await pushState({
+        status: "LOBBY",
+        players: updatedPlayers,
+        turnOrder: Object.keys(updatedPlayers), currentTurnIdx: 0,
+        deck: [], discard: [], drawnCard: null, ability: null,
+        dutchCalledBy: null, finalTurnsLeft: null, pendingGive: null,
+        voteKick: deleteField()
+    });
+}
+
+document.getElementById("endGameBtn").addEventListener("click", async () => {
+    if (gameState.hostId !== localPlayerId) return;
+    const confirmed = await showChoiceModal(
+        '🏁 End the game?',
+        "Everyone will be sent back to the lobby. Your room's current standings are kept — you can start a fresh game from the lobby whenever you're ready.",
+        'End Game',
+        'bg-slate-700 hover:bg-slate-600'
+    );
+    if (!confirmed) return;
+    await endGame();
+});
 
 // ==========================================
 // Game board rendering
@@ -1030,6 +1085,19 @@ function renderGameBoard() {
 
     const dutchBtn = document.getElementById("callDutchBtn");
     dutchBtn.disabled = !(isMyTurn && gameState.turnPhase === 'AWAIT_DRAW' && !gameState.dutchCalledBy);
+
+    // Vote-kick button: available to anyone, any time mid-game (not gated to
+    // your own turn, unlike Dutch), as long as no vote is already running
+    // and there are enough players left that a kick wouldn't break the game.
+    const voteKickBtn = document.getElementById("vote-kick-btn");
+    const voteInProgress = gameState.voteKick && !gameState.voteKick.resolved;
+    const enoughToKick = Object.keys(gameState.players).length > MIN_PLAYERS_TO_REMAIN;
+    voteKickBtn.disabled = voteInProgress || !enoughToKick;
+    voteKickBtn.title = voteInProgress
+        ? "A kick vote is already in progress"
+        : !enoughToKick
+            ? `Need more than ${MIN_PLAYERS_TO_REMAIN} players to start a kick vote`
+            : "Vote to kick a player";
 
     // Ability panel
     const activeAbility = gameState.turnPhase === 'AWAIT_ABILITY' && gameState.ability;
@@ -1362,6 +1430,340 @@ document.getElementById("callDutchBtn").addEventListener("click", async () => {
 });
 
 // ==========================================
+// Vote-to-Kick
+// ==========================================
+// Data shape, stored at gameState.voteKick:
+//   {
+//     targetPid, initiatorPid, startedAt, deadline,
+//     votes: { [voterPid]: 'yes' | 'no' },   // never includes targetPid
+//     threshold,                              // yes-votes needed, frozen at creation time
+//     eligibleVoterCount,                     // frozen at creation time, for an accurate live tally display
+//     resolved: bool                          // true once the host has applied the outcome — guards against double-resolution
+//   }
+//
+// The initiator's own vote is pre-filled as 'yes' so they never have to
+// re-vote on a request they just made, but it's a normal vote entry like
+// anyone else's — they CAN change it in the modal like everyone else, it's
+// just pre-set rather than locked.
+//
+// Resolution (applying the kick, or closing out a failed vote) is done by
+// the host's client only, mirroring how round-end advancement already
+// works in this codebase (host-gated via gameState.hostId) — this avoids two
+// different players' browsers both trying to apply the outcome at once.
+
+document.getElementById("vote-kick-btn").addEventListener("click", () => {
+    if (gameState.status !== 'PLAYING') {
+        showToast("Vote-kick is only available during an active game.", 'warning');
+        return;
+    }
+    if (gameState.voteKick && !gameState.voteKick.resolved) {
+        showToast("A kick vote is already in progress.", 'warning');
+        return;
+    }
+    const eligibleTargets = Object.keys(gameState.players).filter(pid => pid !== localPlayerId);
+    if (eligibleTargets.length === 0) {
+        showToast("There's nobody else to vote to kick.", 'warning');
+        return;
+    }
+    if (Object.keys(gameState.players).length <= MIN_PLAYERS_TO_REMAIN) {
+        showToast(`Can't kick — the game needs at least ${MIN_PLAYERS_TO_REMAIN} players.`, 'warning');
+        return;
+    }
+    openTargetPickerModal();
+});
+
+function openTargetPickerModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4';
+    const targets = Object.keys(gameState.players).filter(pid => pid !== localPlayerId);
+    overlay.innerHTML = `
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+            <p class="text-white font-bold text-lg leading-snug">🚫 Vote to Kick</p>
+            <p class="text-slate-400 text-sm leading-relaxed">Choose who you'd like to put to a vote. Everyone else will get ${Math.round(VOTE_KICK_DURATION_MS / 1000)}s to vote.</p>
+            <div id="vk-target-list" class="space-y-2"></div>
+            <div class="flex gap-3 pt-2">
+                <button class="vk-cancel-btn flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl transition">Cancel</button>
+                <button class="vk-submit-btn flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl transition opacity-40 cursor-not-allowed" disabled>Submit</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    let selectedPid = null;
+    const list = overlay.querySelector('#vk-target-list');
+    const submitBtn = overlay.querySelector('.vk-submit-btn');
+    targets.forEach(pid => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'vk-target-row w-full text-left px-4 py-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-slate-200 font-semibold transition hover:border-slate-600';
+        row.textContent = gameState.players[pid]?.name || 'Unknown player';
+        row.addEventListener('click', () => {
+            selectedPid = pid;
+            list.querySelectorAll('.vk-target-row').forEach(r => {
+                r.className = 'vk-target-row w-full text-left px-4 py-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-slate-200 font-semibold transition hover:border-slate-600';
+            });
+            row.className = 'vk-target-row w-full text-left px-4 py-3 bg-rose-500/10 border-2 border-rose-500 rounded-xl text-white font-semibold transition';
+            submitBtn.disabled = false;
+            submitBtn.className = 'vk-submit-btn flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl transition';
+        });
+        list.appendChild(row);
+    });
+
+    overlay.querySelector('.vk-cancel-btn').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    submitBtn.addEventListener('click', async () => {
+        if (!selectedPid) return;
+        overlay.remove();
+        await startVoteKick(selectedPid);
+    });
+}
+
+async function startVoteKick(targetPid) {
+    const eligibleVoterCount = Object.keys(gameState.players).length - 1; // everyone except the target
+    const threshold = Math.floor(eligibleVoterCount * VOTE_KICK_THRESHOLD_RATIO) + 1; // strict majority
+    const now = Date.now();
+    const voteKick = {
+        targetPid,
+        initiatorPid: localPlayerId,
+        startedAt: now,
+        deadline: now + VOTE_KICK_DURATION_MS,
+        votes: { [localPlayerId]: 'yes' }, // initiator auto-counted as yes, but can still change it below
+        threshold,
+        eligibleVoterCount,
+        resolved: false
+    };
+    await pushState({
+        voteKick,
+        lastEvent: makeEvent(`${gameState.players[localPlayerId]?.name || 'A player'} started a vote to kick ${gameState.players[targetPid]?.name || 'a player'}.`)
+    });
+}
+
+async function castVoteKickBallot(choice) {
+    if (!gameState.voteKick || gameState.voteKick.resolved) return;
+    if (localPlayerId === gameState.voteKick.targetPid) return; // the target doesn't get a vote
+    await pushState({ [`voteKick.votes.${localPlayerId}`]: choice });
+}
+
+// Renders (or re-renders) the live vote modal for everyone — including the
+// initiator, per the spec, so the whole room watches the same tally update
+// in real time. Re-render happens every time gameState changes (driven from
+// the main render loop below), NOT on a separate timer, so the tally is
+// always exactly what's in Firestore; only the countdown digits tick locally.
+function renderVoteKickModal() {
+    const vk = gameState.voteKick;
+    if (!vk || vk.resolved) {
+        closeVoteKickModal();
+        return;
+    }
+
+    let overlay = document.getElementById('vote-kick-modal-overlay');
+    const isNewSession = voteKickModalShownForId !== vk.startedAt;
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'vote-kick-modal-overlay';
+        overlay.className = 'fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4';
+        document.body.appendChild(overlay);
+    }
+    if (isNewSession) {
+        voteKickModalShownForId = vk.startedAt;
+    }
+
+    const targetName = gameState.players[vk.targetPid]?.name || 'this player';
+    const initiatorName = gameState.players[vk.initiatorPid]?.name || 'A player';
+    const isTarget = localPlayerId === vk.targetPid;
+    const myVote = vk.votes?.[localPlayerId] || null;
+    const yesCount = Object.values(vk.votes || {}).filter(v => v === 'yes').length;
+    const noCount = Object.values(vk.votes || {}).filter(v => v === 'no').length;
+    const votedNames = Object.entries(vk.votes || {}).map(([pid, v]) =>
+        `<span class="${v === 'yes' ? 'text-emerald-400' : 'text-rose-400'}">${gameState.players[pid]?.name || '?'} (${v})</span>`
+    ).join(', ');
+    const secondsLeft = Math.max(0, Math.ceil((vk.deadline - Date.now()) / 1000));
+
+    overlay.innerHTML = `
+        <div class="bg-slate-900 border border-rose-700/50 rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+            <p class="text-white font-bold text-lg leading-snug">🚫 Vote: Kick ${targetName}?</p>
+            <p class="text-slate-400 text-sm leading-relaxed">Started by ${initiatorName}. Needs ${vk.threshold} of ${vk.eligibleVoterCount} eligible votes to pass.</p>
+
+            <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-xl px-4 py-3">
+                <div class="flex gap-4 text-sm font-bold">
+                    <span class="text-emerald-400">✓ ${yesCount}</span>
+                    <span class="text-rose-400">✗ ${noCount}</span>
+                </div>
+                <div class="text-amber-400 font-mono font-bold text-sm" id="vk-countdown">${secondsLeft}s</div>
+            </div>
+
+            <p class="text-[11px] text-slate-500 leading-relaxed">${votedNames || 'No votes yet.'}</p>
+
+            ${isTarget
+                ? `<p class="text-center text-sm text-slate-300 font-semibold py-2">You're the one being voted on — sit tight.</p>`
+                : `<div class="flex gap-3">
+                        <button class="vk-vote-no flex-1 py-3 rounded-xl font-bold transition ${myVote === 'no' ? 'bg-rose-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}">✗ No</button>
+                        <button class="vk-vote-yes flex-1 py-3 rounded-xl font-bold transition ${myVote === 'yes' ? 'bg-emerald-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}">✓ Yes</button>
+                   </div>
+                   <p class="text-center text-[11px] text-slate-500">${myVote ? `You voted ${myVote}. You can change your vote until the timer runs out.` : 'Cast your vote.'}</p>`
+            }
+        </div>`;
+
+    if (!isTarget) {
+        overlay.querySelector('.vk-vote-yes').addEventListener('click', () => castVoteKickBallot('yes'));
+        overlay.querySelector('.vk-vote-no').addEventListener('click', () => castVoteKickBallot('no'));
+    }
+
+    // Local countdown ticking, AND (for the host only) a periodic check for
+    // whether the vote should resolve on a timeout. We can't rely solely on
+    // resolution-via-render (triggered from Firestore snapshots) because if
+    // nobody does anything else in the game while a vote is open, the host's
+    // client might never re-render purely because time passed — this interval
+    // guarantees the deadline still gets checked even in total silence.
+    // The actual deadline comparison always uses the synced `deadline`
+    // timestamp from Firestore, never local elapsed time, so clock drift
+    // between browsers can't cause an unfair early/late resolution.
+    if (voteKickTimerInterval) clearInterval(voteKickTimerInterval);
+    voteKickTimerInterval = setInterval(() => {
+        const el = document.getElementById('vk-countdown');
+        if (!gameState.voteKick || gameState.voteKick.resolved) { clearInterval(voteKickTimerInterval); return; }
+        const left = Math.max(0, Math.ceil((gameState.voteKick.deadline - Date.now()) / 1000));
+        if (el) el.textContent = `${left}s`;
+        if (gameState.hostId === localPlayerId) {
+            maybeResolveVoteKick();
+        }
+    }, 500);
+
+    // Also check immediately on render (covers the majority-already-reached
+    // case without waiting for the next 500ms tick).
+    if (gameState.hostId === localPlayerId) {
+        maybeResolveVoteKick();
+    }
+}
+
+function closeVoteKickModal() {
+    const overlay = document.getElementById('vote-kick-modal-overlay');
+    if (overlay) overlay.remove();
+    if (voteKickTimerInterval) { clearInterval(voteKickTimerInterval); voteKickTimerInterval = null; }
+    voteKickModalShownForId = null;
+}
+
+// Host-only: checks whether the current vote should resolve right now
+// (majority already reached, or time's up) and applies the outcome exactly
+// once. Safe to call on every render — `resolved` flag prevents re-firing.
+async function maybeResolveVoteKick() {
+    const vk = gameState.voteKick;
+    if (!vk || vk.resolved) return;
+    const yesCount = Object.values(vk.votes || {}).filter(v => v === 'yes').length;
+    const timeUp = Date.now() >= vk.deadline;
+    const majorityReached = yesCount >= vk.threshold;
+    if (!majorityReached && !timeUp) return;
+
+    // Mark the vote resolved FIRST, in its own write, before doing any of the
+    // actual kick work below. This closes a real race: applyKick's own write
+    // and this function's write are two separate pushState calls, and the
+    // local gameState snapshot doesn't update synchronously — so if this
+    // function got called again (e.g. the next 500ms interval tick) before
+    // the snapshot listener caught up, it would see `target` still present
+    // and try to kick them a second time, double-reshuffling the deck and
+    // corrupting turn order. Setting `resolved: true` up front means any
+    // re-entrant call hits the guard above and bails immediately, even
+    // before the snapshot round-trips.
+    gameState.voteKick = { ...vk, resolved: true }; // optimistic local update, ahead of the snapshot
+    await pushState({ [`voteKick.resolved`]: true });
+
+    // Capture the target's name BEFORE applyKick removes them from gameState,
+    // so the event message below is correct regardless of exactly when the
+    // local onSnapshot listener happens to pick up the removal.
+    const targetName = gameState.players[vk.targetPid]?.name || 'a player';
+
+    if (majorityReached) {
+        await applyKick(vk.targetPid);
+        await pushState({
+            lastEvent: makeEvent(`The vote passed — ${targetName} was removed from the game.`)
+        });
+    } else {
+        await pushState({
+            lastEvent: makeEvent(`The vote to kick ${targetName} did not pass.`)
+        });
+    }
+    // Clear it fully a moment later so the next vote-kick attempt starts clean.
+    setTimeout(() => { pushState({ voteKick: deleteField() }).catch(() => {}); }, 1500);
+}
+
+// Removes a player from the game: deletes their players entry, folds their
+// hand cards back into the deck+discard (shuffled, keeping the current top
+// discard card in play — same rule as the existing deck-empty reshuffle),
+// removes them from turnOrder, and fixes up currentTurnIdx so the correct
+// player remains/becomes active.
+async function applyKick(targetPid) {
+    const target = gameState.players[targetPid];
+    if (!target) return; // already gone somehow — nothing to do
+
+    // Fold the kicked player's hand into deck + discard (minus discard's
+    // current top card, which must stay face-up and in play), then shuffle.
+    const handCards = (target.cards || []).filter(Boolean);
+    const discard = [...(gameState.discard || [])];
+    const topDiscard = discard.length > 0 ? discard.pop() : null; // keep this one out of the reshuffle
+    const combined = [...(gameState.deck || []), ...discard, ...handCards];
+    const reshuffledDeck = combined.sort(() => Math.random() - 0.5);
+    const newDiscard = topDiscard ? [topDiscard] : [];
+
+    // Recompute turn order + active player BEFORE removing anything, using
+    // the active player's id (not their old numeric index) so we can find
+    // them again correctly in the shortened array.
+    const oldTurnOrder = gameState.turnOrder || [];
+    const activePlayerId = oldTurnOrder[gameState.currentTurnIdx];
+    const newTurnOrder = oldTurnOrder.filter(pid => pid !== targetPid);
+
+    let newCurrentTurnIdx;
+    if (activePlayerId === targetPid) {
+        // The kicked player WAS active. The next player in the original
+        // order takes over "now" — find the kicked player's old position
+        // and the player that was right after them; that player's new
+        // index is where currentTurnIdx should land.
+        const oldIdx = oldTurnOrder.indexOf(targetPid);
+        const nextPlayerId = oldTurnOrder[(oldIdx + 1) % oldTurnOrder.length];
+        newCurrentTurnIdx = newTurnOrder.indexOf(nextPlayerId);
+    } else {
+        // Active player is untouched by the removal — just find their new
+        // position in the shortened array (shifts left if the kicked player
+        // was earlier in turn order, otherwise unchanged).
+        newCurrentTurnIdx = newTurnOrder.indexOf(activePlayerId);
+    }
+    if (newCurrentTurnIdx < 0) newCurrentTurnIdx = 0; // defensive fallback, shouldn't happen
+
+    // If a Dutch call is in progress and finalTurnsLeft was counting down
+    // based on the original player count, shrinking turnOrder by one means
+    // one fewer "lap" remains to complete it.
+    const updates = {
+        [`players.${targetPid}`]: deleteField(),
+        deck: reshuffledDeck,
+        discard: newDiscard,
+        turnOrder: newTurnOrder,
+        currentTurnIdx: newCurrentTurnIdx,
+        turnPhase: 'AWAIT_DRAW',
+        drawnCard: null,
+        ability: null
+    };
+    if (gameState.dutchCalledBy && gameState.dutchCalledBy !== targetPid && typeof gameState.finalTurnsLeft === 'number') {
+        updates.finalTurnsLeft = Math.max(0, gameState.finalTurnsLeft - 1);
+    }
+    if (gameState.dutchCalledBy === targetPid) {
+        // The Dutch-caller themselves got kicked — there's no one left who
+        // "called" it, so the cleanest behavior is to cancel the call rather
+        // than score a round around a player who no longer exists.
+        updates.dutchCalledBy = deleteField();
+        updates.finalTurnsLeft = deleteField();
+        showToast("The Dutch caller was removed — the call has been cancelled.", 'info');
+    }
+
+    if (gameState.hostId === targetPid) {
+        // The host was the one kicked — hand host duties to whoever's first
+        // in the new turn order, so round-end advancement (which is
+        // host-gated) doesn't get permanently stuck with no host left.
+        updates.hostId = newTurnOrder[0];
+    }
+
+    await pushState(updates);
+    showToast(`${target.name || 'A player'} was kicked from the game.`, 'warning', 4000);
+}
+
+// ==========================================
 // Turn advancement / round end
 // ==========================================
 async function advanceTurn(extraFields = {}) {
@@ -1415,12 +1817,15 @@ function renderRoundEnd() {
             </span>
         </div>`).join('');
     const nextBtn = document.getElementById("nextRoundBtn");
+    const endGameBtn = document.getElementById("endGameBtn");
     const waitMsg = document.getElementById("nextRoundWaitMsg");
     if (gameState.hostId === localPlayerId) {
         nextBtn.classList.remove("hidden");
+        endGameBtn.classList.remove("hidden");
         waitMsg.classList.add("hidden");
     } else {
         nextBtn.classList.add("hidden");
+        endGameBtn.classList.add("hidden");
         waitMsg.classList.remove("hidden");
     }
 }

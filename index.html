@@ -483,6 +483,38 @@
         #activity-log-panel.log-collapsed {
             max-height: 38px;
         }
+
+        /* ========== VOTE KICK BUTTON — sits just left of the activity log ========== */
+        #vote-kick-btn {
+            position: fixed;
+            bottom: 12px;
+            right: 294px; /* 270px log width + 12px log gap + 12px own gap */
+            width: 64px;
+            height: 38px;
+            background: rgba(8,15,30,0.95);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            backdrop-filter: blur(12px);
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, transform 0.1s;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        #vote-kick-btn:hover { background: rgba(220,38,38,0.18); border-color: rgba(248,113,113,0.4); }
+        #vote-kick-btn:active { transform: scale(0.96); }
+        #vote-kick-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        #vote-kick-btn .vk-icon { font-size: 15px; line-height: 1; }
+        #vote-kick-btn .vk-label { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #f87171; margin-top: 1px; }
+
+        @media (max-width: 640px) {
+            /* Narrow screens: stack the kick button above the log instead of beside it */
+            #vote-kick-btn { bottom: 312px; right: 12px; width: 270px; height: 32px; flex-direction: row; gap: 6px; }
+        }
+
         .log-header {
             display: flex;
             align-items: center;
@@ -871,8 +903,11 @@
                 <p id="roundEndSubtitle" class="text-slate-400 text-sm"></p>
             </div>
             <div id="roundEndScores" class="space-y-2"></div>
-            <button id="nextRoundBtn" class="hidden w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition cursor-pointer uppercase tracking-wide">Start Next Round ▶️</button>
-            <p id="nextRoundWaitMsg" class="hidden text-center text-xs text-slate-500">Waiting for host to start the next round...</p>
+            <div class="flex gap-3">
+                <button id="nextRoundBtn" class="hidden flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition cursor-pointer uppercase tracking-wide">Start Next Round ▶️</button>
+                <button id="endGameBtn" class="hidden flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-black rounded-xl transition cursor-pointer uppercase tracking-wide">End Game 🏁</button>
+            </div>
+            <p id="nextRoundWaitMsg" class="hidden text-center text-xs text-slate-500">Waiting for host to start the next round, or end the game...</p>
         </section>
     </main>
 
@@ -920,6 +955,12 @@
     <!-- Toast container -->
     <div id="toastContainer" class="fixed z-50 flex flex-col gap-2 pointer-events-none" style="top:64px;left:12px;max-width:300px;"></div>
 
+    <!-- Vote Kick button -->
+    <button id="vote-kick-btn" title="Vote to kick a player">
+        <span class="vk-icon">🚫</span>
+        <span class="vk-label">Kick</span>
+    </button>
+
     <!-- Activity Log Panel -->
     <div id="activity-log-panel" class="log-collapsed">
         <div class="log-header" id="log-toggle">
@@ -931,6 +972,7 @@
         </div>
         <div id="log-entries"></div>
     </div>
+
 
     <!-- Ability notification overlay -->
     <div id="abilityFlash" class="hidden fixed inset-0 z-30 pointer-events-none flex items-center justify-center">

@@ -495,6 +495,21 @@ async function recordRoundResultForCurrentUser(roundKey) {
     currentProfile.stats = updatedStats;
     await updateDoc(ref, { stats: updatedStats });
 
+    // Also write a public leaderboard entry at /leaderboard/{uid}
+    // This collection is readable by all, unlike /users which is private.
+    try {
+        const lbRef = doc(db, "leaderboard", currentUser.uid);
+        await setDoc(lbRef, {
+            displayName: currentProfile.displayName || currentProfile.username || "Player",
+            avatarEmoji: currentProfile.avatarEmoji || null,
+            photoURL: currentProfile.photoURL || null,
+            stats: updatedStats,
+            updatedAt: new Date()
+        });
+    } catch (lbErr) {
+        console.warn("Could not write leaderboard entry:", lbErr);
+    }
+
     await addDoc(collection(db, "users", currentUser.uid, "gameHistory"), {
         roomCode,
         date: new Date(),
@@ -548,7 +563,7 @@ async function openLeaderboard() {
 
     try {
         const q = query(
-            collection(db, 'users'),
+            collection(db, 'leaderboard'),
             orderBy('stats.gamesWon', 'desc'),
             limit(50)
         );
@@ -565,7 +580,7 @@ async function openLeaderboard() {
             const winRate = stats.gamesPlayed > 0
                 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100)
                 : 0;
-            const name = data.username || data.displayName || 'Player';
+            const name = data.displayName || data.username || 'Player';
             const emoji = data.avatarEmoji || null;
             const photo = data.photoURL || '';
             const rank = i + 1;
@@ -605,7 +620,11 @@ async function openLeaderboard() {
         content.innerHTML = rows.join('');
     } catch (err) {
         console.error('Leaderboard fetch error:', err);
-        content.innerHTML = '<p style="color:#f87171;text-align:center;padding:32px 0">Could not load leaderboard — check your connection.</p>';
+        const isPermErr = err?.code === 'permission-denied' || String(err?.message).includes('Missing or insufficient permissions');
+        const errMsg = isPermErr
+            ? "No leaderboard data yet — play a complete round and your score will appear here automatically."
+            : "Could not load leaderboard. Check your internet connection and try again.";
+        content.innerHTML = '<p style="color:#94a3b8;text-align:center;padding:32px 16px;line-height:1.6;font-size:13px">' + errMsg + '</p>';
     }
 }
 

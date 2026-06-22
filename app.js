@@ -505,6 +505,110 @@ async function recordRoundResultForCurrentUser(roundKey) {
     });
 }
 
+function showKingSwapChoiceModal(firstPid, firstIdx, secondPid, secondIdx, secondCard) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4';
+        overlay.innerHTML = `
+            <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+                <p class="text-white font-bold text-lg leading-snug">👑 Both cards peeked!</p>
+                <p class="text-slate-400 text-sm leading-relaxed">
+                    You saw ${describeSlot(firstPid, firstIdx)} and ${describeSlot(secondPid, secondIdx)}
+                    (${secondCard.name}${secondCard.isJoker ? '' : secondCard.suit}).
+                    What would you like to do?
+                </p>
+                <div class="flex flex-col gap-2 pt-1">
+                    <button class="swap-peeked-btn w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm">
+                        🔄 Swap those two peeked cards
+                    </button>
+                    <button class="pick-any-btn w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition text-sm">
+                        🎯 Pick any two cards to swap instead
+                    </button>
+                    <button class="keep-btn w-full py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold rounded-xl transition text-sm">
+                        Keep everything as is
+                    </button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        overlay.querySelector('.swap-peeked-btn').onclick = () => { overlay.remove(); resolve('swap_peeked'); };
+        overlay.querySelector('.pick-any-btn').onclick  = () => { overlay.remove(); resolve('pick_any'); };
+        overlay.querySelector('.keep-btn').onclick      = () => { overlay.remove(); resolve('keep'); };
+        overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve('keep'); } };
+    });
+}
+
+// ==========================================
+// Global Leaderboard
+// ==========================================
+async function openLeaderboard() {
+    const modal = document.getElementById('leaderboardModal');
+    const content = document.getElementById('leaderboardContent');
+    modal.classList.remove('hidden');
+    content.innerHTML = '<p class="text-slate-400 text-center py-8">Loading...</p>';
+
+    try {
+        const q = query(
+            collection(db, 'users'),
+            orderBy('stats.gamesWon', 'desc'),
+            limit(50)
+        );
+        const snap = await getDocs(q);
+
+        if (snap.empty) {
+            content.innerHTML = '<p class="text-slate-400 text-center py-8">No players yet — be the first to sign in and play!</p>';
+            return;
+        }
+
+        const rows = snap.docs.map((d, i) => {
+            const data = d.data();
+            const stats = data.stats || { gamesPlayed: 0, gamesWon: 0, bestScore: null };
+            const winRate = stats.gamesPlayed > 0
+                ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100)
+                : 0;
+            const name = data.username || data.displayName || 'Player';
+            const emoji = data.avatarEmoji || null;
+            const photo = data.photoURL || '';
+            const rank = i + 1;
+            const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+
+            let avatarHtml;
+            if (emoji) {
+                avatarHtml = `<div style="width:36px;height:36px;border-radius:50%;background:#334155;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${emoji}</div>`;
+            } else if (photo) {
+                avatarHtml = `<div style="width:36px;height:36px;border-radius:50%;background:#334155;flex-shrink:0;background-image:url('${photo}');background-size:cover;background-position:center"></div>`;
+            } else {
+                avatarHtml = `<div style="width:36px;height:36px;border-radius:50%;background:#334155;display:flex;align-items:center;justify-content:center;color:#64748b;font-weight:bold;flex-shrink:0">?</div>`;
+            }
+
+            const isMe = currentUser && d.id === currentUser.uid;
+            const rowStyle = isMe
+                ? 'background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.4);'
+                : 'background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.05);';
+
+            return `
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;${rowStyle}">
+                    <div style="color:#64748b;font-weight:700;font-size:13px;width:28px;text-align:center;flex-shrink:0">${medal}</div>
+                    ${avatarHtml}
+                    <div style="flex:1;min-width:0">
+                        <div style="color:#f1f5f9;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                            ${name}${isMe ? ' <span style="color:#818cf8;font-size:11px">(you)</span>' : ''}
+                        </div>
+                        <div style="color:#64748b;font-size:11px">${stats.gamesPlayed} games · ${winRate}% win rate</div>
+                    </div>
+                    <div style="text-align:right;flex-shrink:0">
+                        <div style="color:#fbbf24;font-weight:700;font-size:13px">${stats.gamesWon} wins</div>
+                        ${stats.bestScore !== null ? `<div style="color:#475569;font-size:11px">best: ${stats.bestScore}</div>` : ''}
+                    </div>
+                </div>`;
+        });
+
+        content.innerHTML = rows.join('');
+    } catch (err) {
+        console.error('Leaderboard fetch error:', err);
+        content.innerHTML = '<p style="color:#f87171;text-align:center;padding:32px 0">Could not load leaderboard — check your connection.</p>';
+    }
+}
+
 // Standard duration (ms) for toasts and the matching on-card highlight/reveal,
 // so a notification and the card it's talking about stay visible together
 // long enough to actually read. King ability gets extra time since it's two steps.
@@ -628,7 +732,12 @@ const ABILITY_CONFIG = {
         title: 'Black King — Spy & Swap',
         color: 'border-slate-400',
         flashColor: 'bg-slate-950 border-slate-300',
-        steps: ["Pick ANY card to peek at — yours or an opponent's.", "Pick a second card (any player, but not two of your own) to peek at, then decide whether to swap them."],
+        steps: [
+            "Pick ANY card to peek at — yours or an opponent's.",
+            "Pick a second card (any player, but not two of your own) to peek at, then decide.",
+            "Pick any card as the first card to swap.",
+            "Pick any card as the second card to swap with.",
+        ],
     },
 };
 
@@ -1267,11 +1376,18 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, zone = 
             if (a.type === 'k') {
                 if (a.step === 1) {
                     abilityClass = 'ability-opp-target';
-                } else if (a.first) {
+                } else if (a.step === 2 && a.first) {
                     const isFirstSlot = a.first.pid === pid && a.first.idx === idx;
                     const bothWouldBeOwn = a.first.pid === localPlayerId && pid === localPlayerId;
                     if (isFirstSlot) abilityClass = 'ability-selected';
                     else if (!bothWouldBeOwn) abilityClass = 'ability-opp-target';
+                } else if (a.step === 3) {
+                    // Free-pick step 3: all cards are valid targets
+                    abilityClass = 'ability-opp-target';
+                } else if (a.step === 4 && a.swapFirst) {
+                    const isSwapFirstSlot = a.swapFirst.pid === pid && a.swapFirst.idx === idx;
+                    if (isSwapFirstSlot) abilityClass = 'ability-selected';
+                    else abilityClass = 'ability-opp-target';
                 }
             }
         }
@@ -1991,75 +2107,124 @@ async function resolveAbilityClick(pid, idx) {
             return;
         }
 
-        // Second card: any card EXCEPT the one already picked, and you may
-        // not pick two of your own — every other combination is fair game
-        // (two different opponents, two of the same opponent, or yours + theirs).
-        if (a.first && a.first.pid === pid && a.first.idx === idx) {
-            showToast("That's the card you already picked — choose a different one.", 'warning', NOTIFY_MS);
-            return;
-        }
-        if (a.first && a.first.pid === localPlayerId && pid === localPlayerId) {
-            showToast("You can't peek at two of your own cards — pick an opponent's card.", 'warning', NOTIFY_MS);
-            return;
-        }
-
-        const firstPid = a.first.pid;
-        const firstIdx = a.first.idx;
-        const card = gameState.players[pid].cards[idx];
-        reveal(pid, idx, card, KING_NOTIFY_MS);
-        const secondPid = pid;
-        const secondIdx = idx;
-
-        setTimeout(async () => {
-            const doSwap = await showChoiceModal(
-                `👑 Second card — ${describeSlot(secondPid, secondIdx)} is ${card.name}${card.isJoker ? '' : card.suit}!`,
-                `You peeked at ${describeSlot(firstPid, firstIdx)} and ${describeSlot(secondPid, secondIdx)}. Swap those two cards with each other?`,
-                '🔄 Swap!',
-                'bg-indigo-600 hover:bg-indigo-500'
-            );
-            const myName = gameState.players[localPlayerId]?.name || 'A player';
-            const involvesMe = firstPid === localPlayerId || secondPid === localPlayerId;
-            const otherPid = firstPid === localPlayerId ? secondPid : (secondPid === localPlayerId ? firstPid : null);
-
-            if (doSwap) {
-                const firstCards = [...gameState.players[firstPid].cards];
-                const secondCards = firstPid === secondPid ? firstCards : [...gameState.players[secondPid].cards];
-                const tmp = firstCards[firstIdx];
-                firstCards[firstIdx] = secondCards[secondIdx];
-                secondCards[secondIdx] = tmp;
-
-                const updates = { [`players.${firstPid}.cards`]: firstCards };
-                if (firstPid !== secondPid) updates[`players.${secondPid}.cards`] = secondCards;
-
-                showToast(`🔄 Swapped ${describeSlot(firstPid, firstIdx)} with ${describeSlot(secondPid, secondIdx)}!`, 'success', NOTIFY_MS);
-
-                const publicMsg = `${myName} used the Black King ability and swapped ${describeSlot(firstPid, firstIdx)} with ${describeSlot(secondPid, secondIdx)}.`;
-                let targetMsg = null;
-                if (involvesMe && otherPid) {
-                    const myIdx = firstPid === localPlayerId ? firstIdx : secondIdx;
-                    const otherIdx = firstPid === otherPid ? firstIdx : secondIdx;
-                    targetMsg = `${myName} used the Black King ability and swapped YOUR card #${otherIdx + 1} with their own card #${myIdx + 1}.`;
-                }
-
-                await advanceTurn({
-                    ...updates,
-                    ability: null,
-                    lastEvent: makeEvent(publicMsg, otherPid, targetMsg, [{ pid: firstPid, idx: firstIdx }, { pid: secondPid, idx: secondIdx }])
-                });
-            } else {
-                showToast("Kept everything as is.", 'info', NOTIFY_MS);
-                await advanceTurn({
-                    ability: null,
-                    lastEvent: makeEvent(
-                        `${myName} used the Black King ability to peek at two cards, then kept everything as is.`,
-                        otherPid,
-                        otherPid ? `${myName} used the Black King ability to peek at your card and another, then kept everything as is.` : null,
-                        [{ pid: firstPid, idx: firstIdx }, { pid: secondPid, idx: secondIdx }]
-                    )
-                });
+        if (a.step === 2) {
+            // Second card: any card EXCEPT the one already picked, not two of your own.
+            if (a.first && a.first.pid === pid && a.first.idx === idx) {
+                showToast("That's the card you already picked — choose a different one.", 'warning', NOTIFY_MS);
+                return;
             }
-        }, 150);
-        return;
+            if (a.first && a.first.pid === localPlayerId && pid === localPlayerId) {
+                showToast("You can't peek at two of your own cards — pick an opponent's card.", 'warning', NOTIFY_MS);
+                return;
+            }
+
+            const firstPid = a.first.pid;
+            const firstIdx = a.first.idx;
+            const card = gameState.players[pid].cards[idx];
+            reveal(pid, idx, card, KING_NOTIFY_MS);
+            const secondPid = pid;
+            const secondIdx = idx;
+
+            setTimeout(async () => {
+                const choice = await showKingSwapChoiceModal(firstPid, firstIdx, secondPid, secondIdx, card);
+                const myName = gameState.players[localPlayerId]?.name || 'A player';
+
+                if (choice === 'swap_peeked') {
+                    // Swap the two peeked cards directly
+                    const firstCards = [...gameState.players[firstPid].cards];
+                    const secondCards = firstPid === secondPid ? firstCards : [...gameState.players[secondPid].cards];
+                    const tmp = firstCards[firstIdx];
+                    firstCards[firstIdx] = secondCards[secondIdx];
+                    secondCards[secondIdx] = tmp;
+                    const updates = { [`players.${firstPid}.cards`]: firstCards };
+                    if (firstPid !== secondPid) updates[`players.${secondPid}.cards`] = secondCards;
+                    const involvesMe = firstPid === localPlayerId || secondPid === localPlayerId;
+                    const otherPid = firstPid === localPlayerId ? secondPid : (secondPid === localPlayerId ? firstPid : null);
+                    showToast(`🔄 Swapped ${describeSlot(firstPid, firstIdx)} with ${describeSlot(secondPid, secondIdx)}!`, 'success', NOTIFY_MS);
+                    const publicMsg = `${myName} used the Black King ability and swapped ${describeSlot(firstPid, firstIdx)} with ${describeSlot(secondPid, secondIdx)}.`;
+                    let targetMsg = null;
+                    if (involvesMe && otherPid) {
+                        const myIdx = firstPid === localPlayerId ? firstIdx : secondIdx;
+                        const otherIdx = firstPid === otherPid ? firstIdx : secondIdx;
+                        targetMsg = `${myName} used the Black King ability and swapped YOUR card #${otherIdx + 1} with their own card #${myIdx + 1}.`;
+                    }
+                    await advanceTurn({
+                        ...updates,
+                        ability: null,
+                        lastEvent: makeEvent(publicMsg, otherPid, targetMsg, [{ pid: firstPid, idx: firstIdx }, { pid: secondPid, idx: secondIdx }])
+                    });
+
+                } else if (choice === 'pick_any') {
+                    // Enter free-pick mode — step 3: player clicks any first card to swap
+                    showToast("👑 Now pick any card as the first card to swap.", 'ability', NOTIFY_MS);
+                    await pushState({
+                        ability: {
+                            ...a,
+                            step: 3,
+                            peekFirst: { pid: firstPid, idx: firstIdx },
+                            peekSecond: { pid: secondPid, idx: secondIdx },
+                            swapFirst: null
+                        }
+                    });
+
+                } else {
+                    // Keep everything
+                    const otherPid = firstPid === localPlayerId ? secondPid : (secondPid === localPlayerId ? firstPid : null);
+                    showToast("Kept everything as is.", 'info', NOTIFY_MS);
+                    await advanceTurn({
+                        ability: null,
+                        lastEvent: makeEvent(
+                            `${myName} used the Black King ability to peek at two cards, then kept everything as is.`,
+                            otherPid,
+                            otherPid ? `${myName} used the Black King ability to peek at your card and another, then kept everything as is.` : null,
+                            [{ pid: firstPid, idx: firstIdx }, { pid: secondPid, idx: secondIdx }]
+                        )
+                    });
+                }
+            }, 150);
+            return;
+        }
+
+        if (a.step === 3) {
+            // Free-pick mode: player selects the first card they want to swap (any card on the board)
+            showToast(`✓ Selected ${describeSlot(pid, idx)}. Now pick the second card to swap it with.`, 'ability', NOTIFY_MS);
+            await pushState({ ability: { ...a, step: 4, swapFirst: { pid, idx } } });
+            return;
+        }
+
+        if (a.step === 4) {
+            // Free-pick mode: second card — must not be the exact same slot as the first
+            if (a.swapFirst && a.swapFirst.pid === pid && a.swapFirst.idx === idx) {
+                showToast("That's the same card — pick a different one.", 'warning', NOTIFY_MS);
+                return;
+            }
+            const sfPid = a.swapFirst.pid;
+            const sfIdx = a.swapFirst.idx;
+            const firstCards = [...gameState.players[sfPid].cards];
+            const secondCards = sfPid === pid ? firstCards : [...gameState.players[pid].cards];
+            const tmp = firstCards[sfIdx];
+            firstCards[sfIdx] = secondCards[idx];
+            secondCards[idx] = tmp;
+            const updates = { [`players.${sfPid}.cards`]: firstCards };
+            if (sfPid !== pid) updates[`players.${pid}.cards`] = secondCards;
+            const myName = gameState.players[localPlayerId]?.name || 'A player';
+            const involvesMe = sfPid === localPlayerId || pid === localPlayerId;
+            const otherPid = sfPid === localPlayerId ? pid : (pid === localPlayerId ? sfPid : null);
+            showToast(`🔄 Swapped ${describeSlot(sfPid, sfIdx)} with ${describeSlot(pid, idx)}!`, 'success', NOTIFY_MS);
+            const publicMsg = `${myName} used the Black King ability and swapped ${describeSlot(sfPid, sfIdx)} with ${describeSlot(pid, idx)}.`;
+            let targetMsg = null;
+            if (involvesMe && otherPid) {
+                const myIdx = sfPid === localPlayerId ? sfIdx : idx;
+                const opIdx = sfPid === otherPid ? sfIdx : idx;
+                targetMsg = `${myName} used the Black King ability and swapped YOUR card #${opIdx + 1} with their card #${myIdx + 1}.`;
+            }
+            await advanceTurn({
+                ...updates,
+                ability: null,
+                lastEvent: makeEvent(publicMsg, otherPid, targetMsg, [{ pid: sfPid, idx: sfIdx }, { pid, idx }])
+            });
+            return;
+        }
     }
 }
 
@@ -2143,3 +2308,15 @@ const rulesModal = document.getElementById("rulesModal");
 document.getElementById("rulesBtn").addEventListener("click", () => rulesModal.classList.remove("hidden"));
 document.getElementById("closeRulesBtn").addEventListener("click", () => rulesModal.classList.add("hidden"));
 rulesModal.addEventListener("click", (e) => { if (e.target === rulesModal) rulesModal.classList.add("hidden"); });
+
+// ==========================================
+// Leaderboard Modal
+// ==========================================
+document.getElementById("leaderboardBtn").addEventListener("click", openLeaderboard);
+document.getElementById("closeLeaderboardBtn").addEventListener("click", () => {
+    document.getElementById("leaderboardModal").classList.add("hidden");
+});
+document.getElementById("leaderboardModal").addEventListener("click", (e) => {
+    if (e.target === document.getElementById("leaderboardModal"))
+        document.getElementById("leaderboardModal").classList.add("hidden");
+});

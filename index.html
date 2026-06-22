@@ -654,6 +654,7 @@
         <h1 class="font-display text-xl font-black tracking-wide text-amber-400 flex items-center gap-2">♠ DUTCH ♦</h1>
         <div class="flex items-center gap-2">
             <button id="rulesBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg transition border border-slate-700">📜 Rules</button>
+            <button id="leaderboardBtn" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-xs font-semibold rounded-lg transition border border-amber-500 text-white">🏆 Leaderboard</button>
 
             <!-- Signed-out state: small Google sign-in button -->
             <button id="headerSignInBtn" class="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 text-xs font-semibold rounded-lg transition border border-slate-300 shadow-sm">
@@ -910,6 +911,20 @@
             <p id="nextRoundWaitMsg" class="hidden text-center text-xs text-slate-500">Waiting for host to start the next round, or end the game...</p>
         </section>
     </main>
+
+    <!-- Global Leaderboard Modal -->
+    <div id="leaderboardModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between p-5 border-b border-slate-700">
+                <h2 class="font-display text-xl font-bold text-amber-400">🏆 Global Leaderboard</h2>
+                <button id="closeLeaderboardBtn" class="text-slate-400 hover:text-white text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 transition">✕</button>
+            </div>
+            <div id="leaderboardContent" class="flex-1 overflow-y-auto p-4 space-y-2">
+                <p class="text-slate-400 text-center py-8">Loading...</p>
+            </div>
+            <p class="text-slate-600 text-xs text-center p-3 border-t border-slate-800">Only signed-in players appear · Sorted by wins</p>
+        </div>
+    </div>
 
     <!-- Rules Modal -->
     <div id="rulesModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">

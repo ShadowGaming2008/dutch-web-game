@@ -500,7 +500,7 @@ async function recordRoundResultForCurrentUser(roundKey) {
     try {
         const lbRef = doc(db, "leaderboard", currentUser.uid);
         await setDoc(lbRef, {
-            displayName: currentProfile.displayName || currentProfile.username || "Player",
+            displayName: currentProfile.username || currentProfile.displayName || "Player",
             avatarEmoji: currentProfile.avatarEmoji || null,
             photoURL: currentProfile.photoURL || null,
             stats: updatedStats,
@@ -1088,7 +1088,7 @@ async function endGame() {
     await pushState({
         status: "LOBBY",
         players: updatedPlayers,
-        turnOrder: Object.keys(updatedPlayers), currentTurnIdx: 0,
+        turnOrder: gameState.turnOrder || Object.keys(updatedPlayers), currentTurnIdx: 0,
         deck: [], discard: [], drawnCard: null, ability: null,
         dutchCalledBy: null, finalTurnsLeft: null, pendingGive: null,
         voteKick: deleteField()
@@ -1285,7 +1285,15 @@ function renderGameBoard() {
     zoneRight.innerHTML = "";
     heroContainer.innerHTML = "";
 
-    const opponents = Object.keys(gameState.players).filter(pid => pid !== localPlayerId);
+    // Use turnOrder (a real array field, so its order is stable across
+    // Firestore writes/reads) rather than Object.keys(gameState.players) —
+    // plain-object key order from a Firestore map field isn't guaranteed to
+    // stay consistent across snapshots, which was causing opponents to
+    // visually swap seats on screen even though turn order itself hadn't changed.
+    const seatOrder = (gameState.turnOrder && gameState.turnOrder.length)
+        ? gameState.turnOrder
+        : Object.keys(gameState.players);
+    const opponents = seatOrder.filter(pid => pid !== localPlayerId && gameState.players[pid]);
     const n = opponents.length;
     // Layout rules (n = number of opponents, hero is always on the bottom):
     // 1 opp  → top(1)

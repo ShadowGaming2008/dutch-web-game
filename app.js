@@ -1,5 +1,11 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import {
+    getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion,
+    collection, addDoc, query, orderBy, limit, getDocs
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import {
+    getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 // ==========================================
 // FIREBASE CONFIGURATION
@@ -16,6 +22,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
 
 // ==========================================
 // Toast System
@@ -121,6 +129,7 @@ function showChoiceModal(message, subtext, confirmLabel, confirmClass = 'bg-rose
 // State
 // ==========================================
 let localPlayerId = Math.random().toString(36).substring(2, 9);
+let guestPlayerId = localPlayerId; // preserved so we can fall back if the user signs out mid-session
 let roomCode = "";
 let gameState = {};
 let revealed = {};
@@ -129,6 +138,360 @@ let initialPeekIdxsRemaining = []; // fixed set of card indices (bottom two) the
 let roundSeenKey = null;
 let lastAbilityType = null; // track to avoid re-flashing
 let lastHighlightEventId = null;
+
+// Account / auth state
+let currentUser = null;        // Firebase Auth user object, or null if signed out / guest
+let currentProfile = null;     // users/{uid} Firestore doc data, or null
+let statsWrittenForRound = null; // roundSeenKey already written to stats, to avoid double-counting on re-render
+
+// ==========================================
+// Accounts — Google Sign-In, profile doc, stats, history
+// ==========================================
+// Guest play keeps working exactly as before: if nobody signs in, localPlayerId
+// stays a random per-session string and none of this code path executes.
+// Signing in swaps localPlayerId to the Google uid (only while NOT already
+// seated in a room, so we never pull the rug out from under an active game)
+// and loads/creates a matching profile doc that the rest of the app can read.
+
+function defaultStats() {
+    return { gamesPlayed: 0, gamesWon: 0, totalScore: 0, bestScore: null, totalRounds: 0 };
+}
+
+// Preset emoji avatars a signed-in user can pick instead of their Google
+// photo. Deliberately a mixed, casual set rather than any single theme.
+const AVATAR_PRESETS = ['🐱', '🐶', '🦊', '🐻', '🐼', '🦁', '🐸', '🐵', '🦉', '🐯', '🐧', '🦄', '🃏', '🎲', '👑', '🔥', '⭐', '🌙'];
+
+// Renders either a custom emoji avatar or a Google photo into a container
+// element (a plain div, not an <img> — emoji can't be an img src). Falls
+// back cleanly to a "?" if neither is available yet.
+function renderAvatarInto(elId, photoURL, avatarEmoji) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (avatarEmoji) {
+        el.innerHTML = '';
+        el.textContent = avatarEmoji;
+        el.style.backgroundImage = '';
+    } else if (photoURL) {
+        el.textContent = '';
+        el.style.backgroundImage = `url('${photoURL}')`;
+        el.style.backgroundSize = 'cover';
+        el.style.backgroundPosition = 'center';
+    } else {
+        el.textContent = '?';
+        el.style.backgroundImage = '';
+    }
+}
+
+async function loadOrCreateProfile(user) {
+    const ref = doc(db, "users", user.uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+        currentProfile = snap.data();
+        // Keep Google-sourced fields fresh in case they changed (new photo, etc).
+        const freshFields = { displayName: user.displayName || "", email: user.email || "", photoURL: user.photoURL || "" };
+        const needsUpdate = Object.entries(freshFields).some(([k, v]) => currentProfile[k] !== v);
+        if (needsUpdate) {
+            await updateDoc(ref, freshFields);
+            currentProfile = { ...currentProfile, ...freshFields };
+        }
+    } else {
+        currentProfile = {
+            displayName: user.displayName || "",
+            email: user.email || "",
+            photoURL: user.photoURL || "",
+            username: user.displayName || "Player",
+            avatarEmoji: null, // null = use Google photo; set to an emoji string to override
+            stats: defaultStats()
+        };
+        await setDoc(ref, currentProfile);
+    }
+    if (!currentProfile.stats) currentProfile.stats = defaultStats();
+    if (currentProfile.avatarEmoji === undefined) currentProfile.avatarEmoji = null;
+}
+
+function applySignedInUI() {
+    const name = currentProfile?.username || currentUser.displayName || "Player";
+    const photo = currentUser.photoURL || "";
+    const avatarEmoji = currentProfile?.avatarEmoji || null;
+
+    document.getElementById("headerSignInBtn").classList.add("hidden");
+    const accountBtn = document.getElementById("headerAccountBtn");
+    accountBtn.classList.remove("hidden");
+    renderAvatarInto("headerAvatar", photo, avatarEmoji);
+    document.getElementById("headerAccountName").textContent = name;
+
+    renderAvatarInto("dropdownAvatar", photo, avatarEmoji);
+    document.getElementById("dropdownName").textContent = name;
+    document.getElementById("dropdownEmail").textContent = currentUser.email || "";
+
+    document.getElementById("landingSignInBtn").classList.add("hidden");
+    const chip = document.getElementById("landingSignedInChip");
+    chip.classList.remove("hidden");
+    renderAvatarInto("landingAvatar", photo, avatarEmoji);
+    document.getElementById("landingSignedInName").textContent = name;
+
+    // Pre-fill the username field with the saved custom username, so it's
+    // used as-is for room create/join, same as a guest's typed name.
+    const usernameInput = document.getElementById("usernameInput");
+    if (!usernameInput.dataset.userEdited) {
+        usernameInput.value = currentProfile?.username || currentUser.displayName || "";
+    }
+}
+
+function applySignedOutUI() {
+    document.getElementById("headerSignInBtn").classList.remove("hidden");
+    document.getElementById("headerAccountBtn").classList.add("hidden");
+    document.getElementById("accountDropdown").classList.add("hidden");
+    document.getElementById("landingSignInBtn").classList.remove("hidden");
+    document.getElementById("landingSignedInChip").classList.add("hidden");
+    delete document.getElementById("usernameInput").dataset.userEdited;
+}
+
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        // Don't swap identity out from under an active room — only take effect
+        // if we're still on the landing screen (i.e. haven't created/joined yet).
+        const inActiveRoom = !!roomCode;
+        currentUser = user;
+        await loadOrCreateProfile(user);
+        if (!inActiveRoom) {
+            localPlayerId = user.uid;
+        }
+        applySignedInUI();
+    } else {
+        currentUser = null;
+        currentProfile = null;
+        if (!roomCode) localPlayerId = guestPlayerId;
+        applySignedOutUI();
+    }
+});
+
+async function handleSignIn() {
+    try {
+        await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+        if (err && err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+            showToast("Sign-in failed — please try again.", 'error');
+        }
+    }
+}
+
+document.getElementById("headerSignInBtn").addEventListener("click", handleSignIn);
+document.getElementById("landingSignInBtn").addEventListener("click", handleSignIn);
+
+document.getElementById("headerSignOutBtn").addEventListener("click", async () => {
+    document.getElementById("accountDropdown").classList.add("hidden");
+    await signOut(auth);
+    showToast("Signed out. Your stats are saved for next time.", 'info');
+});
+
+document.getElementById("headerAccountBtn").addEventListener("click", () => {
+    document.getElementById("accountDropdown").classList.toggle("hidden");
+});
+document.addEventListener("click", (e) => {
+    const dropdown = document.getElementById("accountDropdown");
+    if (dropdown.classList.contains("hidden")) return;
+    const clickedAccountBtn = e.target.closest("#headerAccountBtn");
+    if (!dropdown.contains(e.target) && !clickedAccountBtn) {
+        dropdown.classList.add("hidden");
+    }
+});
+
+// Save a custom username back to the profile whenever it's changed (blurred),
+// separate from the Google display name. Marked dataset.userEdited so we don't
+// clobber what they typed on a later profile re-render.
+const usernameInputEl = document.getElementById("usernameInput");
+usernameInputEl.addEventListener("input", () => { usernameInputEl.dataset.userEdited = "true"; });
+usernameInputEl.addEventListener("blur", async () => {
+    if (!currentUser) return;
+    const newUsername = usernameInputEl.value.trim();
+    if (!newUsername || newUsername === currentProfile?.username) return;
+    currentProfile.username = newUsername;
+    await updateDoc(doc(db, "users", currentUser.uid), { username: newUsername });
+    const hint = document.getElementById("usernameSaveHint");
+    hint.classList.remove("hidden");
+    setTimeout(() => hint.classList.add("hidden"), 2000);
+});
+
+// ==========================================
+// My Stats modal
+// ==========================================
+document.getElementById("openMyStatsBtn").addEventListener("click", async () => {
+    document.getElementById("accountDropdown").classList.add("hidden");
+    await renderStatsModal();
+    document.getElementById("statsModal").classList.remove("hidden");
+});
+document.getElementById("closeStatsBtn").addEventListener("click", () => {
+    document.getElementById("statsModal").classList.add("hidden");
+});
+
+async function renderStatsModal() {
+    const stats = currentProfile?.stats || defaultStats();
+    const avgScore = stats.gamesPlayed > 0 ? (stats.totalScore / stats.gamesPlayed).toFixed(1) : "—";
+    const summaryGrid = document.getElementById("statsSummaryGrid");
+    summaryGrid.innerHTML = `
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-center">
+            <div class="text-2xl font-black text-white">${stats.gamesPlayed}</div>
+            <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">Games Played</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-center">
+            <div class="text-2xl font-black text-amber-400">${stats.gamesWon}</div>
+            <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">Games Won</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-center">
+            <div class="text-2xl font-black text-white">${avgScore}</div>
+            <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">Avg Score</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-center">
+            <div class="text-2xl font-black text-emerald-400">${stats.bestScore ?? "—"}</div>
+            <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">Best Score</div>
+        </div>
+    `;
+
+    const historyList = document.getElementById("statsHistoryList");
+    historyList.innerHTML = `<div class="text-xs text-slate-500 text-center py-3">Loading...</div>`;
+    try {
+        const historyRef = collection(db, "users", currentUser.uid, "gameHistory");
+        const q = query(historyRef, orderBy("date", "desc"), limit(15));
+        const snaps = await getDocs(q);
+        if (snaps.empty) {
+            historyList.innerHTML = `<div class="text-xs text-slate-500 text-center py-3">No games played yet — go win some!</div>`;
+            return;
+        }
+        historyList.innerHTML = snaps.docs.map(d => {
+            const h = d.data();
+            const date = h.date?.toDate ? h.date.toDate() : new Date(h.date);
+            const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+            const won = h.placement === 1;
+            return `
+                <div class="flex justify-between items-center bg-slate-950 border border-slate-800 rounded-lg px-3 py-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-base flex-shrink-0">${won ? '🏆' : '·'}</span>
+                        <div class="min-w-0">
+                            <div class="text-xs font-semibold text-white truncate">Room ${h.roomCode || '—'}</div>
+                            <div class="text-[10px] text-slate-500">${dateStr} · ${h.playerCount || '?'} players</div>
+                        </div>
+                    </div>
+                    <div class="text-right flex-shrink-0">
+                        <div class="text-sm font-mono font-bold ${won ? 'text-amber-400' : 'text-slate-300'}">${h.score}</div>
+                        <div class="text-[10px] text-slate-500">#${h.placement} place</div>
+                    </div>
+                </div>`;
+        }).join('');
+    } catch (err) {
+        historyList.innerHTML = `<div class="text-xs text-rose-400 text-center py-3">Couldn't load game history.</div>`;
+    }
+}
+
+// ==========================================
+// Edit Profile modal — username + emoji avatar picker
+// ==========================================
+let pendingAvatarChoice = undefined; // undefined = unchanged this session, null = cleared to Google photo, string = chosen emoji
+
+document.getElementById("openEditProfileBtn").addEventListener("click", () => {
+    document.getElementById("accountDropdown").classList.add("hidden");
+    openEditProfileModal();
+});
+document.getElementById("closeEditProfileBtn").addEventListener("click", () => {
+    document.getElementById("editProfileModal").classList.add("hidden");
+});
+
+function openEditProfileModal() {
+    pendingAvatarChoice = undefined;
+    document.getElementById("editProfileUsernameInput").value = currentProfile?.username || currentUser.displayName || "";
+    renderAvatarPickerGrid();
+    document.getElementById("editProfileModal").classList.remove("hidden");
+}
+
+function renderAvatarPickerGrid() {
+    const grid = document.getElementById("avatarPickerGrid");
+    const currentChoice = pendingAvatarChoice !== undefined ? pendingAvatarChoice : (currentProfile?.avatarEmoji || null);
+    grid.innerHTML = AVATAR_PRESETS.map(emoji => {
+        const selected = emoji === currentChoice;
+        return `<button type="button" data-emoji="${emoji}" class="avatar-pick-btn w-10 h-10 rounded-xl flex items-center justify-center text-xl transition border-2 ${selected ? 'border-amber-500 bg-amber-500/10' : 'border-slate-800 bg-slate-950 hover:border-slate-600'}">${emoji}</button>`;
+    }).join('');
+    grid.querySelectorAll(".avatar-pick-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            pendingAvatarChoice = btn.dataset.emoji;
+            renderAvatarPickerGrid();
+        });
+    });
+}
+
+document.getElementById("clearAvatarBtn").addEventListener("click", () => {
+    pendingAvatarChoice = null;
+    renderAvatarPickerGrid();
+});
+
+document.getElementById("saveEditProfileBtn").addEventListener("click", async () => {
+    if (!currentUser) return;
+    const newUsername = document.getElementById("editProfileUsernameInput").value.trim() || currentProfile?.username || "Player";
+    const newAvatarEmoji = pendingAvatarChoice !== undefined ? pendingAvatarChoice : (currentProfile?.avatarEmoji || null);
+
+    currentProfile.username = newUsername;
+    currentProfile.avatarEmoji = newAvatarEmoji;
+    await updateDoc(doc(db, "users", currentUser.uid), { username: newUsername, avatarEmoji: newAvatarEmoji });
+
+    // Keep the landing-page username field in sync with this edit, same as
+    // the existing inline-edit flow does, so create/join room still uses it.
+    const usernameInput = document.getElementById("usernameInput");
+    usernameInput.value = newUsername;
+    usernameInput.dataset.userEdited = "true";
+
+    applySignedInUI();
+
+    const hint = document.getElementById("editProfileSavedHint");
+    hint.classList.remove("hidden");
+    setTimeout(() => {
+        hint.classList.add("hidden");
+        document.getElementById("editProfileModal").classList.add("hidden");
+    }, 900);
+});
+
+// Called once per finished round (see the ROUND_END hook in advanceTurn).
+// Each signed-in client only ever writes ITS OWN profile/history — never
+// another player's — so there's no cross-player write contention and no
+// need for permissive security rules beyond "users can write their own doc".
+async function recordRoundResultForCurrentUser(roundKey) {
+    if (!currentUser || !gameState.players) return;
+    // If this user signed in AFTER already joining the room as a guest, their
+    // seated localPlayerId is still the old guest string (we never swap it
+    // mid-room — see onAuthStateChanged). In that case there's no reliable
+    // link between this Google account and a specific seat, so skip writing
+    // stats rather than guessing.
+    if (currentUser.uid !== localPlayerId) return;
+    if (statsWrittenForRound === roundKey) return; // already recorded this round
+    statsWrittenForRound = roundKey;
+
+    const me = gameState.players[localPlayerId];
+    if (!me) return;
+    const myScore = me.lastHandScore ?? 0;
+    const allScores = Object.values(gameState.players).map(p => p.lastHandScore ?? 0);
+    const lowestScore = Math.min(...allScores);
+    const won = myScore === lowestScore; // ties: everyone at the lowest score counts as a win, nobody is shortchanged
+    const placement = [...allScores].sort((a, b) => a - b).indexOf(myScore) + 1;
+
+    const ref = doc(db, "users", currentUser.uid);
+    const stats = currentProfile.stats || defaultStats();
+    const updatedStats = {
+        gamesPlayed: stats.gamesPlayed + 1,
+        gamesWon: stats.gamesWon + (won ? 1 : 0),
+        totalScore: stats.totalScore + myScore,
+        bestScore: stats.bestScore === null ? myScore : Math.min(stats.bestScore, myScore),
+        totalRounds: stats.totalRounds + 1
+    };
+    currentProfile.stats = updatedStats;
+    await updateDoc(ref, { stats: updatedStats });
+
+    await addDoc(collection(db, "users", currentUser.uid, "gameHistory"), {
+        roomCode,
+        date: new Date(),
+        placement,
+        score: myScore,
+        playerCount: Object.keys(gameState.players).length,
+        players: Object.values(gameState.players).map(p => p.name)
+    });
+}
 
 // Standard duration (ms) for toasts and the matching on-card highlight/reveal,
 // so a notification and the card it's talking about stay visible together
@@ -316,7 +679,6 @@ document.getElementById("joinRoomBtn").addEventListener("click", async () => {
     roomCode = enteredCode;
     const roomRef = doc(db, "rooms", roomCode);
     // Fetch current state to enforce 6-player max
-    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
     const snap = await getDoc(roomRef);
     if (snap.exists()) {
         const data = snap.data();
@@ -495,6 +857,11 @@ function renderState() {
     } else if (gameState.status === "ROUND_END") {
         roundEndScreen.classList.remove("hidden");
         renderRoundEnd();
+        // Each signed-in client records its OWN result for this finished round.
+        // Keyed the same way as roundSeenKey so it can never double-count if
+        // this snapshot handler fires again for the same round.
+        const roundKey = `${roomCode}-${gameState.roundNumber}`;
+        recordRoundResultForCurrentUser(roundKey);
     }
 }
 

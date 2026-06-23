@@ -1057,7 +1057,7 @@ document.getElementById("createRoomBtn").addEventListener("click", async () => {
     gameState = {
         code: roomCode, status: "LOBBY", hostId: localPlayerId,
         turnOrder: [localPlayerId], currentTurnIdx: 0, roundNumber: 0,
-        players: { [localPlayerId]: { name, ready: false, cards: [], totalScore: 0 } },
+        players: { [localPlayerId]: { name, ready: false, cards: [], score: 0 } },
         deck: createDeck(), discard: [], dutchCalledBy: null, finalTurnsLeft: null,
         turnPhase: 'AWAIT_DRAW', drawnCard: null, ability: null, pendingGive: null
     };
@@ -1084,7 +1084,7 @@ document.getElementById("joinRoomBtn").addEventListener("click", async () => {
         }
     }
     await updateDoc(roomRef, {
-        [`players.${localPlayerId}`]: { name, ready: false, cards: [], totalScore: 0 },
+        [`players.${localPlayerId}`]: { name, ready: false, cards: [], score: 0 },
         turnOrder: arrayUnion(localPlayerId)
     });
     setupRoomSubscription(roomCode);
@@ -1306,7 +1306,9 @@ async function dealNewRound() {
     let freshDeck = createDeck();
     let updatedPlayers = { ...gameState.players };
     Object.keys(updatedPlayers).forEach(pid => {
-        updatedPlayers[pid] = { ...updatedPlayers[pid], cards: [freshDeck.pop(), freshDeck.pop(), freshDeck.pop(), freshDeck.pop()], ready: false };
+        // Each round stands alone — clear last round's score along with
+        // dealing fresh cards, so nothing stale lingers until this round ends.
+        updatedPlayers[pid] = { ...updatedPlayers[pid], cards: [freshDeck.pop(), freshDeck.pop(), freshDeck.pop(), freshDeck.pop()], ready: false, score: 0, lastHandScore: null };
     });
     const initialDiscard = freshDeck.pop();
     await pushState({
@@ -1324,10 +1326,10 @@ document.getElementById("nextRoundBtn").addEventListener("click", dealNewRound);
 // End Game — host-only, offered alongside "Start Next Round" on the
 // round-end screen. Returns everyone to the lobby for this same room
 // (same code, same seated players) rather than dissolving the room or
-// sending people back to the landing screen. Each player's cumulative
-// totalScore is intentionally left untouched — this is a "stop here for
-// now" action, not a "wipe the scoreboard" action, so the room's running
-// standings are still there if the host starts a fresh game later.
+// sending people back to the landing screen. Each round's score is
+// standalone (see dealNewRound/advanceTurn), so there's no running
+// scoreboard to preserve or wipe here — the last round's score just sits
+// until dealNewRound resets it for whatever game starts next in this room.
 // Nothing here touches per-account Firestore stats (users/{uid}.stats) —
 // those are already finalized at the moment a round ends (see
 // recordRoundResultForCurrentUser, hooked into the ROUND_END render branch),
@@ -1710,7 +1712,7 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, zone = 
                 ${gameState.dutchCalledBy === pid ? '<span class="status-badge" style="background:rgba(239,68,68,0.15);color:#fca5a5;border:1px solid rgba(239,68,68,0.25);animation:dot-pulse 1s infinite">Dutch!</span>' : ''}
                 ${isPendingGiveTo ? '<span class="status-badge" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.25)">Receiving</span>' : ''}
             </div>
-            <span class="score-chip">Pts: <span>${player.totalScore || 0}</span></span>
+            <span class="score-chip">Pts: <span>${player.score || 0}</span></span>
         </div>
         <div style="${scrollStyle}">
             <div style="${gridStyle}">${cardsHTML}</div>
@@ -2175,7 +2177,9 @@ async function applyKick(targetPid) {
             const handScore = (remainingPlayers[pid].cards || []).reduce((sum, c) => sum + (c ? (c.score || 0) : 0), 0);
             remainingPlayers[pid] = {
                 ...remainingPlayers[pid],
-                totalScore: (remainingPlayers[pid].totalScore || 0) + handScore,
+                // Each round stands alone — this round's score, not a running
+                // sum across every round played in this room.
+                score: handScore,
                 lastHandScore: handScore
             };
         });
@@ -2234,7 +2238,9 @@ async function advanceTurn(extraFields = {}) {
             const handScore = (updatedPlayers[pid].cards || []).reduce((sum, c) => sum + (c ? (c.score || 0) : 0), 0);
             updatedPlayers[pid] = {
                 ...updatedPlayers[pid],
-                totalScore: (updatedPlayers[pid].totalScore || 0) + handScore,
+                // Each round stands alone — this round's score, not a running
+                // sum across every round played in this room.
+                score: handScore,
                 lastHandScore: handScore
             };
         });
@@ -2252,7 +2258,9 @@ function renderRoundEnd() {
         ? `${gameState.players[gameState.dutchCalledBy]?.name || 'A player'} called Dutch!`
         : "Round complete.";
     const scoresEl = document.getElementById("roundEndScores");
-    const sorted = Object.entries(gameState.players).sort((a, b) => (a[1].totalScore || 0) - (b[1].totalScore || 0));
+    // Each round stands alone — rank purely by this round's score (lowest
+    // wins), not a running total carried over from earlier rounds.
+    const sorted = Object.entries(gameState.players).sort((a, b) => (a[1].score || 0) - (b[1].score || 0));
     scoresEl.innerHTML = sorted.map(([pid, p], i) => `
         <div class="flex justify-between items-center bg-slate-900 border border-slate-800 rounded-xl p-3.5">
             <span class="font-semibold text-white flex items-center gap-2">
@@ -2261,9 +2269,7 @@ function renderRoundEnd() {
                 ${pid === localPlayerId ? '<span class="text-[10px] text-amber-400 font-bold uppercase tracking-wider bg-amber-500/10 px-1.5 py-0.5 rounded">You</span>' : ''}
             </span>
             <span class="text-sm text-slate-400">
-                This round: <span class="text-white font-mono font-bold">${p.lastHandScore ?? 0}</span>
-                &nbsp;·&nbsp;
-                Total: <span class="text-amber-400 font-mono font-bold">${p.totalScore || 0}</span>
+                Score: <span class="text-amber-400 font-mono font-bold">${p.score ?? p.lastHandScore ?? 0}</span>
             </span>
         </div>`).join('');
     const nextBtn = document.getElementById("nextRoundBtn");

@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Hub</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700;800&display=swap');
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: #020617; }
+        .font-display { font-family: 'Playfair Display', serif; }
+
+        .card-tile {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 20px;
+            padding: 2rem;
+            transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+            display: block;
+        }
+        .card-tile:hover {
+            border-color: #334155;
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+        .card-tile.amber:hover { border-color: #f59e0b; box-shadow: 0 20px 40px rgba(245,158,11,0.15); }
+        .card-tile.indigo:hover { border-color: #818cf8; box-shadow: 0 20px 40px rgba(129,140,248,0.15); }
+
+        .pill {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 99px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Auth modal */
+        .modal-backdrop {
+            position: fixed; inset: 0;
+            background: rgba(2,6,23,0.85);
+            backdrop-filter: blur(4px);
+            z-index: 50;
+            display: flex; align-items: center; justify-content: center;
+            padding: 1rem;
+        }
+        .modal-box {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 20px;
+            width: 100%; max-width: 380px;
+            padding: 2rem;
+        }
+
+        /* Chat panel */
+        #chatPanel {
+            position: fixed; bottom: 0; right: 0;
+            width: 340px; height: 480px;
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-bottom: none;
+            border-radius: 16px 16px 0 0;
+            display: flex; flex-direction: column;
+            box-shadow: 0 -8px 30px rgba(0,0,0,0.5);
+            z-index: 40;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+        #chatPanel.open { transform: translateY(0); }
+
+        #chatMessages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        #chatMessages::-webkit-scrollbar { width: 4px; }
+        #chatMessages::-webkit-scrollbar-track { background: transparent; }
+        #chatMessages::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+        .msg { font-size: 13px; line-height: 1.4; }
+        .msg .sender { font-weight: 700; margin-right: 4px; }
+
+        input[type="text"], input[type="email"], input[type="password"] {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            color: #f1f5f9;
+            padding: 10px 14px;
+            font-size: 14px;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: #818cf8; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-100">
+
+    <!-- ── NAV ── -->
+    <nav class="flex items-center justify-between px-6 py-4 border-b border-slate-800/60">
+        <span class="font-display text-xl font-bold text-white">Game Hub</span>
+        <div id="authArea" class="flex items-center gap-3">
+            <!-- filled by JS -->
+        </div>
+    </nav>
+
+    <!-- ── HERO ── -->
+    <header class="text-center py-16 px-4">
+        <h1 class="font-display text-5xl font-black text-white mb-3">Welcome Back</h1>
+        <p class="text-slate-400 text-lg">Pick something to do.</p>
+    </header>
+
+    <!-- ── TILES ── -->
+    <main class="max-w-3xl mx-auto px-4 pb-24 grid sm:grid-cols-2 gap-5">
+
+        <!-- Chat / Party -->
+        <div class="card-tile indigo" id="chatTile" onclick="handleChatClick()">
+            <div class="text-4xl mb-4">💬</div>
+            <div class="flex items-center gap-2 mb-2">
+                <h2 class="font-display text-2xl font-bold text-white">Party Chat</h2>
+                <span class="pill bg-indigo-900/60 text-indigo-300">Live</span>
+            </div>
+            <p class="text-slate-400 text-sm leading-relaxed">
+                Create a party room and chat with friends in real-time. Sign in to join or start one.
+            </p>
+            <div class="mt-5 flex items-center gap-2 text-indigo-400 font-semibold text-sm">
+                Open chat <span>→</span>
+            </div>
+        </div>
+
+        <!-- Dutch Card Game -->
+        <a class="card-tile amber" href="index.html">
+            <div class="text-4xl mb-4">🃏</div>
+            <div class="flex items-center gap-2 mb-2">
+                <h2 class="font-display text-2xl font-bold text-white">Dutch</h2>
+                <span class="pill bg-amber-900/60 text-amber-300">Card Game</span>
+            </div>
+            <p class="text-slate-400 text-sm leading-relaxed">
+                The classic card game. Create a room, invite friends, and play Dutch together.
+            </p>
+            <div class="mt-5 flex items-center gap-2 text-amber-400 font-semibold text-sm">
+                Play now <span>→</span>
+            </div>
+        </a>
+
+        <!-- Placeholder for future -->
+        <div class="card-tile sm:col-span-2 opacity-40 cursor-default" style="pointer-events:none;">
+            <p class="text-slate-500 text-sm text-center">More coming soon...</p>
+        </div>
+
+    </main>
+
+    <!-- ── AUTH MODAL ── -->
+    <div id="authModal" class="modal-backdrop hidden">
+        <div class="modal-box space-y-5">
+            <h2 class="font-display text-2xl font-bold text-white">Sign in to chat</h2>
+            <p class="text-slate-400 text-sm">You need an account to join party chats.</p>
+
+            <div id="authError" class="hidden text-rose-400 text-sm bg-rose-900/30 border border-rose-800 rounded-lg px-3 py-2"></div>
+
+            <div class="space-y-3">
+                <input type="email" id="authEmail" placeholder="Email" />
+                <input type="password" id="authPassword" placeholder="Password" />
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="doSignIn()" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm">Sign In</button>
+                <button onclick="doSignUp()" class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl transition text-sm">Sign Up</button>
+            </div>
+            <button onclick="doGoogle()" class="w-full py-3 border border-slate-700 hover:border-slate-500 text-slate-300 font-semibold rounded-xl transition text-sm flex items-center justify-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-21 0-1.4-.1-2.7-.5-4z"/></svg>
+                Continue with Google
+            </button>
+            <button onclick="closeAuthModal()" class="w-full text-slate-500 hover:text-slate-300 text-sm transition">Cancel</button>
+        </div>
+    </div>
+
+    <!-- ── CHAT PANEL ── -->
+    <div id="chatPanel">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+            <div class="flex items-center gap-2">
+                <span class="text-lg">💬</span>
+                <span class="font-bold text-white text-sm" id="chatRoomLabel">Party Chat</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="copyRoomCode()" id="copyCodeBtn" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold px-2 py-1 rounded-lg bg-indigo-900/30 transition hidden"></button>
+                <button onclick="closeChat()" class="text-slate-400 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-800 transition">✕</button>
+            </div>
+        </div>
+
+        <!-- Room picker (shown when no room joined) -->
+        <div id="chatLobby" class="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+            <p class="text-slate-400 text-sm text-center">Create a new party or join one with a code.</p>
+            <button onclick="createRoom()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm">✨ Create Party</button>
+            <div class="flex gap-2 w-full">
+                <input type="text" id="joinCodeInput" placeholder="Enter room code" class="flex-1 uppercase" maxlength="6" style="text-transform:uppercase;letter-spacing:0.1em;" />
+                <button onclick="joinRoom()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition text-sm">Join</button>
+            </div>
+        </div>
+
+        <!-- Messages (hidden until in a room) -->
+        <div id="chatMessages" class="hidden"></div>
+
+        <!-- Input (hidden until in a room) -->
+        <div id="chatInputArea" class="hidden flex gap-2 p-3 border-t border-slate-800">
+            <input type="text" id="msgInput" placeholder="Say something..." class="flex-1" onkeydown="if(event.key==='Enter')sendMsg()" />
+            <button onclick="sendMsg()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold text-sm transition">↑</button>
+        </div>
+    </div>
+
+    <!-- ── FIREBASE + LOGIC ── -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import {
+            getFirestore, doc, setDoc, getDoc, onSnapshot,
+            collection, addDoc, query, orderBy, serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import {
+            getAuth, GoogleAuthProvider, signInWithPopup, signOut,
+            onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDTIz9LcVxLwJ4l5keMeSSAoCh2oTSWg9E",
+            authDomain: "dutch-card-game-60d1c.firebaseapp.com",
+            projectId: "dutch-card-game-60d1c",
+            storageBucket: "dutch-card-game-60d1c.firebasestorage.app",
+            messagingSenderId: "91699670709",
+            appId: "1:91699670709:web:230f57e39f8f55128398fc"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const googleProvider = new GoogleAuthProvider();
+
+        let currentUser = null;
+        let currentRoomId = null;
+        let msgUnsub = null;
+
+        // ── Auth state ──
+        onAuthStateChanged(auth, user => {
+            currentUser = user;
+            renderAuthArea(user);
+        });
+
+        function renderAuthArea(user) {
+            const area = document.getElementById('authArea');
+            if (user) {
+                const name = user.displayName || user.email?.split('@')[0] || 'You';
+                area.innerHTML = `
+                    <span class="text-slate-400 text-sm hidden sm:inline">${name}</span>
+                    <button onclick="window.doSignOut()" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition">Sign out</button>`;
+            } else {
+                area.innerHTML = `
+                    <button onclick="window.openAuthModal()" class="px-4 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition">Sign in</button>`;
+            }
+        }
+
+        // ── Expose globals ──
+        window.openAuthModal = () => document.getElementById('authModal').classList.remove('hidden');
+        window.closeAuthModal = () => document.getElementById('authModal').classList.add('hidden');
+
+        window.doSignIn = async () => {
+            const email = document.getElementById('authEmail').value;
+            const pass  = document.getElementById('authPassword').value;
+            try {
+                await signInWithEmailAndPassword(auth, email, pass);
+                closeAuthModal();
+                openChat();
+            } catch(e) { showAuthError(e.message); }
+        };
+
+        window.doSignUp = async () => {
+            const email = document.getElementById('authEmail').value;
+            const pass  = document.getElementById('authPassword').value;
+            try {
+                await createUserWithEmailAndPassword(auth, email, pass);
+                closeAuthModal();
+                openChat();
+            } catch(e) { showAuthError(e.message); }
+        };
+
+        window.doGoogle = async () => {
+            try {
+                await signInWithPopup(auth, googleProvider);
+                closeAuthModal();
+                openChat();
+            } catch(e) { showAuthError(e.message); }
+        };
+
+        window.doSignOut = () => signOut(auth);
+
+        function showAuthError(msg) {
+            const el = document.getElementById('authError');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+        }
+
+        // ── Chat ──
+        window.handleChatClick = () => {
+            if (!currentUser) { window.openAuthModal(); return; }
+            openChat();
+        };
+
+        function openChat() {
+            document.getElementById('chatPanel').classList.add('open');
+        }
+
+        window.closeChat = () => {
+            document.getElementById('chatPanel').classList.remove('open');
+        };
+
+        window.createRoom = async () => {
+            if (!currentUser) return;
+            const code = Math.random().toString(36).substring(2,8).toUpperCase();
+            await setDoc(doc(db, 'chatRooms', code), {
+                createdBy: currentUser.uid,
+                createdAt: serverTimestamp()
+            });
+            await enterRoom(code);
+        };
+
+        window.joinRoom = async () => {
+            const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+            if (!code) return;
+            const snap = await getDoc(doc(db, 'chatRooms', code));
+            if (!snap.exists()) { alert('Room not found.'); return; }
+            await enterRoom(code);
+        };
+
+        async function enterRoom(code) {
+            currentRoomId = code;
+            document.getElementById('chatLobby').classList.add('hidden');
+            document.getElementById('chatMessages').classList.remove('hidden');
+            document.getElementById('chatInputArea').classList.remove('hidden');
+            document.getElementById('chatRoomLabel').textContent = `Party · ${code}`;
+            const btn = document.getElementById('copyCodeBtn');
+            btn.textContent = code;
+            btn.classList.remove('hidden');
+
+            // Subscribe to messages
+            if (msgUnsub) msgUnsub();
+            const q = query(collection(db, 'chatRooms', code, 'messages'), orderBy('ts'));
+            msgUnsub = onSnapshot(q, snap => {
+                const box = document.getElementById('chatMessages');
+                box.innerHTML = '';
+                snap.forEach(d => {
+                    const m = d.data();
+                    const el = document.createElement('div');
+                    el.className = 'msg';
+                    const isMe = m.uid === currentUser?.uid;
+                    el.innerHTML = `<span class="sender" style="color:${isMe?'#818cf8':'#94a3b8'}">${m.name}</span><span class="text-slate-300">${escHtml(m.text)}</span>`;
+                    box.appendChild(el);
+                });
+                box.scrollTop = box.scrollHeight;
+            });
+        }
+
+        window.sendMsg = async () => {
+            const input = document.getElementById('msgInput');
+            const text = input.value.trim();
+            if (!text || !currentRoomId || !currentUser) return;
+            input.value = '';
+            await addDoc(collection(db, 'chatRooms', currentRoomId, 'messages'), {
+                uid: currentUser.uid,
+                name: currentUser.displayName || currentUser.email?.split('@')[0] || 'Guest',
+                text,
+                ts: serverTimestamp()
+            });
+        };
+
+        window.copyRoomCode = () => {
+            navigator.clipboard.writeText(currentRoomId).then(() => {
+                const btn = document.getElementById('copyCodeBtn');
+                const orig = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = orig, 1500);
+            });
+        };
+
+        function escHtml(s) {
+            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+    </script>
+</body>
+</html>

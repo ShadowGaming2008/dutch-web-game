@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
     getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion,
-    collection, addDoc, query, orderBy, limit, getDocs, deleteField, Timestamp
+    collection, addDoc, query, orderBy, limit, getDocs, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
     getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
@@ -168,24 +168,6 @@ let lastResolvedVoteKickAt = null;     // dedupes the public toast/log line for 
 // Signing in swaps localPlayerId to the Google uid (only while NOT already
 // seated in a room, so we never pull the rug out from under an active game)
 // and loads/creates a matching profile doc that the rest of the app can read.
-
-// ==========================================
-// TTL (Time-To-Live) helpers
-// ==========================================
-// Firestore TTL policies auto-delete documents once a designated Timestamp
-// field is in the past (configured in the Firebase/Cloud console or via
-// gcloud — see project notes; this code only needs to *set* the field).
-// Rooms get a rolling 3-day expiry that's refreshed on every state push, so
-// an actively-played room is never at risk, only ones nobody returns to.
-// gameHistory entries get a flat 30-day expiry at write time — they're a
-// personal log only, never read back for stats/leaderboard, so trimming
-// them has zero effect on a player's saved totals.
-const ROOM_TTL_MS = 3 * 24 * 60 * 60 * 1000;       // 3 days
-const GAME_HISTORY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-function ttlTimestamp(ms) {
-    return Timestamp.fromMillis(Date.now() + ms);
-}
 
 function defaultStats() {
     return { gamesPlayed: 0, gamesWon: 0, totalScore: 0, bestScore: null, totalRounds: 0, xp: 0 };
@@ -782,7 +764,6 @@ async function recordRoundResultForCurrentUser(roundKey) {
     await addDoc(collection(db, "users", currentUser.uid, "gameHistory"), {
         roomCode,
         date: new Date(),
-        expireAt: ttlTimestamp(GAME_HISTORY_TTL_MS),
         placement,
         score: myScore,
         playerCount: Object.keys(gameState.players).length,
@@ -1078,8 +1059,7 @@ document.getElementById("createRoomBtn").addEventListener("click", async () => {
         turnOrder: [localPlayerId], currentTurnIdx: 0, roundNumber: 0,
         players: { [localPlayerId]: { name, ready: false, cards: [], score: 0 } },
         deck: createDeck(), discard: [], dutchCalledBy: null, finalTurnsLeft: null,
-        turnPhase: 'AWAIT_DRAW', drawnCard: null, ability: null, pendingGive: null,
-        expireAt: ttlTimestamp(ROOM_TTL_MS)
+        turnPhase: 'AWAIT_DRAW', drawnCard: null, ability: null, pendingGive: null
     };
     await setDoc(doc(db, "rooms", roomCode), gameState);
     setupRoomSubscription(roomCode);
@@ -1105,8 +1085,7 @@ document.getElementById("joinRoomBtn").addEventListener("click", async () => {
     }
     await updateDoc(roomRef, {
         [`players.${localPlayerId}`]: { name, ready: false, cards: [], score: 0 },
-        turnOrder: arrayUnion(localPlayerId),
-        expireAt: ttlTimestamp(ROOM_TTL_MS)
+        turnOrder: arrayUnion(localPlayerId)
     });
     setupRoomSubscription(roomCode);
 });
@@ -1120,7 +1099,7 @@ function setupRoomSubscription(code) {
 }
 
 async function pushState(partial) {
-    await updateDoc(doc(db, "rooms", roomCode), { ...partial, expireAt: ttlTimestamp(ROOM_TTL_MS) });
+    await updateDoc(doc(db, "rooms", roomCode), partial);
 }
 
 // ==========================================

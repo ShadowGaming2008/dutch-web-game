@@ -143,6 +143,9 @@ let lastHighlightEventId = null;
 // Account / auth state
 let currentUser = null;        // Firebase Auth user object, or null if signed out / guest
 let currentProfile = null;     // users/{uid} Firestore doc data, or null
+let profileUnsub = null;       // live listener on users/{uid}, so a nickname/avatar
+                                // change made on the Game Hub home page (or any other
+                                // game sharing this doc) reflects here instantly too.
 let statsWrittenForRound = null; // roundSeenKey already written to stats, to avoid double-counting on re-render
 
 // ==========================================
@@ -277,6 +280,22 @@ async function loadOrCreateProfile(user) {
     if (!currentProfile.stats) currentProfile.stats = defaultStats();
     if (currentProfile.stats.xp === undefined) currentProfile.stats.xp = 0;
     if (currentProfile.avatarEmoji === undefined) currentProfile.avatarEmoji = null;
+
+    // Live-sync from here on: if the nickname/avatar changes on the Game Hub
+    // home page (or any other game sharing this users/{uid} doc) while this
+    // tab is open, pick it up immediately rather than waiting for next sign-in.
+    if (profileUnsub) { profileUnsub(); profileUnsub = null; }
+    profileUnsub = onSnapshot(ref, (s) => {
+        if (!s.exists()) return;
+        const data = s.data();
+        currentProfile = data;
+        if (!currentProfile.stats) currentProfile.stats = defaultStats();
+        if (currentProfile.stats.xp === undefined) currentProfile.stats.xp = 0;
+        if (currentProfile.avatarEmoji === undefined) currentProfile.avatarEmoji = null;
+        // Only repaint chrome that reflects identity — avoid touching anything
+        // mid-game-render (cards, board) since this can fire during a round.
+        if (currentUser) applySignedInUI();
+    });
 }
 
 function applySignedInUI() {
@@ -333,6 +352,7 @@ onAuthStateChanged(auth, async (user) => {
         }
         applySignedInUI();
     } else {
+        if (profileUnsub) { profileUnsub(); profileUnsub = null; }
         currentUser = null;
         currentProfile = null;
         if (!roomCode) localPlayerId = guestPlayerId;

@@ -2175,9 +2175,34 @@ async function advanceTurn(extraFields = {}) {
         finalTurnsLeft: finalTurnsLeft ?? null
     };
     if (dutchCalledBy && finalTurnsLeft !== null && finalTurnsLeft <= 0) {
-        const updatedPlayers = { ...gameState.players };
+        // IMPORTANT: the action that just ended the round (a card swap, a
+        // blind J/Q/K swap, etc.) hands us its hand changes as dotted
+        // Firestore field paths in extraFields, e.g. "players.{pid}.cards".
+        // Those paths are meant for updateDoc to merge directly — but here
+        // we're about to overwrite the WHOLE `players` map in this same
+        // write, built from the local (pre-write) gameState snapshot. If we
+        // don't fold those pending card changes in first, they're silently
+        // discarded: the round-end score gets computed off stale hands, and
+        // since our literal `players` object is written in the same update
+        // as those dotted paths, ours wins and the swap visually never
+        // lands either. So: apply every "players.{pid}.cards" (or any
+        // players.{pid}.<field>) entry from extraFields onto a deep-cloned
+        // copy of gameState.players before scoring, then strip those raw
+        // dotted keys out of the payload since they're now baked into the
+        // `players` object we're writing instead.
+        const updatedPlayers = JSON.parse(JSON.stringify(gameState.players));
+        const playerFieldPattern = /^players\.([^.]+)\.(.+)$/;
+        Object.keys(extraFields).forEach(key => {
+            const match = key.match(playerFieldPattern);
+            if (!match) return;
+            const [, fieldPid, fieldName] = match;
+            if (!updatedPlayers[fieldPid]) return;
+            updatedPlayers[fieldPid][fieldName] = extraFields[key];
+            delete payload[key]; // now superseded by the `players` object below
+        });
+
         Object.keys(updatedPlayers).forEach(pid => {
-            const handScore = updatedPlayers[pid].cards.reduce((sum, c) => sum + (c ? (c.score || 0) : 0), 0);
+            const handScore = (updatedPlayers[pid].cards || []).reduce((sum, c) => sum + (c ? (c.score || 0) : 0), 0);
             updatedPlayers[pid] = {
                 ...updatedPlayers[pid],
                 totalScore: (updatedPlayers[pid].totalScore || 0) + handScore,

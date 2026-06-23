@@ -39,7 +39,8 @@
             letter-spacing: 0.05em;
         }
 
-        /* Auth modal */
+        /* Auth modal — uses our own is-hidden class, NOT Tailwind's hidden,
+           to avoid conflicts with the Tailwind CDN loading asynchronously   */
         .modal-backdrop {
             position: fixed; inset: 0;
             background: rgba(2,6,23,0.85);
@@ -48,6 +49,8 @@
             display: flex; align-items: center; justify-content: center;
             padding: 1rem;
         }
+        .is-hidden { display: none !important; }
+
         .modal-box {
             background: #0f172a;
             border: 1px solid #1e293b;
@@ -72,6 +75,16 @@
         }
         #chatPanel.open { transform: translateY(0); }
 
+        #chatLobby {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 1.5rem;
+        }
+
         #chatMessages {
             flex: 1;
             overflow-y: auto;
@@ -83,6 +96,18 @@
         #chatMessages::-webkit-scrollbar { width: 4px; }
         #chatMessages::-webkit-scrollbar-track { background: transparent; }
         #chatMessages::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+        #chatInputArea {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.75rem;
+            border-top: 1px solid #1e293b;
+        }
+
+        /* Hide chat sub-sections until in a room */
+        #chatMessages.panel-hidden,
+        #chatInputArea.panel-hidden { display: none; }
+        #chatLobby.panel-hidden { display: none; }
 
         .msg { font-size: 13px; line-height: 1.4; }
         .msg .sender { font-weight: 700; margin-right: 4px; }
@@ -120,8 +145,8 @@
     <!-- ── TILES ── -->
     <main class="max-w-3xl mx-auto px-4 pb-24 grid sm:grid-cols-2 gap-5">
 
-        <!-- Chat / Party -->
-        <div class="card-tile indigo" id="chatTile" onclick="handleChatClick()">
+        <!-- Chat / Party — click handled in JS, not inline onclick -->
+        <div class="card-tile indigo" id="chatTile">
             <div class="text-4xl mb-4">💬</div>
             <div class="flex items-center gap-2 mb-2">
                 <h2 class="font-display text-2xl font-bold text-white">Party Chat</h2>
@@ -158,27 +183,34 @@
     </main>
 
     <!-- ── AUTH MODAL ── -->
-    <div id="authModal" class="modal-backdrop hidden">
+    <!-- Starts hidden via is-hidden. We never use Tailwind's 'hidden' class here
+         because the CDN may not have generated it yet when the page first paints. -->
+    <div id="authModal" class="modal-backdrop is-hidden">
         <div class="modal-box space-y-5">
             <h2 class="font-display text-2xl font-bold text-white">Sign in to chat</h2>
             <p class="text-slate-400 text-sm">You need an account to join party chats.</p>
 
-            <div id="authError" class="hidden text-rose-400 text-sm bg-rose-900/30 border border-rose-800 rounded-lg px-3 py-2"></div>
+            <div id="authError" class="is-hidden text-rose-400 text-sm bg-rose-900/30 border border-rose-800 rounded-lg px-3 py-2"></div>
 
             <div class="space-y-3">
-                <input type="email" id="authEmail" placeholder="Email" />
-                <input type="password" id="authPassword" placeholder="Password" />
+                <input type="email" id="authEmail" placeholder="Email" autocomplete="email" />
+                <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" />
             </div>
 
             <div class="flex gap-3">
-                <button onclick="doSignIn()" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm">Sign In</button>
-                <button onclick="doSignUp()" class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl transition text-sm">Sign Up</button>
+                <button id="signInBtn" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm">Sign In</button>
+                <button id="signUpBtn" class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl transition text-sm">Sign Up</button>
             </div>
-            <button onclick="doGoogle()" class="w-full py-3 border border-slate-700 hover:border-slate-500 text-slate-300 font-semibold rounded-xl transition text-sm flex items-center justify-center gap-2">
-                <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-21 0-1.4-.1-2.7-.5-4z"/></svg>
+
+            <button id="googleBtn" class="w-full py-3 border border-slate-700 hover:border-slate-500 text-slate-300 font-semibold rounded-xl transition text-sm flex items-center justify-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 48 48">
+                    <path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-21 0-1.4-.1-2.7-.5-4z"/>
+                </svg>
                 Continue with Google
             </button>
-            <button onclick="closeAuthModal()" class="w-full text-slate-500 hover:text-slate-300 text-sm transition">Cancel</button>
+
+            <!-- Cancel button: plain button element, no inline onclick — wired in JS -->
+            <button id="cancelAuthBtn" class="w-full py-2 text-slate-500 hover:text-slate-300 text-sm transition">Cancel</button>
         </div>
     </div>
 
@@ -191,28 +223,29 @@
                 <span class="font-bold text-white text-sm" id="chatRoomLabel">Party Chat</span>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="copyRoomCode()" id="copyCodeBtn" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold px-2 py-1 rounded-lg bg-indigo-900/30 transition hidden"></button>
-                <button onclick="closeChat()" class="text-slate-400 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-800 transition">✕</button>
+                <!-- Code copy button, hidden until in a room -->
+                <button id="copyCodeBtn" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold px-2 py-1 rounded-lg bg-indigo-900/30 transition is-hidden"></button>
+                <button id="closeChatBtn" class="text-slate-400 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-800 transition">✕</button>
             </div>
         </div>
 
         <!-- Room picker (shown when no room joined) -->
-        <div id="chatLobby" class="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+        <div id="chatLobby">
             <p class="text-slate-400 text-sm text-center">Create a new party or join one with a code.</p>
-            <button onclick="createRoom()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm">✨ Create Party</button>
+            <button id="createRoomBtn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm">✨ Create Party</button>
             <div class="flex gap-2 w-full">
-                <input type="text" id="joinCodeInput" placeholder="Enter room code" class="flex-1 uppercase" maxlength="6" style="text-transform:uppercase;letter-spacing:0.1em;" />
-                <button onclick="joinRoom()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition text-sm">Join</button>
+                <input type="text" id="joinCodeInput" placeholder="Enter room code" maxlength="6" style="text-transform:uppercase;letter-spacing:0.1em;flex:1;" />
+                <button id="joinRoomBtn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition text-sm">Join</button>
             </div>
         </div>
 
-        <!-- Messages (hidden until in a room) -->
-        <div id="chatMessages" class="hidden"></div>
+        <!-- Messages area (hidden until in a room) -->
+        <div id="chatMessages" class="panel-hidden"></div>
 
-        <!-- Input (hidden until in a room) -->
-        <div id="chatInputArea" class="hidden flex gap-2 p-3 border-t border-slate-800">
-            <input type="text" id="msgInput" placeholder="Say something..." class="flex-1" onkeydown="if(event.key==='Enter')sendMsg()" />
-            <button onclick="sendMsg()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold text-sm transition">↑</button>
+        <!-- Message input (hidden until in a room) -->
+        <div id="chatInputArea" class="panel-hidden">
+            <input type="text" id="msgInput" placeholder="Say something..." style="flex:1;" />
+            <button id="sendMsgBtn" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold text-sm transition">↑</button>
         </div>
     </div>
 
@@ -224,10 +257,14 @@
             collection, addDoc, query, orderBy, serverTimestamp
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import {
-            getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut,
-            onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword
+            getAuth, GoogleAuthProvider, signInWithPopup,
+            signOut, onAuthStateChanged,
+            createUserWithEmailAndPassword, signInWithEmailAndPassword
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
+        // ─────────────────────────────────────────────
+        // Firebase init
+        // ─────────────────────────────────────────────
         const firebaseConfig = {
             apiKey: "AIzaSyDTIz9LcVxLwJ4l5keMeSSAoCh2oTSWg9E",
             authDomain: "dutch-card-game-60d1c.firebaseapp.com",
@@ -238,182 +275,263 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const db  = getFirestore(app);
         const auth = getAuth(app);
         const googleProvider = new GoogleAuthProvider();
 
-        let currentUser = null;
+        let currentUser   = null;
         let currentRoomId = null;
-        let msgUnsub = null;
+        let msgUnsub      = null;
 
-        // ── Auth state ──
-        onAuthStateChanged(auth, user => {
-            currentUser = user;
-            renderAuthArea(user);
-            if (user) {
-                document.getElementById('authModal').classList.add('hidden');
-                document.getElementById('authError').classList.add('hidden');
-            }
-        });
+        // ─────────────────────────────────────────────
+        // DOM refs
+        // ─────────────────────────────────────────────
+        const authModal    = document.getElementById('authModal');
+        const authError    = document.getElementById('authError');
+        const authEmail    = document.getElementById('authEmail');
+        const authPassword = document.getElementById('authPassword');
+        const chatPanel    = document.getElementById('chatPanel');
+        const chatLobby    = document.getElementById('chatLobby');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInputArea = document.getElementById('chatInputArea');
+        const copyCodeBtn  = document.getElementById('copyCodeBtn');
 
-        function renderAuthArea(user) {
-            const area = document.getElementById('authArea');
-            if (user) {
-                const name = user.displayName || user.email?.split('@')[0] || 'You';
-                area.innerHTML = `
-                    <span class="text-slate-400 text-sm hidden sm:inline">${name}</span>
-                    <button onclick="window.doSignOut()" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition">Sign out</button>`;
-            } else {
-                area.innerHTML = `
-                    <button onclick="window.openAuthModal()" class="px-4 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition">Sign in</button>`;
-            }
+        // ─────────────────────────────────────────────
+        // Visibility helpers (avoid Tailwind CDN race)
+        // ─────────────────────────────────────────────
+        const show = el => el.classList.remove('is-hidden');
+        const hide = el => el.classList.add('is-hidden');
+
+        // ─────────────────────────────────────────────
+        // Auth modal
+        // ─────────────────────────────────────────────
+        function openAuthModal() {
+            authEmail.value    = '';
+            authPassword.value = '';
+            hide(authError);
+            show(authModal);
+            // Focus email field for UX
+            setTimeout(() => authEmail.focus(), 50);
         }
 
-        // ── Expose globals ──
-        window.openAuthModal = () => document.getElementById('authModal').classList.remove('hidden');
-        window.closeAuthModal = () => document.getElementById('authModal').classList.add('hidden');
+        function closeAuthModal() {
+            hide(authModal);
+        }
 
-        window.doSignIn = async () => {
-            const email = document.getElementById('authEmail').value;
-            const pass  = document.getElementById('authPassword').value;
+        // Backdrop click closes modal
+        authModal.addEventListener('click', e => {
+            if (e.target === authModal) closeAuthModal();
+        });
+
+        // Cancel button
+        document.getElementById('cancelAuthBtn').addEventListener('click', closeAuthModal);
+
+        // Sign In
+        document.getElementById('signInBtn').addEventListener('click', async () => {
+            const email = authEmail.value.trim();
+            const pass  = authPassword.value;
+            if (!email || !pass) { showAuthError('Please enter your email and password.'); return; }
             try {
                 await signInWithEmailAndPassword(auth, email, pass);
                 closeAuthModal();
                 openChat();
             } catch(e) { showAuthError(e.message); }
-        };
+        });
 
-        window.doSignUp = async () => {
-            const email = document.getElementById('authEmail').value;
-            const pass  = document.getElementById('authPassword').value;
+        // Sign Up
+        document.getElementById('signUpBtn').addEventListener('click', async () => {
+            const email = authEmail.value.trim();
+            const pass  = authPassword.value;
+            if (!email || !pass) { showAuthError('Please enter an email and password.'); return; }
             try {
                 await createUserWithEmailAndPassword(auth, email, pass);
                 closeAuthModal();
                 openChat();
             } catch(e) { showAuthError(e.message); }
-        };
+        });
 
-        window.doGoogle = async () => {
+        // Google Sign-In (popup — works same-origin; no redirect so no page reload)
+        document.getElementById('googleBtn').addEventListener('click', async () => {
             try {
-                await signInWithRedirect(auth, googleProvider);
-            } catch(e) { showAuthError(e.message); }
-        };
-
-        // Handle redirect result when page reloads after Google auth
-        getRedirectResult(auth).then(result => {
-            if (result && result.user) {
-                document.getElementById('authModal').classList.add('hidden');
+                await signInWithPopup(auth, googleProvider);
+                closeAuthModal();
                 openChat();
+            } catch(e) {
+                const code = (e.message || '').match(/auth\/[\w-]+/)?.[0];
+                if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+                    showAuthError(e.message);
+                }
             }
-        }).catch(e => showAuthError(e.message));
+        });
 
-        window.doSignOut = () => signOut(auth);
+        // Enter key on password field triggers sign-in
+        authPassword.addEventListener('keydown', e => {
+            if (e.key === 'Enter') document.getElementById('signInBtn').click();
+        });
 
         function showAuthError(rawMsg) {
-            const friendly = {
-                'auth/invalid-email': 'Please enter a valid email address.',
-                'auth/user-not-found': 'No account found with that email.',
-                'auth/wrong-password': 'Incorrect password — please try again.',
-                'auth/invalid-credential': 'Incorrect email or password.',
-                'auth/email-already-in-use': 'An account with that email already exists.',
-                'auth/weak-password': 'Password must be at least 6 characters.',
-                'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
-                'auth/popup-closed-by-user': null,
+            const map = {
+                'auth/invalid-email':        'Please enter a valid email address.',
+                'auth/user-not-found':        'No account found with that email.',
+                'auth/wrong-password':        'Incorrect password — please try again.',
+                'auth/invalid-credential':    'Incorrect email or password.',
+                'auth/email-already-in-use':  'An account with that email already exists.',
+                'auth/weak-password':         'Password must be at least 6 characters.',
+                'auth/too-many-requests':     'Too many attempts — please wait and try again.',
+                'auth/popup-closed-by-user':   null,
                 'auth/cancelled-popup-request': null,
             };
-            const match = rawMsg && rawMsg.match(/auth\/[\w-]+/);
-            const code = match ? match[0] : null;
-            const msg = friendly[code];
-            if (msg === null) return; // user cancelled, stay silent
-            const el = document.getElementById('authError');
-            el.textContent = msg || 'Something went wrong — please try again.';
-            el.classList.remove('hidden');
+            const code = (rawMsg || '').match(/auth\/[\w-]+/)?.[0] || '';
+            const msg  = code in map ? map[code] : 'Something went wrong — please try again.';
+            if (msg === null) return; // user closed popup, stay silent
+            authError.textContent = msg;
+            show(authError);
         }
 
-        // ── Chat ──
-        window.handleChatClick = () => {
-            if (!currentUser) { window.openAuthModal(); return; }
-            openChat();
-        };
+        // ─────────────────────────────────────────────
+        // Auth state listener
+        // ─────────────────────────────────────────────
+        onAuthStateChanged(auth, user => {
+            currentUser = user;
+            renderNavAuthArea(user);
+            if (user) closeAuthModal(); // auto-close if signed in
+        });
+
+        function renderNavAuthArea(user) {
+            const area = document.getElementById('authArea');
+            if (user) {
+                const name = user.displayName || user.email?.split('@')[0] || 'You';
+                area.innerHTML = `
+                    <span class="text-slate-400 text-sm hidden sm:inline" title="${user.email || ''}">${escHtml(name)}</span>
+                    <button id="signOutNavBtn" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition">Sign out</button>`;
+                document.getElementById('signOutNavBtn').addEventListener('click', () => signOut(auth));
+            } else {
+                area.innerHTML = `
+                    <button id="openModalNavBtn" class="px-4 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition">Sign in</button>`;
+                document.getElementById('openModalNavBtn').addEventListener('click', openAuthModal);
+            }
+        }
+
+        // ─────────────────────────────────────────────
+        // Party Chat tile
+        // ─────────────────────────────────────────────
+        document.getElementById('chatTile').addEventListener('click', () => {
+            if (!currentUser) {
+                openAuthModal();
+            } else {
+                openChat();
+            }
+        });
 
         function openChat() {
-            document.getElementById('chatPanel').classList.add('open');
+            chatPanel.classList.add('open');
         }
 
-        window.closeChat = () => {
-            document.getElementById('chatPanel').classList.remove('open');
-        };
+        document.getElementById('closeChatBtn').addEventListener('click', () => {
+            chatPanel.classList.remove('open');
+        });
 
-        window.createRoom = async () => {
-            if (!currentUser) return;
-            const code = Math.random().toString(36).substring(2,8).toUpperCase();
+        // ─────────────────────────────────────────────
+        // Room create / join
+        // ─────────────────────────────────────────────
+        document.getElementById('createRoomBtn').addEventListener('click', async () => {
+            if (!currentUser) { openAuthModal(); return; }
+            const code = Math.random().toString(36).substring(2, 8).toUpperCase();
             await setDoc(doc(db, 'chatRooms', code), {
                 createdBy: currentUser.uid,
                 createdAt: serverTimestamp()
             });
             await enterRoom(code);
-        };
+        });
 
-        window.joinRoom = async () => {
+        document.getElementById('joinRoomBtn').addEventListener('click', async () => {
+            if (!currentUser) { openAuthModal(); return; }
             const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
             if (!code) return;
             const snap = await getDoc(doc(db, 'chatRooms', code));
-            if (!snap.exists()) { alert('Room not found.'); return; }
+            if (!snap.exists()) { alert('Room not found. Double-check the code.'); return; }
             await enterRoom(code);
-        };
+        });
+
+        document.getElementById('joinCodeInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') document.getElementById('joinRoomBtn').click();
+        });
 
         async function enterRoom(code) {
             currentRoomId = code;
-            document.getElementById('chatLobby').classList.add('hidden');
-            document.getElementById('chatMessages').classList.remove('hidden');
-            document.getElementById('chatInputArea').classList.remove('hidden');
-            document.getElementById('chatRoomLabel').textContent = `Party · ${code}`;
-            const btn = document.getElementById('copyCodeBtn');
-            btn.textContent = code;
-            btn.classList.remove('hidden');
 
-            // Subscribe to messages
+            // Swap lobby ↔ messages
+            chatLobby.classList.add('panel-hidden');
+            chatMessages.classList.remove('panel-hidden');
+            chatInputArea.classList.remove('panel-hidden');
+
+            document.getElementById('chatRoomLabel').textContent = `Party · ${code}`;
+            copyCodeBtn.textContent = code;
+            show(copyCodeBtn);
+
+            // Live message subscription
             if (msgUnsub) msgUnsub();
-            const q = query(collection(db, 'chatRooms', code, 'messages'), orderBy('ts'));
+            const q = query(
+                collection(db, 'chatRooms', code, 'messages'),
+                orderBy('ts')
+            );
             msgUnsub = onSnapshot(q, snap => {
-                const box = document.getElementById('chatMessages');
-                box.innerHTML = '';
+                chatMessages.innerHTML = '';
                 snap.forEach(d => {
-                    const m = d.data();
+                    const m  = d.data();
                     const el = document.createElement('div');
                     el.className = 'msg';
                     const isMe = m.uid === currentUser?.uid;
-                    el.innerHTML = `<span class="sender" style="color:${isMe?'#818cf8':'#94a3b8'}">${m.name}</span><span class="text-slate-300">${escHtml(m.text)}</span>`;
-                    box.appendChild(el);
+                    el.innerHTML =
+                        `<span class="sender" style="color:${isMe ? '#818cf8' : '#94a3b8'}">${escHtml(m.name)}</span>` +
+                        `<span style="color:#cbd5e1">${escHtml(m.text)}</span>`;
+                    chatMessages.appendChild(el);
                 });
-                box.scrollTop = box.scrollHeight;
+                chatMessages.scrollTop = chatMessages.scrollHeight;
             });
         }
 
-        window.sendMsg = async () => {
+        // ─────────────────────────────────────────────
+        // Send message
+        // ─────────────────────────────────────────────
+        async function sendMsg() {
             const input = document.getElementById('msgInput');
-            const text = input.value.trim();
+            const text  = input.value.trim();
             if (!text || !currentRoomId || !currentUser) return;
             input.value = '';
             await addDoc(collection(db, 'chatRooms', currentRoomId, 'messages'), {
-                uid: currentUser.uid,
+                uid:  currentUser.uid,
                 name: currentUser.displayName || currentUser.email?.split('@')[0] || 'Guest',
                 text,
-                ts: serverTimestamp()
+                ts:   serverTimestamp()
             });
-        };
+        }
 
-        window.copyRoomCode = () => {
+        document.getElementById('sendMsgBtn').addEventListener('click', sendMsg);
+        document.getElementById('msgInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') sendMsg();
+        });
+
+        // ─────────────────────────────────────────────
+        // Copy room code
+        // ─────────────────────────────────────────────
+        copyCodeBtn.addEventListener('click', () => {
+            if (!currentRoomId) return;
             navigator.clipboard.writeText(currentRoomId).then(() => {
-                const btn = document.getElementById('copyCodeBtn');
-                const orig = btn.textContent;
-                btn.textContent = 'Copied!';
-                setTimeout(() => btn.textContent = orig, 1500);
+                const orig = copyCodeBtn.textContent;
+                copyCodeBtn.textContent = 'Copied!';
+                setTimeout(() => { copyCodeBtn.textContent = orig; }, 1500);
             });
-        };
+        });
 
+        // ─────────────────────────────────────────────
+        // Utility
+        // ─────────────────────────────────────────────
         function escHtml(s) {
-            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
         }
 
     </script>

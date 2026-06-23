@@ -59,21 +59,29 @@
             padding: 2rem;
         }
 
-        /* Chat panel */
+        /* ── Chat modal (full-screen overlay) ── */
+        #chatModal {
+            position: fixed; inset: 0;
+            background: rgba(2,6,23,0.88);
+            backdrop-filter: blur(6px);
+            z-index: 50;
+            display: flex; align-items: center; justify-content: center;
+            padding: 1rem;
+        }
+        #chatModal.is-hidden { display: none !important; }
+
         #chatPanel {
-            position: fixed; bottom: 0; right: 0;
-            width: 340px; height: 480px;
             background: #0f172a;
             border: 1px solid #1e293b;
-            border-bottom: none;
-            border-radius: 16px 16px 0 0;
-            display: flex; flex-direction: column;
-            box-shadow: 0 -8px 30px rgba(0,0,0,0.5);
-            z-index: 40;
-            transform: translateY(100%);
-            transition: transform 0.3s ease;
+            border-radius: 24px;
+            width: 100%;
+            max-width: 560px;
+            height: min(640px, 90vh);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+            overflow: hidden;
         }
-        #chatPanel.open { transform: translateY(0); }
 
         #chatLobby {
             flex: 1;
@@ -82,16 +90,16 @@
             align-items: center;
             justify-content: center;
             gap: 1rem;
-            padding: 1.5rem;
+            padding: 2rem;
         }
 
         #chatMessages {
             flex: 1;
             overflow-y: auto;
-            padding: 1rem;
+            padding: 1.25rem;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 10px;
         }
         #chatMessages::-webkit-scrollbar { width: 4px; }
         #chatMessages::-webkit-scrollbar-track { background: transparent; }
@@ -100,7 +108,7 @@
         #chatInputArea {
             display: flex;
             gap: 0.5rem;
-            padding: 0.75rem;
+            padding: 1rem;
             border-top: 1px solid #1e293b;
         }
 
@@ -161,7 +169,7 @@
         </div>
 
         <!-- Dutch Card Game -->
-        <a class="card-tile amber" href="dutch.html">
+        <a class="card-tile amber" href="dutch.html" target="_blank" rel="noopener">
             <div class="text-4xl mb-4">🃏</div>
             <div class="flex items-center gap-2 mb-2">
                 <h2 class="font-display text-2xl font-bold text-white">Dutch</h2>
@@ -214,18 +222,22 @@
         </div>
     </div>
 
-    <!-- ── CHAT PANEL ── -->
+    <!-- ── CHAT MODAL (full-screen) ── -->
+    <div id="chatModal" class="is-hidden">
     <div id="chatPanel">
         <!-- Header -->
-        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-            <div class="flex items-center gap-2">
-                <span class="text-lg">💬</span>
-                <span class="font-bold text-white text-sm" id="chatRoomLabel">Party Chat</span>
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">💬</span>
+                <div>
+                    <div class="font-display font-bold text-white text-lg leading-none" id="chatRoomLabel">Party Chat</div>
+                    <div class="text-slate-500 text-xs mt-0.5">Real-time party chat</div>
+                </div>
             </div>
             <div class="flex items-center gap-2">
                 <!-- Code copy button, hidden until in a room -->
-                <button id="copyCodeBtn" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold px-2 py-1 rounded-lg bg-indigo-900/30 transition is-hidden"></button>
-                <button id="closeChatBtn" class="text-slate-400 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-800 transition">✕</button>
+                <button id="copyCodeBtn" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold px-3 py-1.5 rounded-lg bg-indigo-900/30 border border-indigo-800/50 transition is-hidden"></button>
+                <button id="closeChatBtn" class="text-slate-400 hover:text-white text-xl font-bold w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-800 transition">✕</button>
             </div>
         </div>
 
@@ -248,6 +260,7 @@
             <button id="sendMsgBtn" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold text-sm transition">↑</button>
         </div>
     </div>
+    </div><!-- /chatModal -->
 
     <!-- ── FIREBASE + LOGIC ── -->
     <script type="module">
@@ -290,6 +303,7 @@
         const authError    = document.getElementById('authError');
         const authEmail    = document.getElementById('authEmail');
         const authPassword = document.getElementById('authPassword');
+        const chatModal    = document.getElementById('chatModal');
         const chatPanel    = document.getElementById('chatPanel');
         const chatLobby    = document.getElementById('chatLobby');
         const chatMessages = document.getElementById('chatMessages');
@@ -424,11 +438,18 @@
         });
 
         function openChat() {
-            chatPanel.classList.add('open');
+            show(chatModal);
         }
 
-        document.getElementById('closeChatBtn').addEventListener('click', () => {
-            chatPanel.classList.remove('open');
+        function closeChat() {
+            hide(chatModal);
+        }
+
+        document.getElementById('closeChatBtn').addEventListener('click', closeChat);
+
+        // Click on the backdrop (outside the panel) closes chat
+        chatModal.addEventListener('click', e => {
+            if (e.target === chatModal) closeChat();
         });
 
         // ─────────────────────────────────────────────

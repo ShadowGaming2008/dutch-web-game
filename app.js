@@ -4,7 +4,8 @@ import {
     collection, addDoc, query, orderBy, limit, getDocs, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
-    getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+    getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+    createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 // ==========================================
@@ -267,7 +268,7 @@ async function loadOrCreateProfile(user) {
             displayName: user.displayName || "",
             email: user.email || "",
             photoURL: user.photoURL || "",
-            username: user.displayName || "Player",
+            username: user.displayName || (user.email ? user.email.split('@')[0] : "Player"),
             avatarEmoji: null, // null = use Google photo; set to an emoji string to override
             stats: defaultStats()
         };
@@ -284,6 +285,7 @@ function applySignedInUI() {
     const avatarEmoji = currentProfile?.avatarEmoji || null;
 
     document.getElementById("headerSignInBtn").classList.add("hidden");
+    document.getElementById("headerEmailSignInBtn").classList.add("hidden");
     const accountBtn = document.getElementById("headerAccountBtn");
     accountBtn.classList.remove("hidden");
     renderAvatarInto("headerAvatar", photo, avatarEmoji);
@@ -294,6 +296,7 @@ function applySignedInUI() {
     document.getElementById("dropdownEmail").textContent = currentUser.email || "";
 
     document.getElementById("landingSignInBtn").classList.add("hidden");
+    document.getElementById("landingEmailSignInBtn").classList.add("hidden");
     const chip = document.getElementById("landingSignedInChip");
     chip.classList.remove("hidden");
     renderAvatarInto("landingAvatar", photo, avatarEmoji);
@@ -309,9 +312,11 @@ function applySignedInUI() {
 
 function applySignedOutUI() {
     document.getElementById("headerSignInBtn").classList.remove("hidden");
+    document.getElementById("headerEmailSignInBtn").classList.remove("hidden");
     document.getElementById("headerAccountBtn").classList.add("hidden");
     document.getElementById("accountDropdown").classList.add("hidden");
     document.getElementById("landingSignInBtn").classList.remove("hidden");
+    document.getElementById("landingEmailSignInBtn").classList.remove("hidden");
     document.getElementById("landingSignedInChip").classList.add("hidden");
     delete document.getElementById("usernameInput").dataset.userEdited;
 }
@@ -347,6 +352,126 @@ async function handleSignIn() {
 
 document.getElementById("headerSignInBtn").addEventListener("click", handleSignIn);
 document.getElementById("landingSignInBtn").addEventListener("click", handleSignIn);
+
+// ==========================================
+// Email / Password Auth (alternative to Google,
+// for accounts that can't use Google sign-in)
+// ==========================================
+let emailAuthMode = 'signin'; // 'signin' | 'signup'
+
+function openEmailAuthModal() {
+    emailAuthMode = 'signin';
+    updateEmailAuthModeUI();
+    document.getElementById("emailAuthEmailInput").value = "";
+    document.getElementById("emailAuthPasswordInput").value = "";
+    hideEmailAuthError();
+    document.getElementById("emailAuthModal").classList.remove("hidden");
+}
+
+function closeEmailAuthModal() {
+    document.getElementById("emailAuthModal").classList.add("hidden");
+}
+
+function updateEmailAuthModeUI() {
+    const isSignUp = emailAuthMode === 'signup';
+    document.getElementById("emailAuthTitle").textContent = isSignUp ? "Create Account" : "Sign In";
+    document.getElementById("emailAuthSubmitBtn").textContent = isSignUp ? "Sign Up" : "Sign In";
+    document.getElementById("emailAuthPasswordInput").autocomplete = isSignUp ? "new-password" : "current-password";
+    document.getElementById("emailAuthToggleModeBtn").innerHTML = isSignUp
+        ? 'Already have an account? <span class="underline">Sign in</span>'
+        : 'Need an account? <span class="underline">Sign up</span>';
+    document.getElementById("emailAuthForgotBtn").classList.toggle("hidden", isSignUp);
+}
+
+function showEmailAuthError(message) {
+    const el = document.getElementById("emailAuthError");
+    el.textContent = message;
+    el.classList.remove("hidden");
+}
+
+function hideEmailAuthError() {
+    document.getElementById("emailAuthError").classList.add("hidden");
+}
+
+// Maps Firebase Auth error codes to short, friendly messages — the raw
+// "Firebase: Error (auth/xxx)" strings aren't something to show a player.
+function friendlyAuthErrorMessage(err, mode) {
+    const code = err && err.code;
+    switch (code) {
+        case 'auth/invalid-email': return "That email address doesn't look right.";
+        case 'auth/missing-password': return "Please enter a password.";
+        case 'auth/weak-password': return "Password should be at least 6 characters.";
+        case 'auth/email-already-in-use': return "An account already exists with that email — try signing in instead.";
+        case 'auth/invalid-credential':
+        case 'auth/wrong-password': return "Incorrect email or password.";
+        case 'auth/user-not-found': return "No account found with that email — try signing up instead.";
+        case 'auth/too-many-requests': return "Too many attempts — please wait a bit and try again.";
+        case 'auth/network-request-failed': return "Network error — check your connection and try again.";
+        default: return mode === 'signup' ? "Couldn't create account — please try again." : "Couldn't sign in — please try again.";
+    }
+}
+
+document.getElementById("headerEmailSignInBtn").addEventListener("click", openEmailAuthModal);
+document.getElementById("landingEmailSignInBtn").addEventListener("click", openEmailAuthModal);
+document.getElementById("closeEmailAuthBtn").addEventListener("click", closeEmailAuthModal);
+document.getElementById("emailAuthModal").addEventListener("click", (e) => {
+    if (e.target === document.getElementById("emailAuthModal")) closeEmailAuthModal();
+});
+
+document.getElementById("emailAuthToggleModeBtn").addEventListener("click", () => {
+    emailAuthMode = emailAuthMode === 'signin' ? 'signup' : 'signin';
+    hideEmailAuthError();
+    updateEmailAuthModeUI();
+});
+
+document.getElementById("emailAuthSubmitBtn").addEventListener("click", async () => {
+    const email = document.getElementById("emailAuthEmailInput").value.trim();
+    const password = document.getElementById("emailAuthPasswordInput").value;
+    hideEmailAuthError();
+
+    if (!email || !password) {
+        showEmailAuthError("Please enter both an email and a password.");
+        return;
+    }
+
+    const submitBtn = document.getElementById("emailAuthSubmitBtn");
+    submitBtn.disabled = true;
+    const originalLabel = submitBtn.textContent;
+    submitBtn.textContent = emailAuthMode === 'signup' ? "Signing up..." : "Signing in...";
+
+    try {
+        if (emailAuthMode === 'signup') {
+            await createUserWithEmailAndPassword(auth, email, password);
+        } else {
+            await signInWithEmailAndPassword(auth, email, password);
+        }
+        closeEmailAuthModal();
+    } catch (err) {
+        showEmailAuthError(friendlyAuthErrorMessage(err, emailAuthMode));
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalLabel;
+    }
+});
+
+document.getElementById("emailAuthPasswordInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") document.getElementById("emailAuthSubmitBtn").click();
+});
+
+document.getElementById("emailAuthForgotBtn").addEventListener("click", async () => {
+    const email = document.getElementById("emailAuthEmailInput").value.trim();
+    hideEmailAuthError();
+    if (!email) {
+        showEmailAuthError("Enter your email above first, then click \"Forgot password?\".");
+        return;
+    }
+    try {
+        await sendPasswordResetEmail(auth, email);
+        showToast("Password reset email sent — check your inbox.", 'success');
+    } catch (err) {
+        showEmailAuthError(friendlyAuthErrorMessage(err, 'signin'));
+    }
+});
 
 document.getElementById("headerSignOutBtn").addEventListener("click", async () => {
     document.getElementById("accountDropdown").classList.add("hidden");

@@ -224,7 +224,7 @@
             collection, addDoc, query, orderBy, serverTimestamp
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import {
-            getAuth, GoogleAuthProvider, signInWithPopup, signOut,
+            getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut,
             onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
@@ -295,11 +295,17 @@
 
         window.doGoogle = async () => {
             try {
-                await signInWithPopup(auth, googleProvider);
-                closeAuthModal();
-                openChat();
+                await signInWithRedirect(auth, googleProvider);
             } catch(e) { showAuthError(e.message); }
         };
+
+        // Handle redirect result when page reloads after Google auth
+        getRedirectResult(auth).then(result => {
+            if (result && result.user) {
+                document.getElementById('authModal').classList.add('hidden');
+                openChat();
+            }
+        }).catch(e => showAuthError(e.message));
 
         window.doSignOut = () => signOut(auth);
 

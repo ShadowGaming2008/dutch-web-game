@@ -2136,8 +2136,17 @@ async function applyKick(targetPid) {
         drawnCard: null,
         ability: null
     };
+    let triggersRoundEnd = false;
     if (gameState.dutchCalledBy && gameState.dutchCalledBy !== targetPid && typeof gameState.finalTurnsLeft === 'number') {
         updates.finalTurnsLeft = Math.max(0, gameState.finalTurnsLeft - 1);
+        // IMPORTANT: removing a player can itself be the action that completes
+        // Dutch's final lap (e.g. the last remaining player owed a turn is the
+        // one who gets kicked). advanceTurn() always checks for this and ends
+        // the round right then — this code path bypassed that check entirely,
+        // leaving finalTurnsLeft stuck at 0 with status still 'PLAYING' and
+        // the round never scored until someone happened to take another
+        // (unearned) turn. Mirror advanceTurn's round-end branch here too.
+        if (updates.finalTurnsLeft <= 0) triggersRoundEnd = true;
     }
     if (gameState.dutchCalledBy === targetPid) {
         // The Dutch-caller themselves got kicked — there's no one left who
@@ -2153,6 +2162,26 @@ async function applyKick(targetPid) {
         // in the new turn order, so round-end advancement (which is
         // host-gated) doesn't get permanently stuck with no host left.
         updates.hostId = newTurnOrder[0];
+    }
+
+    if (triggersRoundEnd) {
+        // Score off the post-kick player set (the kicked player's entry is
+        // already gone from `gameState.players` here via deleteField — but
+        // deleteField() only takes effect once Firestore applies the write,
+        // so build the scored snapshot from the players that remain instead).
+        const remainingPlayers = { ...gameState.players };
+        delete remainingPlayers[targetPid];
+        Object.keys(remainingPlayers).forEach(pid => {
+            const handScore = (remainingPlayers[pid].cards || []).reduce((sum, c) => sum + (c ? (c.score || 0) : 0), 0);
+            remainingPlayers[pid] = {
+                ...remainingPlayers[pid],
+                totalScore: (remainingPlayers[pid].totalScore || 0) + handScore,
+                lastHandScore: handScore
+            };
+        });
+        delete updates[`players.${targetPid}`];
+        updates.players = remainingPlayers;
+        updates.status = 'ROUND_END';
     }
 
     await pushState(updates);

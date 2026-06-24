@@ -1101,12 +1101,10 @@ function setupRoomSubscription(code) {
         if (!docSnap.exists()) return;
         const newState = docSnap.data();
 
-        // Detect if we've been kicked from the lobby — we were in players before
-        // and now we're gone, while the game is still in LOBBY status.
+        // Detect lobby kick: we were in players, now we're not, and status is still LOBBY
         const wasInRoom = gameState.players && gameState.players[localPlayerId];
         const nowKicked = newState.status === 'LOBBY' && newState.players && !newState.players[localPlayerId];
         if (wasInRoom && nowKicked) {
-            // Clean up and boot back to the landing screen
             gameState = {};
             roomCode = "";
             onChatRoomLeft();
@@ -1388,16 +1386,25 @@ function renderLobby() {
     document.getElementById("lobbyCodeDisplay").innerText = gameState.code;
     const playerList = document.getElementById("lobbyPlayerList");
     playerList.innerHTML = "";
+    const isHost = gameState.hostId === localPlayerId;
     Object.keys(gameState.players).forEach(pid => {
         const p = gameState.players[pid];
+        const canKick = isHost && pid !== localPlayerId;
         playerList.innerHTML += `
-            <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl flex justify-between items-center">
-                <span class="font-semibold text-sm text-white flex items-center gap-1.5">
+            <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl flex justify-between items-center gap-2">
+                <span class="font-semibold text-sm text-white flex items-center gap-1.5 min-w-0 truncate">
                     ${pid === gameState.hostId ? '<span class="text-amber-400">👑</span>' : ''}
                     ${p.name}
                 </span>
-                <span class="text-xs px-2.5 py-1 rounded-lg font-bold ${p.ready ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-500 border border-slate-700'}">${p.ready ? '✓ Ready' : 'Not Ready'}</span>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="text-xs px-2.5 py-1 rounded-lg font-bold ${p.ready ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-500 border border-slate-700'}">${p.ready ? '✓ Ready' : 'Not Ready'}</span>
+                    ${canKick ? `<button class="lobby-kick-btn text-xs px-2.5 py-1 rounded-lg font-bold bg-rose-900/60 hover:bg-rose-700/80 text-rose-400 hover:text-rose-200 border border-rose-700/40 transition" data-pid="${pid}">Kick</button>` : ''}
+                </div>
             </div>`;
+    });
+    // Wire up lobby kick buttons
+    playerList.querySelectorAll('.lobby-kick-btn').forEach(btn => {
+        btn.addEventListener('click', () => lobbyKickPlayer(btn.dataset.pid));
     });
     const startBtn = document.getElementById("startMatchBtn");
     if (gameState.hostId === localPlayerId) {
@@ -1415,6 +1422,27 @@ function renderLobby() {
     readyBtn.className = myReady
         ? 'flex-1 py-3 bg-emerald-700 text-white font-bold rounded-xl cursor-pointer border border-emerald-500/50'
         : 'flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition cursor-pointer';
+}
+
+// ==========================================
+// Lobby kick — host-only, instant removal (no vote needed in the lobby)
+// ==========================================
+async function lobbyKickPlayer(targetPid) {
+    if (gameState.hostId !== localPlayerId) return;
+    if (gameState.status !== 'LOBBY') return;
+    if (!gameState.players[targetPid]) return;
+    const targetName = gameState.players[targetPid]?.name || 'that player';
+    const confirmed = await showConfirm(
+        `Kick ${targetName} from the lobby?`,
+        'They will be removed and can rejoin with the room code.'
+    );
+    if (!confirmed) return;
+    const newTurnOrder = (gameState.turnOrder || []).filter(pid => pid !== targetPid);
+    await updateDoc(doc(db, 'rooms', roomCode), {
+        [`players.${targetPid}`]: deleteField(),
+        turnOrder: newTurnOrder
+    });
+    showToast(`${targetName} was removed from the lobby.`, 'info');
 }
 
 document.getElementById("readyBtn").addEventListener("click", async () => {

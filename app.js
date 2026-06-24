@@ -1341,6 +1341,13 @@ function renderState() {
             lastShownEventId = gameState.lastEvent?.id || null;
             lastHighlightEventId = gameState.lastEvent?.id || null;
             lastMoveAnimEventId = gameState.lastEvent?.id || null;
+            // Announce the randomised first player for this round
+            const firstPid = gameState.turnOrder?.[0];
+            const firstName = gameState.players?.[firstPid]?.name || 'Someone';
+            const goesFirstMsg = firstPid === localPlayerId
+                ? "🎲 You go first this round — good luck!"
+                : `🎲 ${firstName} goes first this round!`;
+            showToast(goesFirstMsg, 'info', 4000);
         }
         renderGameBoard();
         renderVoteKickModal();
@@ -1415,10 +1422,13 @@ async function dealNewRound() {
         updatedPlayers[pid] = { ...updatedPlayers[pid], cards: [freshDeck.pop(), freshDeck.pop(), freshDeck.pop(), freshDeck.pop()], ready: false, score: 0, lastHandScore: null };
     });
     const initialDiscard = freshDeck.pop();
+    // Randomise who goes first and the seating order each round
+    const shuffledTurnOrder = [...(gameState.turnOrder || Object.keys(updatedPlayers))].sort(() => Math.random() - 0.5);
     await pushState({
         status: "PLAYING", deck: freshDeck, discard: [initialDiscard],
         players: updatedPlayers, roundNumber: (gameState.roundNumber || 0) + 1,
-        currentTurnIdx: 0, turnPhase: 'AWAIT_DRAW', drawnCard: null,
+        turnOrder: shuffledTurnOrder, currentTurnIdx: 0,
+        turnPhase: 'AWAIT_DRAW', drawnCard: null,
         ability: null, dutchCalledBy: null, finalTurnsLeft: null, pendingGive: null
     });
 }

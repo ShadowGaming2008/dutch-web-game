@@ -139,6 +139,7 @@ let initialPeekIdxsRemaining = []; // fixed set of card indices (bottom two) the
 let roundSeenKey = null;
 let lastAbilityType = null; // track to avoid re-flashing
 let lastHighlightEventId = null;
+let lastMoveAnimEventId = null; // dedup guard for card-move animation playback, same pattern as lastShownEventId/lastHighlightEventId
 
 // Account / auth state
 let currentUser = null;        // Firebase Auth user object, or null if signed out / guest
@@ -1111,14 +1112,15 @@ async function pushState(partial) {
 // ==========================================
 let lastShownEventId = null;
 
-function makeEvent(message, targetPid = null, targetMessage = null, highlights = []) {
+function makeEvent(message, targetPid = null, targetMessage = null, highlights = [], moves = []) {
     return {
         id: Math.random().toString(36).substring(2, 10),
         message,
         targetMessage,
         actorId: localPlayerId,
         targetId: targetPid,
-        highlights
+        highlights,
+        moves
     };
 }
 
@@ -1141,6 +1143,11 @@ function maybeApplyEventHighlights() {
     const evt = gameState.lastEvent;
     if (!evt || evt.id === lastHighlightEventId) return;
     lastHighlightEventId = evt.id;
+    // Events that carry moves (the drawn-card swap, J/Q swap, King swaps) now
+    // get the FLIP card-move animation instead of a glow — showing both would
+    // be redundant. Peeks, snaps, and the post-snap give-away never carry
+    // moves, so they're untouched and still get their glow exactly as before.
+    if (evt.moves && evt.moves.length) return;
     if (evt.highlights && evt.highlights.length) {
         highlightSlots(evt.highlights, NOTIFY_MS);
     }
@@ -1218,9 +1225,89 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
+// Card-move animation (FLIP technique)
+// ==========================================
+// renderGameBoard() fully wipes and rebuilds every player zone's DOM on
+// every snapshot. That means we can't animate a card sliding from A to B
+// by just transitioning styles on a persistent element — by the time we'd
+// want to animate, the old element is already gone and a new one sits in
+// its final position. Instead: capture the source element's on-screen
+// rect BEFORE the rebuild runs, let the rebuild happen exactly as it does
+// today, then animate a cloned "ghost" element from the old coordinates to
+// the destination element's real (post-rebuild) coordinates. This is
+// purely a presentation layer — it never touches game state.
+const CARD_MOVE_MS = 420; // flight time for the ghost card, separate from NOTIFY_MS (4500ms toast duration)
+
+// Resolves a move endpoint reference to its current DOM element.
+// 'hand' slots are identified by the stable data-pid/data-cidx attributes
+// every card already renders with; 'discard'/'deck' are the two fixed,
+// never-rebuilt pile elements.
+function resolveMoveEl(ref) {
+    if (!ref) return null;
+    if (ref.type === 'hand') return document.querySelector(`[data-pid="${ref.pid}"][data-cidx="${ref.idx}"]`);
+    if (ref.type === 'discard') return document.getElementById('discardPile');
+    if (ref.type === 'deck') return document.getElementById('drawDeck');
+    return null;
+}
+
+// Flies a cloned "ghost" card from fromRect to toEl's current position.
+// The ghost is always a plain card-back-styled block — it never shows a
+// rank or suit, since a card mid-flight must not leak hidden information
+// to opponents who aren't allowed to see it.
+function animateCardMove(fromRect, toEl) {
+    if (!fromRect || !toEl) return; // capture failed or destination missing — fall through silently, no crash
+    const toRect = toEl.getBoundingClientRect();
+    if (toRect.width === 0) return; // destination not visible/rendered — skip
+
+    const ghost = document.createElement('div');
+    ghost.className = 'card-move-ghost';
+    ghost.style.position = 'fixed';
+    ghost.style.left = fromRect.left + 'px';
+    ghost.style.top = fromRect.top + 'px';
+    ghost.style.width = fromRect.width + 'px';
+    ghost.style.height = fromRect.height + 'px';
+    ghost.style.zIndex = '999';
+    ghost.style.pointerEvents = 'none';
+    document.body.appendChild(ghost);
+
+    requestAnimationFrame(() => {
+        ghost.style.transition = `transform ${CARD_MOVE_MS}ms cubic-bezier(0.4,0,0.2,1), opacity ${CARD_MOVE_MS}ms ease`;
+        const dx = toRect.left - fromRect.left, dy = toRect.top - fromRect.top;
+        ghost.style.transform = `translate(${dx}px,${dy}px) scale(${toRect.width / fromRect.width})`;
+    });
+    setTimeout(() => ghost.remove(), CARD_MOVE_MS + 50);
+}
+
+// Reads gameState.lastEvent and, if it's a new event carrying moves, captures
+// each move's source element's current on-screen rect right now — before
+// renderGameBoard() wipes and rebuilds the DOM. Returns the list of
+// {toRef, fromRect} pairs to resolve and play back AFTER the rebuild, or
+// null if there's nothing new to animate. Crossing-pair swaps (J/Q/K) share
+// one gameState write with two moves; both halves get captured here before
+// either is applied, so when played back they correctly cross each other.
+function maybeCaptureMoveAnimSources() {
+    const evt = gameState.lastEvent;
+    if (!evt || evt.id === lastMoveAnimEventId) return null;
+    lastMoveAnimEventId = evt.id; // safe to overwrite immediately — each event is keyed by its own unique id,
+                                   // so overlapping fast actions just start independent capture/play cycles
+    if (!evt.moves || !evt.moves.length) return null;
+    return evt.moves.map(m => ({
+        toRef: m.to,
+        fromRect: resolveMoveEl(m.from)?.getBoundingClientRect() || null
+    }));
+}
+
+
+// ==========================================
 // Global UI Rendering Router
 // ==========================================
 function renderState() {
+    // Capture must happen before ANYTHING else runs, including the existing
+    // maybeShowPublicEvent()/maybeApplyEventHighlights() calls below — those
+    // don't touch the DOM layout, but renderGameBoard() (called further down,
+    // inside the PLAYING branch) does, and capture has to happen before that
+    // rebuild wipes out the source elements' current positions.
+    const pendingMoveAnims = maybeCaptureMoveAnimSources();
     maybeShowPublicEvent();
     maybeApplyEventHighlights();
     maybeLogPublicEvent();
@@ -1246,9 +1333,19 @@ function renderState() {
             lastAbilityType = null;
             lastShownEventId = gameState.lastEvent?.id || null;
             lastHighlightEventId = gameState.lastEvent?.id || null;
+            lastMoveAnimEventId = gameState.lastEvent?.id || null;
         }
         renderGameBoard();
         renderVoteKickModal();
+        // Let renderGameBoard() run exactly as it does today, completely
+        // unmodified — THEN resolve each destination and play the flight.
+        // This ordering (capture before rebuild, play after) is the trick
+        // that makes animating across a full-DOM-rebuild pattern work at all.
+        if (pendingMoveAnims) {
+            pendingMoveAnims.forEach(({ toRef, fromRect }) => {
+                animateCardMove(fromRect, resolveMoveEl(toRef));
+            });
+        }
     } else if (gameState.status === "ROUND_END") {
         roundEndScreen.classList.remove("hidden");
         closeVoteKickModal();
@@ -1791,14 +1888,19 @@ document.getElementById("discardDrawnBtn").addEventListener("click", async () =>
     const card = gameState.drawnCard.card;
     const newDiscard = [...gameState.discard, card];
     const abilityType = isSpecial(card);
+    const myName = gameState.players[localPlayerId]?.name || 'A player';
+    const discardMoveEvent = makeEvent(`${myName} discarded their drawn card.`, null, null, [], [
+        { from: { type: 'deck' }, to: { type: 'discard' } }
+    ]);
     if (abilityType) {
         await pushState({
             discard: newDiscard, drawnCard: null,
             turnPhase: 'AWAIT_ABILITY',
-            ability: { type: abilityType, step: 1, ownIdx: null, oppPid: null, oppIdx: null, first: null, second: null }
+            ability: { type: abilityType, step: 1, ownIdx: null, oppPid: null, oppIdx: null, first: null, second: null },
+            lastEvent: discardMoveEvent
         });
     } else {
-        await advanceTurn({ discard: newDiscard, drawnCard: null });
+        await advanceTurn({ discard: newDiscard, drawnCard: null, lastEvent: discardMoveEvent });
     }
 });
 
@@ -1808,7 +1910,13 @@ document.getElementById("discardDrawnNoAbilityBtn").addEventListener("click", as
     if (gameState.turnPhase !== 'AWAIT_DECISION' || !gameState.drawnCard || gameState.drawnCard.source !== 'deck') return;
     const card = gameState.drawnCard.card;
     const newDiscard = [...gameState.discard, card];
-    await advanceTurn({ discard: newDiscard, drawnCard: null });
+    const myName = gameState.players[localPlayerId]?.name || 'A player';
+    await advanceTurn({
+        discard: newDiscard, drawnCard: null,
+        lastEvent: makeEvent(`${myName} discarded their drawn card.`, null, null, [], [
+            { from: { type: 'deck' }, to: { type: 'discard' } }
+        ])
+    });
 });
 
 // ==========================================
@@ -2347,9 +2455,11 @@ async function handleCardInteraction(pid, idx) {
         const newDiscard = oldCard ? [...gameState.discard, oldCard] : gameState.discard;
         showToast("Card swapped!", 'success', NOTIFY_MS);
         const myName = gameState.players[localPlayerId]?.name || 'A player';
+        const moves = [{ from: { type: gameState.drawnCard.source }, to: { type: 'hand', pid: localPlayerId, idx } }];
+        if (oldCard) moves.push({ from: { type: 'hand', pid: localPlayerId, idx }, to: { type: 'discard' } });
         await advanceTurn({
             [`players.${localPlayerId}.cards`]: myCards, discard: newDiscard, drawnCard: null,
-            lastEvent: makeEvent(`${myName} swapped their card #${idx + 1}.`, null, null, [{ pid: localPlayerId, idx }])
+            lastEvent: makeEvent(`${myName} swapped their card #${idx + 1}.`, null, null, [{ pid: localPlayerId, idx }], moves)
         });
         return;
     }
@@ -2430,7 +2540,11 @@ async function resolveAbilityClick(pid, idx) {
                     `${myName} blind-swapped their card #${a.ownIdx + 1} with ${targetName}'s card #${idx + 1}.`,
                     pid,
                     `${myName} blind-swapped their card #${a.ownIdx + 1} with YOUR card #${idx + 1}.`,
-                    [{ pid: localPlayerId, idx: a.ownIdx }, { pid, idx }]
+                    [{ pid: localPlayerId, idx: a.ownIdx }, { pid, idx }],
+                    [
+                        { from: { type: 'hand', pid: localPlayerId, idx: a.ownIdx }, to: { type: 'hand', pid, idx } },
+                        { from: { type: 'hand', pid, idx }, to: { type: 'hand', pid: localPlayerId, idx: a.ownIdx } }
+                    ]
                 )
             });
         }
@@ -2491,7 +2605,14 @@ async function resolveAbilityClick(pid, idx) {
                     await advanceTurn({
                         ...updates,
                         ability: null,
-                        lastEvent: makeEvent(publicMsg, otherPid, targetMsg, [{ pid: firstPid, idx: firstIdx }, { pid: secondPid, idx: secondIdx }])
+                        lastEvent: makeEvent(
+                            publicMsg, otherPid, targetMsg,
+                            [{ pid: firstPid, idx: firstIdx }, { pid: secondPid, idx: secondIdx }],
+                            [
+                                { from: { type: 'hand', pid: firstPid, idx: firstIdx }, to: { type: 'hand', pid: secondPid, idx: secondIdx } },
+                                { from: { type: 'hand', pid: secondPid, idx: secondIdx }, to: { type: 'hand', pid: firstPid, idx: firstIdx } }
+                            ]
+                        )
                     });
 
                 } else if (choice === 'pick_any') {
@@ -2561,7 +2682,14 @@ async function resolveAbilityClick(pid, idx) {
             await advanceTurn({
                 ...updates,
                 ability: null,
-                lastEvent: makeEvent(publicMsg, otherPid, targetMsg, [{ pid: sfPid, idx: sfIdx }, { pid, idx }])
+                lastEvent: makeEvent(
+                    publicMsg, otherPid, targetMsg,
+                    [{ pid: sfPid, idx: sfIdx }, { pid, idx }],
+                    [
+                        { from: { type: 'hand', pid: sfPid, idx: sfIdx }, to: { type: 'hand', pid, idx } },
+                        { from: { type: 'hand', pid, idx }, to: { type: 'hand', pid: sfPid, idx: sfIdx } }
+                    ]
+                )
             });
             return;
         }

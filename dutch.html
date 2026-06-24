@@ -123,6 +123,25 @@
             50% { box-shadow: 0 0 0 5px #2dd4bf, 0 0 34px rgba(45,212,191,0.8); }
         }
 
+        /* Ghost card used by the FLIP move animation (app.js animateCardMove).
+           Deliberately styled exactly like .card-back and NOTHING more — no
+           rank, no suit, no face value ever rendered here, since a card
+           mid-flight must not leak hidden information to opponents. */
+        .card-move-ghost {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #0f0f23 100%);
+            border-radius: 8px;
+            border: 2px solid #3730a3;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.55), inset 0 1px 0 rgba(99,102,241,0.3);
+        }
+        .card-move-ghost::after {
+            content: '✦';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%,-50%);
+            font-size: 1.1rem;
+            color: rgba(99,102,241,0.5);
+        }
+
         @keyframes card-reveal {
             0% { transform: scale(0.8) rotateY(90deg); opacity: 0; }
             60% { transform: scale(1.1) rotateY(-5deg); }

@@ -305,7 +305,6 @@ function applySignedInUI() {
     const avatarEmoji = currentProfile?.avatarEmoji || null;
 
     document.getElementById("headerSignInBtn").classList.add("hidden");
-    document.getElementById("headerEmailSignInBtn").classList.add("hidden");
     const accountBtn = document.getElementById("headerAccountBtn");
     accountBtn.classList.remove("hidden");
     renderAvatarInto("headerAvatar", photo, avatarEmoji);
@@ -332,7 +331,6 @@ function applySignedInUI() {
 
 function applySignedOutUI() {
     document.getElementById("headerSignInBtn").classList.remove("hidden");
-    document.getElementById("headerEmailSignInBtn").classList.remove("hidden");
     document.getElementById("headerAccountBtn").classList.add("hidden");
     document.getElementById("accountDropdown").classList.add("hidden");
     document.getElementById("landingSignInBtn").classList.remove("hidden");
@@ -371,7 +369,7 @@ async function handleSignIn() {
     }
 }
 
-document.getElementById("headerSignInBtn").addEventListener("click", handleSignIn);
+document.getElementById("headerSignInBtn").addEventListener("click", openEmailAuthModal);
 document.getElementById("landingSignInBtn").addEventListener("click", handleSignIn);
 
 // ==========================================
@@ -432,11 +430,18 @@ function friendlyAuthErrorMessage(err, mode) {
     }
 }
 
-document.getElementById("headerEmailSignInBtn").addEventListener("click", openEmailAuthModal);
 document.getElementById("landingEmailSignInBtn").addEventListener("click", openEmailAuthModal);
 document.getElementById("closeEmailAuthBtn").addEventListener("click", closeEmailAuthModal);
 document.getElementById("emailAuthModal").addEventListener("click", (e) => {
     if (e.target === document.getElementById("emailAuthModal")) closeEmailAuthModal();
+});
+
+// Google option lives inside the same unified modal now (header trigger
+// opens this modal directly), so a successful Google sign-in here should
+// also close the modal, same as a successful email sign-in does.
+document.getElementById("modalGoogleSignInBtn").addEventListener("click", async () => {
+    await handleSignIn();
+    if (auth.currentUser) closeEmailAuthModal();
 });
 
 document.getElementById("emailAuthToggleModeBtn").addEventListener("click", () => {

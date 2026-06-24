@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
     getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion,
-    collection, addDoc, query, orderBy, limit, getDocs, deleteField
+    collection, addDoc, query, orderBy, limit, getDocs, deleteField, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
     getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
@@ -1102,6 +1102,8 @@ function setupRoomSubscription(code) {
         gameState = docSnap.data();
         renderState();
     });
+    // Start the party chat for this room
+    onChatRoomJoined(code);
 }
 
 async function pushState(partial) {
@@ -2804,3 +2806,170 @@ document.getElementById("leaderboardModal").addEventListener("click", (e) => {
     if (e.target === document.getElementById("leaderboardModal"))
         document.getElementById("leaderboardModal").classList.add("hidden");
 });
+
+// ==========================================
+// Party Chat
+// ==========================================
+let chatUnsub = null;         // Firestore listener for the room's chat subcollection
+let chatCollapsed = true;     // current collapsed state
+let chatHasUnread = false;    // unread badge tracking
+
+const chatPanel = document.getElementById('party-chat-panel');
+const chatToggle = document.getElementById('chat-toggle');
+const chatChevron = document.getElementById('chat-chevron');
+const chatBadge = document.getElementById('chat-badge');
+const chatMessages = document.getElementById('chat-messages');
+const chatEmpty = document.getElementById('chat-empty');
+const chatInput = document.getElementById('chat-input');
+const chatSendBtn = document.getElementById('chat-send-btn');
+
+// Only show the chat panel when a game is in progress
+function showChatPanel() { chatPanel.style.display = 'flex'; }
+function hideChatPanel() { chatPanel.style.display = 'none'; }
+hideChatPanel(); // hidden on load until a room is joined
+
+// Toggle collapse/expand
+chatToggle.addEventListener('click', () => {
+    chatCollapsed = !chatCollapsed;
+    chatPanel.classList.toggle('chat-collapsed', chatCollapsed);
+    chatChevron.style.transform = chatCollapsed ? '' : 'rotate(180deg)';
+    if (!chatCollapsed) {
+        // Clear unread badge when opened
+        chatBadge.classList.remove('has-new');
+        chatHasUnread = false;
+        // Scroll to bottom
+        requestAnimationFrame(() => { chatMessages.scrollTop = chatMessages.scrollHeight; });
+        chatInput.focus();
+    }
+});
+
+function formatChatTime(ts) {
+    if (!ts) return '';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function appendChatMessage({ senderId, senderName, text, ts }) {
+    const isMe = senderId === localPlayerId;
+
+    // Remove "no messages" placeholder
+    if (chatEmpty && chatEmpty.parentNode === chatMessages) {
+        chatEmpty.remove();
+    }
+
+    const div = document.createElement('div');
+    div.className = 'chat-msg';
+    div.innerHTML = `
+        <div class="chat-sender${isMe ? ' is-me' : ''}">${isMe ? 'You' : escapeHtml(senderName)}</div>
+        <div class="chat-text">${escapeHtml(text)}</div>
+        <div class="chat-time">${formatChatTime(ts)}</div>`;
+    chatMessages.appendChild(div);
+
+    // Auto-scroll only when already near the bottom or if it's our own message
+    const nearBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 60;
+    if (nearBottom || isMe) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Show unread badge if panel is collapsed and message isn't ours
+    if (chatCollapsed && !isMe) {
+        chatBadge.classList.add('has-new');
+        chatHasUnread = true;
+    }
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// Subscribe to the room's chat subcollection (most recent 80 messages)
+function subscribeChatForRoom(code) {
+    if (chatUnsub) { chatUnsub(); chatUnsub = null; }
+
+    // Reset messages area
+    chatMessages.innerHTML = '';
+    chatMessages.appendChild(chatEmpty);
+    chatEmpty.style.display = '';
+
+    const chatRef = collection(db, 'rooms', code, 'chat');
+    const chatQuery = query(chatRef, orderBy('ts', 'asc'), limit(80));
+
+    let firstLoad = true;
+    chatUnsub = onSnapshot(chatQuery, (snap) => {
+        if (firstLoad) {
+            // On first load, render all existing messages without unread badges
+            snap.docs.forEach(d => appendChatMessage(d.data()));
+            firstLoad = false;
+        } else {
+            // Incremental: only process new messages
+            snap.docChanges().forEach(change => {
+                if (change.type === 'added') {
+                    appendChatMessage(change.doc.data());
+                }
+            });
+        }
+    });
+}
+
+function unsubscribeChat() {
+    if (chatUnsub) { chatUnsub(); chatUnsub = null; }
+}
+
+async function sendChatMessage() {
+    const text = chatInput.value.trim();
+    if (!text || !roomCode) return;
+
+    // Verify sender is still in the room players list
+    if (!gameState.players || !gameState.players[localPlayerId]) return;
+
+    const senderName = gameState.players[localPlayerId]?.name || 'Player';
+
+    chatInput.value = '';
+    chatInput.focus();
+
+    try {
+        await addDoc(collection(db, 'rooms', roomCode, 'chat'), {
+            senderId: localPlayerId,
+            senderName,
+            text,
+            ts: serverTimestamp()
+        });
+    } catch (err) {
+        console.warn('Chat send failed:', err);
+        showToast('Could not send message — check your connection.', 'error', 3000);
+    }
+}
+
+chatSendBtn.addEventListener('click', sendChatMessage);
+chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); sendChatMessage(); }
+});
+
+// Hook into room subscription setup — show chat when a room is joined
+// We patch into setupRoomSubscription by intercepting the existing call.
+// Instead, we expose a helper that app code calls when screen transitions happen.
+function onChatRoomJoined(code) {
+    showChatPanel();
+    subscribeChatForRoom(code);
+    // Auto-expand on first join so players notice the chat
+    if (chatCollapsed) {
+        chatCollapsed = false;
+        chatPanel.classList.remove('chat-collapsed');
+        chatChevron.style.transform = 'rotate(180deg)';
+    }
+}
+
+function onChatRoomLeft() {
+    hideChatPanel();
+    unsubscribeChat();
+    chatCollapsed = true;
+    chatPanel.classList.add('chat-collapsed');
+    chatChevron.style.transform = '';
+    chatBadge.classList.remove('has-new');
+    chatMessages.innerHTML = '';
+    chatMessages.appendChild(chatEmpty);
+}

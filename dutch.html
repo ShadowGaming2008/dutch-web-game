@@ -593,6 +593,138 @@
         .log-entry.log-dutch .log-msg { color: #fca5a5; }
         .log-entry.log-swap .log-msg { color: #c4b5fd; }
 
+        /* ========== PARTY CHAT ========== */
+        #party-chat-panel {
+            position: fixed;
+            bottom: 12px;
+            left: 12px;
+            width: 260px;
+            max-height: 340px;
+            background: rgba(8,15,30,0.95);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            backdrop-filter: blur(12px);
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            transition: max-height 0.25s ease;
+        }
+        #party-chat-panel.chat-collapsed {
+            max-height: 38px;
+        }
+        .chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+        }
+        .chat-header:hover { background: rgba(255,255,255,0.03); }
+        .chat-title {
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #64748b;
+        }
+        .chat-badge {
+            font-size: 9px;
+            font-weight: 800;
+            background: #1e3a5f;
+            color: #7dd3fc;
+            border-radius: 999px;
+            padding: 1px 6px;
+            display: none;
+        }
+        .chat-badge.has-new { display: block; }
+        #chat-messages {
+            overflow-y: auto;
+            flex: 1;
+            padding: 6px 0;
+            min-height: 0;
+        }
+        #chat-messages::-webkit-scrollbar { width: 3px; }
+        #chat-messages::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+        .chat-msg {
+            padding: 4px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            animation: chat-in 0.2s ease forwards;
+        }
+        @keyframes chat-in {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .chat-msg:last-child { border-bottom: none; }
+        .chat-msg .chat-sender {
+            font-size: 9px;
+            font-weight: 700;
+            color: #7dd3fc;
+            margin-bottom: 1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .chat-msg .chat-sender.is-me { color: #86efac; }
+        .chat-msg .chat-text {
+            font-size: 11px;
+            color: #cbd5e1;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+        .chat-msg .chat-time {
+            font-size: 8px;
+            color: #334155;
+            margin-top: 1px;
+        }
+        #chat-input-row {
+            display: flex;
+            gap: 6px;
+            padding: 7px 10px;
+            border-top: 1px solid rgba(255,255,255,0.07);
+            flex-shrink: 0;
+        }
+        #chat-input {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 5px 9px;
+            font-size: 11px;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.15s;
+            min-width: 0;
+        }
+        #chat-input::placeholder { color: #475569; }
+        #chat-input:focus { border-color: rgba(99,102,241,0.5); }
+        #chat-send-btn {
+            background: rgba(99,102,241,0.25);
+            border: 1px solid rgba(99,102,241,0.4);
+            border-radius: 8px;
+            color: #a5b4fc;
+            font-size: 13px;
+            padding: 0 8px;
+            cursor: pointer;
+            transition: background 0.15s;
+            flex-shrink: 0;
+        }
+        #chat-send-btn:hover { background: rgba(99,102,241,0.4); }
+        #chat-empty {
+            text-align: center;
+            color: #334155;
+            font-size: 11px;
+            padding: 16px 12px;
+        }
+        @media (max-width: 640px) {
+            #party-chat-panel { width: calc(50vw - 18px); }
+        }
+
         /* Turn banner at top */
         #gameTurnBanner {
             position: absolute;
@@ -1040,6 +1172,24 @@
         <span class="vk-icon">🚫</span>
         <span class="vk-label">Kick</span>
     </button>
+
+    <!-- Party Chat Panel -->
+    <div id="party-chat-panel" class="chat-collapsed">
+        <div class="chat-header" id="chat-toggle">
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span class="chat-title">💬 Party Chat</span>
+                <span class="chat-badge" id="chat-badge">new</span>
+            </div>
+            <span id="chat-chevron" style="font-size:10px;color:#475569;transition:transform 0.2s;">▲</span>
+        </div>
+        <div id="chat-messages">
+            <div id="chat-empty">No messages yet.<br>Say something!</div>
+        </div>
+        <div id="chat-input-row">
+            <input id="chat-input" type="text" maxlength="200" placeholder="Message your party…" autocomplete="off" />
+            <button id="chat-send-btn" title="Send">➤</button>
+        </div>
+    </div>
 
     <!-- Activity Log Panel -->
     <div id="activity-log-panel" class="log-collapsed">

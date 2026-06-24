@@ -1564,7 +1564,13 @@ function renderGameBoard() {
     }
 
     const dutchBtn = document.getElementById("callDutchBtn");
-    dutchBtn.disabled = !(isMyTurn && gameState.turnPhase === 'AWAIT_DRAW' && !gameState.dutchCalledBy);
+    // A player with an empty slot (a card snapped away earlier this round)
+    // can't call Dutch with a gap in their hand — they must draw first to
+    // fill it back in.
+    const myCardsForDutch = gameState.players[localPlayerId]?.cards || [];
+    const hasEmptySlot = myCardsForDutch.some(c => c === null || c === undefined);
+    dutchBtn.disabled = !(isMyTurn && gameState.turnPhase === 'AWAIT_DRAW' && !gameState.dutchCalledBy && !hasEmptySlot);
+    dutchBtn.title = hasEmptySlot ? "You have an empty card slot — draw a card to fill it before calling Dutch." : "";
 
     // Vote-kick button: available to anyone, any time mid-game (not gated to
     // your own turn, unlike Dutch), as long as no vote is already running
@@ -1925,6 +1931,11 @@ document.getElementById("discardDrawnNoAbilityBtn").addEventListener("click", as
 document.getElementById("callDutchBtn").addEventListener("click", async () => {
     if (activePid() !== localPlayerId) return;
     if (gameState.turnPhase !== 'AWAIT_DRAW' || gameState.dutchCalledBy) return;
+    const myCards = gameState.players[localPlayerId]?.cards || [];
+    if (myCards.some(c => c === null || c === undefined)) {
+        showToast("You have an empty card slot — draw a card to fill it before calling Dutch!", 'warning', NOTIFY_MS);
+        return;
+    }
     const confirmed = await showChoiceModal(
         '🗣️ Call "Dutch!"?',
         'Every other player gets one final turn, then scores are revealed. Make sure your hand is low!',

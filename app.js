@@ -918,8 +918,7 @@ function _savePrefs() {
     localStorage.setItem('dutch_sfxOn',    _audioPrefs.sfxOn);
 }
 
-// ── Music ────────────────────────────────────────────────────
-// Generates a gentle looping ambient melody using oscillators.
+// ── Music ─────────────────────────────────────────────────────
 let _musicGain = null;
 let _musicNodes = [];
 let _musicRunning = false;
@@ -947,7 +946,6 @@ function startMusic() {
     _musicGain.gain.setValueAtTime(_audioPrefs.musicOn ? _audioPrefs.musicVol * 0.3 : 0, ctx.currentTime);
     _musicGain.connect(ctx.destination);
 
-    // Simple pentatonic ambient loop — notes cycle every ~24 s
     const notes = [261.63, 293.66, 329.63, 392.00, 440.00, 392.00, 329.63, 293.66];
     const noteDur = 3;
     let t = ctx.currentTime + 0.1;
@@ -958,7 +956,6 @@ function startMusic() {
             const osc = _buildMusicChord(ctx, _musicGain, freq, t + i * noteDur, noteDur + 0.5, 0.4);
             _musicNodes.push(osc);
         });
-        // Schedule chord pads underneath
         [261.63, 329.63, 392.00].forEach(f => {
             const osc2 = _buildMusicChord(ctx, _musicGain, f, t, notes.length * noteDur, 0.15);
             _musicNodes.push(osc2);
@@ -990,7 +987,7 @@ function setMusicEnabled(on) {
     else if (_musicGain) _musicGain.gain.linearRampToValueAtTime(0, getAudioCtx().currentTime + 0.3);
 }
 
-// ── Sound Effects ────────────────────────────────────────────
+// ── Sound Effects ─────────────────────────────────────────────
 function playSfx(type) {
     if (!_audioPrefs.sfxOn) return;
     const ctx = getAudioCtx();
@@ -1024,19 +1021,19 @@ function playSfx(type) {
     };
 
     switch (type) {
-        case 'cardDraw':   // soft swish
+        case 'cardDraw':
             noise(0.12, 0.4);
             mk(800, 'sine', 0.08, 0.15);
             break;
-        case 'cardPlace':  // thud + click
+        case 'cardPlace':
             noise(0.08, 0.5);
             mk(220, 'sine', 0.12, 0.2);
             break;
-        case 'cardSnap':   // sharp crack
+        case 'cardSnap':
             noise(0.05, 0.8);
             mk(600, 'square', 0.05, 0.3);
             break;
-        case 'ability':    // rising sparkle
+        case 'ability':
             [523, 659, 784, 1047].forEach((f, i) => {
                 const o = ctx.createOscillator();
                 const g = ctx.createGain();
@@ -1048,7 +1045,7 @@ function playSfx(type) {
                 o.start(t + i * 0.07); o.stop(t + i * 0.07 + 0.3);
             });
             break;
-        case 'dutch':      // fanfare
+        case 'dutch':
             [392, 523, 659, 784].forEach((f, i) => {
                 const o = ctx.createOscillator();
                 const g = ctx.createGain();
@@ -1060,18 +1057,18 @@ function playSfx(type) {
                 o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.5);
             });
             break;
-        case 'buttonClick': // quick tick
+        case 'buttonClick':
             mk(1200, 'sine', 0.06, 0.25);
             break;
-        case 'kick':        // thunk
+        case 'kick':
             mk(120, 'sine', 0.2, 0.4);
             noise(0.1, 0.3);
             break;
-        case 'peek':        // soft chime
+        case 'peek':
             mk(880, 'sine', 0.3, 0.3);
             mk(1320, 'sine', 0.2, 0.15);
             break;
-        case 'roundStart':  // soft bell
+        case 'roundStart':
             [523, 659].forEach((f, i) => {
                 const o = ctx.createOscillator();
                 const g = ctx.createGain();
@@ -1082,16 +1079,15 @@ function playSfx(type) {
                 o.start(t + i * 0.15); o.stop(t + i * 0.15 + 0.7);
             });
             break;
-        case 'error':       // low buzz
+        case 'error':
             mk(150, 'sawtooth', 0.2, 0.3);
             break;
     }
 }
 
-// ── Settings UI wiring ───────────────────────────────────────
+// ── Settings UI wiring ────────────────────────────────────────
 document.getElementById('settingsBtn').addEventListener('click', () => {
     playSfx('buttonClick');
-    // Sync sliders to current prefs before opening
     document.getElementById('musicVolSlider').value = Math.round(_audioPrefs.musicVol * 100);
     document.getElementById('sfxVolSlider').value   = Math.round(_audioPrefs.sfxVol   * 100);
     document.getElementById('musicVolLabel').textContent = Math.round(_audioPrefs.musicVol * 100) + '%';
@@ -1099,7 +1095,6 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
     document.getElementById('musicToggleBtn').textContent = _audioPrefs.musicOn ? 'On' : 'Off';
     document.getElementById('sfxToggleBtn').textContent   = _audioPrefs.sfxOn   ? 'On' : 'Off';
     document.getElementById('settingsModal').classList.remove('hidden');
-    // Start music on first user interaction if not already running
     if (!_musicRunning) startMusic();
 });
 document.getElementById('settingsCloseBtn').addEventListener('click', () => {
@@ -1133,7 +1128,9 @@ document.getElementById('sfxToggleBtn').addEventListener('click', () => {
     if (_audioPrefs.sfxOn) playSfx('buttonClick');
 });
 
+// ── End of Audio Engine ───────────────────────────────────────
 
+function highlightSlots(slots, ms = NOTIFY_MS) {
     const until = Date.now() + ms;
     (slots || []).forEach(({ pid, idx }) => { highlightMap[`${pid}-${idx}`] = until; });
     renderGameBoard();

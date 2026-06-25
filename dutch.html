@@ -810,6 +810,7 @@
             <h1 class="font-display text-xl font-black tracking-wide text-amber-400 flex items-center gap-2">♠ DUTCH ♦</h1>
         </div>
         <div class="flex items-center gap-2">
+            <button id="settingsBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg transition border border-slate-700" title="Settings">⚙️ Settings</button>
             <button id="rulesBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg transition border border-slate-700">📜 Rules</button>
             <button id="leaderboardBtn" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-xs font-semibold rounded-lg transition border border-amber-500 text-white">🏆 Leaderboard</button>
 
@@ -1166,6 +1167,39 @@
 
     <!-- Toast container -->
     <div id="toastContainer" class="fixed z-50 flex flex-col gap-2 pointer-events-none" style="top:64px;left:12px;max-width:300px;"></div>
+
+    <!-- Sound Settings Modal -->
+    <div id="settingsModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-bold text-white">⚙️ Settings</h2>
+                <button id="settingsCloseBtn" class="text-slate-400 hover:text-white text-xl leading-none transition">✕</button>
+            </div>
+            <div class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <label class="text-sm font-semibold text-slate-200">🎵 Music</label>
+                    <div class="flex items-center gap-2">
+                        <span id="musicVolLabel" class="text-xs text-slate-400 w-8 text-right">50%</span>
+                        <button id="musicToggleBtn" class="text-xs px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition">On</button>
+                    </div>
+                </div>
+                <input id="musicVolSlider" type="range" min="0" max="100" value="50"
+                    class="w-full h-2 rounded-full appearance-none cursor-pointer accent-amber-400 bg-slate-700">
+            </div>
+            <div class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <label class="text-sm font-semibold text-slate-200">🔊 Sound Effects</label>
+                    <div class="flex items-center gap-2">
+                        <span id="sfxVolLabel" class="text-xs text-slate-400 w-8 text-right">80%</span>
+                        <button id="sfxToggleBtn" class="text-xs px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition">On</button>
+                    </div>
+                </div>
+                <input id="sfxVolSlider" type="range" min="0" max="100" value="80"
+                    class="w-full h-2 rounded-full appearance-none cursor-pointer accent-amber-400 bg-slate-700">
+            </div>
+            <p class="text-xs text-slate-500 text-center">Settings are saved automatically.</p>
+        </div>
+    </div>
 
     <!-- Vote Kick button -->
     <button id="vote-kick-btn" title="Vote to kick a player">

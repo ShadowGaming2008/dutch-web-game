@@ -893,7 +893,247 @@ async function openLeaderboard() {
 const NOTIFY_MS = 4500;
 const KING_NOTIFY_MS = 6000;
 
-function highlightSlots(slots, ms = NOTIFY_MS) {
+// ============================================================
+// AUDIO ENGINE — Web Audio API, no external files needed
+// ============================================================
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let _audioCtx = null;
+function getAudioCtx() {
+    if (!_audioCtx) _audioCtx = new AudioCtx();
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+    return _audioCtx;
+}
+
+// Persisted settings
+const _audioPrefs = {
+    musicVol: parseFloat(localStorage.getItem('dutch_musicVol') ?? '0.5'),
+    sfxVol:   parseFloat(localStorage.getItem('dutch_sfxVol')   ?? '0.8'),
+    musicOn:  localStorage.getItem('dutch_musicOn')  !== 'false',
+    sfxOn:    localStorage.getItem('dutch_sfxOn')    !== 'false',
+};
+function _savePrefs() {
+    localStorage.setItem('dutch_musicVol', _audioPrefs.musicVol);
+    localStorage.setItem('dutch_sfxVol',   _audioPrefs.sfxVol);
+    localStorage.setItem('dutch_musicOn',  _audioPrefs.musicOn);
+    localStorage.setItem('dutch_sfxOn',    _audioPrefs.sfxOn);
+}
+
+// ── Music ────────────────────────────────────────────────────
+// Generates a gentle looping ambient melody using oscillators.
+let _musicGain = null;
+let _musicNodes = [];
+let _musicRunning = false;
+
+function _buildMusicChord(ctx, masterGain, freq, startTime, duration, vol) {
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, startTime);
+    g.gain.setValueAtTime(0, startTime);
+    g.gain.linearRampToValueAtTime(vol, startTime + 0.3);
+    g.gain.linearRampToValueAtTime(0,   startTime + duration - 0.3);
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+    return osc;
+}
+
+function startMusic() {
+    if (_musicRunning) return;
+    _musicRunning = true;
+    const ctx = getAudioCtx();
+    _musicGain = ctx.createGain();
+    _musicGain.gain.setValueAtTime(_audioPrefs.musicOn ? _audioPrefs.musicVol * 0.3 : 0, ctx.currentTime);
+    _musicGain.connect(ctx.destination);
+
+    // Simple pentatonic ambient loop — notes cycle every ~24 s
+    const notes = [261.63, 293.66, 329.63, 392.00, 440.00, 392.00, 329.63, 293.66];
+    const noteDur = 3;
+    let t = ctx.currentTime + 0.1;
+
+    function scheduleLoop() {
+        if (!_musicRunning) return;
+        notes.forEach((freq, i) => {
+            const osc = _buildMusicChord(ctx, _musicGain, freq, t + i * noteDur, noteDur + 0.5, 0.4);
+            _musicNodes.push(osc);
+        });
+        // Schedule chord pads underneath
+        [261.63, 329.63, 392.00].forEach(f => {
+            const osc2 = _buildMusicChord(ctx, _musicGain, f, t, notes.length * noteDur, 0.15);
+            _musicNodes.push(osc2);
+        });
+        t += notes.length * noteDur;
+        setTimeout(scheduleLoop, (notes.length * noteDur - 2) * 1000);
+    }
+    scheduleLoop();
+}
+
+function stopMusic() {
+    _musicRunning = false;
+    _musicNodes.forEach(n => { try { n.stop(); } catch(e){} });
+    _musicNodes = [];
+    if (_musicGain) { _musicGain.disconnect(); _musicGain = null; }
+}
+
+function setMusicVolume(v) {
+    _audioPrefs.musicVol = v;
+    _savePrefs();
+    if (_musicGain) _musicGain.gain.linearRampToValueAtTime(
+        _audioPrefs.musicOn ? v * 0.3 : 0, getAudioCtx().currentTime + 0.1
+    );
+}
+function setMusicEnabled(on) {
+    _audioPrefs.musicOn = on;
+    _savePrefs();
+    if (on) { if (!_musicRunning) startMusic(); else setMusicVolume(_audioPrefs.musicVol); }
+    else if (_musicGain) _musicGain.gain.linearRampToValueAtTime(0, getAudioCtx().currentTime + 0.3);
+}
+
+// ── Sound Effects ────────────────────────────────────────────
+function playSfx(type) {
+    if (!_audioPrefs.sfxOn) return;
+    const ctx = getAudioCtx();
+    const vol = _audioPrefs.sfxVol;
+    const t = ctx.currentTime;
+
+    const mk = (freq, type_, dur, vol_) => {
+        const osc = ctx.createOscillator();
+        const g   = ctx.createGain();
+        osc.type = type_;
+        osc.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(vol_ * vol, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(t); osc.stop(t + dur);
+    };
+
+    const noise = (dur, vol_) => {
+        const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const src = ctx.createBufferSource();
+        const g   = ctx.createGain();
+        const filt = ctx.createBiquadFilter();
+        src.buffer = buf;
+        filt.type = 'bandpass'; filt.frequency.value = 1200; filt.Q.value = 0.5;
+        g.gain.setValueAtTime(vol_ * vol, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        src.connect(filt); filt.connect(g); g.connect(ctx.destination);
+        src.start(t); src.stop(t + dur);
+    };
+
+    switch (type) {
+        case 'cardDraw':   // soft swish
+            noise(0.12, 0.4);
+            mk(800, 'sine', 0.08, 0.15);
+            break;
+        case 'cardPlace':  // thud + click
+            noise(0.08, 0.5);
+            mk(220, 'sine', 0.12, 0.2);
+            break;
+        case 'cardSnap':   // sharp crack
+            noise(0.05, 0.8);
+            mk(600, 'square', 0.05, 0.3);
+            break;
+        case 'ability':    // rising sparkle
+            [523, 659, 784, 1047].forEach((f, i) => {
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = 'sine'; o.frequency.value = f;
+                g.gain.setValueAtTime(0, t + i * 0.07);
+                g.gain.linearRampToValueAtTime(0.25 * vol, t + i * 0.07 + 0.04);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.07 + 0.25);
+                o.connect(g); g.connect(ctx.destination);
+                o.start(t + i * 0.07); o.stop(t + i * 0.07 + 0.3);
+            });
+            break;
+        case 'dutch':      // fanfare
+            [392, 523, 659, 784].forEach((f, i) => {
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = 'triangle'; o.frequency.value = f;
+                g.gain.setValueAtTime(0, t + i * 0.1);
+                g.gain.linearRampToValueAtTime(0.35 * vol, t + i * 0.1 + 0.05);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.1 + 0.4);
+                o.connect(g); g.connect(ctx.destination);
+                o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.5);
+            });
+            break;
+        case 'buttonClick': // quick tick
+            mk(1200, 'sine', 0.06, 0.25);
+            break;
+        case 'kick':        // thunk
+            mk(120, 'sine', 0.2, 0.4);
+            noise(0.1, 0.3);
+            break;
+        case 'peek':        // soft chime
+            mk(880, 'sine', 0.3, 0.3);
+            mk(1320, 'sine', 0.2, 0.15);
+            break;
+        case 'roundStart':  // soft bell
+            [523, 659].forEach((f, i) => {
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = 'sine'; o.frequency.value = f;
+                g.gain.setValueAtTime(0.3 * vol, t + i * 0.15);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.15 + 0.6);
+                o.connect(g); g.connect(ctx.destination);
+                o.start(t + i * 0.15); o.stop(t + i * 0.15 + 0.7);
+            });
+            break;
+        case 'error':       // low buzz
+            mk(150, 'sawtooth', 0.2, 0.3);
+            break;
+    }
+}
+
+// ── Settings UI wiring ───────────────────────────────────────
+document.getElementById('settingsBtn').addEventListener('click', () => {
+    playSfx('buttonClick');
+    // Sync sliders to current prefs before opening
+    document.getElementById('musicVolSlider').value = Math.round(_audioPrefs.musicVol * 100);
+    document.getElementById('sfxVolSlider').value   = Math.round(_audioPrefs.sfxVol   * 100);
+    document.getElementById('musicVolLabel').textContent = Math.round(_audioPrefs.musicVol * 100) + '%';
+    document.getElementById('sfxVolLabel').textContent   = Math.round(_audioPrefs.sfxVol   * 100) + '%';
+    document.getElementById('musicToggleBtn').textContent = _audioPrefs.musicOn ? 'On' : 'Off';
+    document.getElementById('sfxToggleBtn').textContent   = _audioPrefs.sfxOn   ? 'On' : 'Off';
+    document.getElementById('settingsModal').classList.remove('hidden');
+    // Start music on first user interaction if not already running
+    if (!_musicRunning) startMusic();
+});
+document.getElementById('settingsCloseBtn').addEventListener('click', () => {
+    playSfx('buttonClick');
+    document.getElementById('settingsModal').classList.add('hidden');
+});
+document.getElementById('settingsModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) document.getElementById('settingsModal').classList.add('hidden');
+});
+document.getElementById('musicVolSlider').addEventListener('input', e => {
+    const v = e.target.value / 100;
+    document.getElementById('musicVolLabel').textContent = e.target.value + '%';
+    setMusicVolume(v);
+    if (!_musicRunning) startMusic();
+});
+document.getElementById('sfxVolSlider').addEventListener('input', e => {
+    const v = e.target.value / 100;
+    document.getElementById('sfxVolLabel').textContent = e.target.value + '%';
+    _audioPrefs.sfxVol = v; _savePrefs();
+});
+document.getElementById('musicToggleBtn').addEventListener('click', () => {
+    const nowOn = !_audioPrefs.musicOn;
+    setMusicEnabled(nowOn);
+    document.getElementById('musicToggleBtn').textContent = nowOn ? 'On' : 'Off';
+    playSfx('buttonClick');
+});
+document.getElementById('sfxToggleBtn').addEventListener('click', () => {
+    _audioPrefs.sfxOn = !_audioPrefs.sfxOn;
+    _savePrefs();
+    document.getElementById('sfxToggleBtn').textContent = _audioPrefs.sfxOn ? 'On' : 'Off';
+    if (_audioPrefs.sfxOn) playSfx('buttonClick');
+});
+
+
     const until = Date.now() + ms;
     (slots || []).forEach(({ pid, idx }) => { highlightMap[`${pid}-${idx}`] = until; });
     renderGameBoard();
@@ -1358,6 +1598,7 @@ function renderState() {
             lastShownEventId = gameState.lastEvent?.id || null;
             lastHighlightEventId = gameState.lastEvent?.id || null;
             lastMoveAnimEventId = gameState.lastEvent?.id || null;
+            playSfx('roundStart');
         }
         renderGameBoard();
         renderVoteKickModal();
@@ -1443,6 +1684,7 @@ async function lobbyKickPlayer(targetPid) {
         turnOrder: newTurnOrder
     });
     showToast(`${targetName} was removed from the lobby.`, 'info');
+    playSfx('kick');
 }
 
 document.getElementById("readyBtn").addEventListener("click", async () => {
@@ -1925,6 +2167,7 @@ document.getElementById("drawDeck").addEventListener("click", async () => {
 
     const drawn = await drawCardReplenishingIfNeeded();
     if (!drawn) return;
+    playSfx('cardDraw');
     await pushState({ deck: drawn.deck, discard: drawn.discard, drawnCard: { card: drawn.card, source: 'deck' }, turnPhase: 'AWAIT_DECISION' });
 });
 
@@ -1937,12 +2180,14 @@ document.getElementById("discardPile").addEventListener("click", async () => {
 
     const freshDiscard = [...gameState.discard];
     const card = freshDiscard.pop();
+    playSfx('cardDraw');
     await pushState({ discard: freshDiscard, drawnCard: { card, source: 'discard' }, turnPhase: 'AWAIT_DECISION' });
 });
 
 // Discard with ability
 document.getElementById("discardDrawnBtn").addEventListener("click", async () => {
     if (activePid() !== localPlayerId) return;
+    playSfx('ability');
     if (gameState.turnPhase !== 'AWAIT_DECISION' || !gameState.drawnCard || gameState.drawnCard.source !== 'deck') return;
     const card = gameState.drawnCard.card;
     const newDiscard = [...gameState.discard, card];
@@ -1983,6 +2228,7 @@ document.getElementById("discardDrawnNoAbilityBtn").addEventListener("click", as
 // ==========================================
 document.getElementById("callDutchBtn").addEventListener("click", async () => {
     if (activePid() !== localPlayerId) return;
+    playSfx('dutch');
     if (gameState.turnPhase !== 'AWAIT_DRAW' || gameState.dutchCalledBy) return;
     const myCards = gameState.players[localPlayerId]?.cards || [];
     if (myCards.every(c => c === null || c === undefined)) {
@@ -2518,6 +2764,7 @@ async function handleCardInteraction(pid, idx) {
         // there's nothing to discard — just fill the gap, nothing goes to the pile.
         const newDiscard = oldCard ? [...gameState.discard, oldCard] : gameState.discard;
         showToast("Card swapped!", 'success', NOTIFY_MS);
+        playSfx('cardPlace');
         const myName = gameState.players[localPlayerId]?.name || 'A player';
         const moves = [{ from: { type: gameState.drawnCard.source }, to: { type: 'hand', pid: localPlayerId, idx } }];
         if (oldCard) moves.push({ from: { type: 'hand', pid: localPlayerId, idx }, to: { type: 'discard' } });
@@ -2538,6 +2785,7 @@ async function handleCardInteraction(pid, idx) {
         const card = gameState.players[localPlayerId].cards[idx];
         initialPeekIdxsRemaining = initialPeekIdxsRemaining.slice(1);
         reveal(pid, idx, card, NOTIFY_MS);
+        playSfx('peek');
         showToast(`Peeked at card #${idx + 1} — memorise it! ${initialPeekIdxsRemaining.length > 0 ? `${initialPeekIdxsRemaining.length} more to go.` : 'All set — play begins now.'}`, 'info', NOTIFY_MS);
         return;
     }
@@ -2778,6 +3026,7 @@ function firstEmptySlot(cards) {
 }
 
 async function attemptSnap(pid, idx) {
+    playSfx('cardSnap');
     if (!gameState.discard || gameState.discard.length === 0) return;
     const topCard = gameState.discard[gameState.discard.length - 1];
     const targetCard = gameState.players[pid]?.cards?.[idx];

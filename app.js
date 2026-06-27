@@ -904,11 +904,11 @@ function getAudioCtx() {
     return _audioCtx;
 }
 
-// Persisted settings
+// Persisted settings — music defaults to OFF for first-time visitors
 const _audioPrefs = {
     musicVol: parseFloat(localStorage.getItem('dutch_musicVol') ?? '0.5'),
     sfxVol:   parseFloat(localStorage.getItem('dutch_sfxVol')   ?? '0.8'),
-    musicOn:  localStorage.getItem('dutch_musicOn')  !== 'false',
+    musicOn:  localStorage.getItem('dutch_musicOn') === 'true',   // off by default
     sfxOn:    localStorage.getItem('dutch_sfxOn')    !== 'false',
 };
 function _savePrefs() {
@@ -918,35 +918,50 @@ function _savePrefs() {
     localStorage.setItem('dutch_sfxOn',    _audioPrefs.sfxOn);
 }
 
-// ── Auto-start music ──────────────────────────────────────────
-// Browsers block AudioContext until a user gesture. If the user
-// arrived via the Dutch tile on the index page, ?autoplay=1 is in
-// the URL — that click already counts, so we start immediately.
-// Otherwise we wait for the first interaction on this page.
-let _musicStarted = false;
-function _tryAutoStartMusic() {
-    if (_musicStarted) return;
-    _musicStarted = true;
-    if (_audioPrefs.musicOn) startMusic();
+// ── Music (MP3) ───────────────────────────────────────────────
+const _bgAudio = new Audio('dutch-background-music.mp3');
+_bgAudio.loop   = true;
+_bgAudio.volume = _audioPrefs.musicVol * 0.5;
+
+let _musicRunning = false;
+
+function startMusic() {
+    if (_musicRunning) return;
+    _musicRunning = true;
+    _bgAudio.volume = _audioPrefs.musicVol * 0.5;
+    _bgAudio.play().catch(() => {
+        // Browser blocked autoplay — will retry on next user gesture
+        _musicRunning = false;
+    });
 }
 
-if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
-    history.replaceState(null, '', window.location.pathname);
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', _tryAutoStartMusic, { once: true });
+function stopMusic() {
+    _musicRunning = false;
+    _bgAudio.pause();
+    _bgAudio.currentTime = 0;
+}
+
+function setMusicVolume(v) {
+    _audioPrefs.musicVol = v;
+    _savePrefs();
+    _bgAudio.volume = _audioPrefs.musicOn ? v * 0.5 : 0;
+}
+
+function setMusicEnabled(on) {
+    _audioPrefs.musicOn = on;
+    _savePrefs();
+    if (on) {
+        _bgAudio.volume = _audioPrefs.musicVol * 0.5;
+        startMusic();
     } else {
-        _tryAutoStartMusic();
+        _bgAudio.pause();
+        _musicRunning = false;
     }
 }
 
-['click', 'keydown', 'touchstart'].forEach(evt =>
-    document.addEventListener(evt, _tryAutoStartMusic, { once: false, passive: true })
-);
-
 // ── Global button-click SFX ───────────────────────────────────
-// Delegation covers every button on the page — home screen and in-game.
-// Specific handlers (cardDraw, dutch, etc.) set e._sfxHandled = true
-// to avoid playing buttonClick on top of their own sound.
+// Covers every button on the page via delegation — home screen and in-game.
+// Specific handlers that play their own sound set e._sfxHandled = true first.
 document.addEventListener('click', (e) => {
     const target = e.target.closest('button, [role="button"], .btn, .action-btn, .card-tile');
     if (!target) return;
@@ -954,75 +969,6 @@ document.addEventListener('click', (e) => {
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
     playSfx('buttonClick');
 }, true);
-
-// ── Music ─────────────────────────────────────────────────────
-let _musicGain = null;
-let _musicNodes = [];
-let _musicRunning = false;
-
-function _buildMusicChord(ctx, masterGain, freq, startTime, duration, vol) {
-    const osc = ctx.createOscillator();
-    const g   = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, startTime);
-    g.gain.setValueAtTime(0, startTime);
-    g.gain.linearRampToValueAtTime(vol, startTime + 0.3);
-    g.gain.linearRampToValueAtTime(0,   startTime + duration - 0.3);
-    osc.connect(g);
-    g.connect(masterGain);
-    osc.start(startTime);
-    osc.stop(startTime + duration);
-    return osc;
-}
-
-function startMusic() {
-    if (_musicRunning) return;
-    _musicRunning = true;
-    const ctx = getAudioCtx();
-    _musicGain = ctx.createGain();
-    _musicGain.gain.setValueAtTime(_audioPrefs.musicOn ? _audioPrefs.musicVol * 0.3 : 0, ctx.currentTime);
-    _musicGain.connect(ctx.destination);
-
-    const notes = [261.63, 293.66, 329.63, 392.00, 440.00, 392.00, 329.63, 293.66];
-    const noteDur = 3;
-    let t = ctx.currentTime + 0.1;
-
-    function scheduleLoop() {
-        if (!_musicRunning) return;
-        notes.forEach((freq, i) => {
-            const osc = _buildMusicChord(ctx, _musicGain, freq, t + i * noteDur, noteDur + 0.5, 0.4);
-            _musicNodes.push(osc);
-        });
-        [261.63, 329.63, 392.00].forEach(f => {
-            const osc2 = _buildMusicChord(ctx, _musicGain, f, t, notes.length * noteDur, 0.15);
-            _musicNodes.push(osc2);
-        });
-        t += notes.length * noteDur;
-        setTimeout(scheduleLoop, (notes.length * noteDur - 2) * 1000);
-    }
-    scheduleLoop();
-}
-
-function stopMusic() {
-    _musicRunning = false;
-    _musicNodes.forEach(n => { try { n.stop(); } catch(e){} });
-    _musicNodes = [];
-    if (_musicGain) { _musicGain.disconnect(); _musicGain = null; }
-}
-
-function setMusicVolume(v) {
-    _audioPrefs.musicVol = v;
-    _savePrefs();
-    if (_musicGain) _musicGain.gain.linearRampToValueAtTime(
-        _audioPrefs.musicOn ? v * 0.3 : 0, getAudioCtx().currentTime + 0.1
-    );
-}
-function setMusicEnabled(on) {
-    _audioPrefs.musicOn = on;
-    _savePrefs();
-    if (on) { if (!_musicRunning) startMusic(); else setMusicVolume(_audioPrefs.musicVol); }
-    else if (_musicGain) _musicGain.gain.linearRampToValueAtTime(0, getAudioCtx().currentTime + 0.3);
-}
 
 // ── Sound Effects ─────────────────────────────────────────────
 function playSfx(type) {

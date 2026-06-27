@@ -918,6 +918,43 @@ function _savePrefs() {
     localStorage.setItem('dutch_sfxOn',    _audioPrefs.sfxOn);
 }
 
+// ── Auto-start music ──────────────────────────────────────────
+// Browsers block AudioContext until a user gesture. If the user
+// arrived via the Dutch tile on the index page, ?autoplay=1 is in
+// the URL — that click already counts, so we start immediately.
+// Otherwise we wait for the first interaction on this page.
+let _musicStarted = false;
+function _tryAutoStartMusic() {
+    if (_musicStarted) return;
+    _musicStarted = true;
+    if (_audioPrefs.musicOn) startMusic();
+}
+
+if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+    history.replaceState(null, '', window.location.pathname);
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _tryAutoStartMusic, { once: true });
+    } else {
+        _tryAutoStartMusic();
+    }
+}
+
+['click', 'keydown', 'touchstart'].forEach(evt =>
+    document.addEventListener(evt, _tryAutoStartMusic, { once: false, passive: true })
+);
+
+// ── Global button-click SFX ───────────────────────────────────
+// Delegation covers every button on the page — home screen and in-game.
+// Specific handlers (cardDraw, dutch, etc.) set e._sfxHandled = true
+// to avoid playing buttonClick on top of their own sound.
+document.addEventListener('click', (e) => {
+    const target = e.target.closest('button, [role="button"], .btn, .action-btn, .card-tile');
+    if (!target) return;
+    if (e._sfxHandled) return;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+    playSfx('buttonClick');
+}, true);
+
 // ── Music ─────────────────────────────────────────────────────
 let _musicGain = null;
 let _musicNodes = [];
@@ -1086,7 +1123,8 @@ function playSfx(type) {
 }
 
 // ── Settings UI wiring ────────────────────────────────────────
-document.getElementById('settingsBtn').addEventListener('click', () => {
+document.getElementById('settingsBtn').addEventListener('click', (e) => {
+    e._sfxHandled = true;
     playSfx('buttonClick');
     document.getElementById('musicVolSlider').value = Math.round(_audioPrefs.musicVol * 100);
     document.getElementById('sfxVolSlider').value   = Math.round(_audioPrefs.sfxVol   * 100);
@@ -1095,9 +1133,9 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
     document.getElementById('musicToggleBtn').textContent = _audioPrefs.musicOn ? 'On' : 'Off';
     document.getElementById('sfxToggleBtn').textContent   = _audioPrefs.sfxOn   ? 'On' : 'Off';
     document.getElementById('settingsModal').classList.remove('hidden');
-    if (!_musicRunning) startMusic();
 });
-document.getElementById('settingsCloseBtn').addEventListener('click', () => {
+document.getElementById('settingsCloseBtn').addEventListener('click', (e) => {
+    e._sfxHandled = true;
     playSfx('buttonClick');
     document.getElementById('settingsModal').classList.add('hidden');
 });
@@ -1108,20 +1146,21 @@ document.getElementById('musicVolSlider').addEventListener('input', e => {
     const v = e.target.value / 100;
     document.getElementById('musicVolLabel').textContent = e.target.value + '%';
     setMusicVolume(v);
-    if (!_musicRunning) startMusic();
 });
 document.getElementById('sfxVolSlider').addEventListener('input', e => {
     const v = e.target.value / 100;
     document.getElementById('sfxVolLabel').textContent = e.target.value + '%';
     _audioPrefs.sfxVol = v; _savePrefs();
 });
-document.getElementById('musicToggleBtn').addEventListener('click', () => {
+document.getElementById('musicToggleBtn').addEventListener('click', (e) => {
+    e._sfxHandled = true;
     const nowOn = !_audioPrefs.musicOn;
     setMusicEnabled(nowOn);
     document.getElementById('musicToggleBtn').textContent = nowOn ? 'On' : 'Off';
     playSfx('buttonClick');
 });
-document.getElementById('sfxToggleBtn').addEventListener('click', () => {
+document.getElementById('sfxToggleBtn').addEventListener('click', (e) => {
+    e._sfxHandled = true;
     _audioPrefs.sfxOn = !_audioPrefs.sfxOn;
     _savePrefs();
     document.getElementById('sfxToggleBtn').textContent = _audioPrefs.sfxOn ? 'On' : 'Off';

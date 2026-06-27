@@ -904,12 +904,12 @@ function getAudioCtx() {
     return _audioCtx;
 }
 
-// Persisted settings — music defaults to OFF for first-time visitors
+// Persisted settings — music ON by default
 const _audioPrefs = {
     musicVol: parseFloat(localStorage.getItem('dutch_musicVol') ?? '0.5'),
     sfxVol:   parseFloat(localStorage.getItem('dutch_sfxVol')   ?? '0.8'),
-    musicOn:  localStorage.getItem('dutch_musicOn') === 'true',   // off by default
-    sfxOn:    localStorage.getItem('dutch_sfxOn')    !== 'false',
+    musicOn:  localStorage.getItem('dutch_musicOn') !== 'false',
+    sfxOn:    localStorage.getItem('dutch_sfxOn')   !== 'false',
 };
 function _savePrefs() {
     localStorage.setItem('dutch_musicVol', _audioPrefs.musicVol);
@@ -928,11 +928,8 @@ let _musicRunning = false;
 function startMusic() {
     if (_musicRunning) return;
     _musicRunning = true;
-    _bgAudio.volume = _audioPrefs.musicVol * 0.5;
-    _bgAudio.play().catch(() => {
-        // Browser blocked autoplay — will retry on next user gesture
-        _musicRunning = false;
-    });
+    _bgAudio.volume = _audioPrefs.musicOn ? _audioPrefs.musicVol * 0.5 : 0;
+    _bgAudio.play().catch(() => { _musicRunning = false; });
 }
 
 function stopMusic() {
@@ -959,9 +956,22 @@ function setMusicEnabled(on) {
     }
 }
 
+// ── Start music on first user gesture ────────────────────────
+// Browsers block audio until the user interacts with the page.
+// We wait for the very first click, key press, or touch and start then.
+let _musicStarted = false;
+function _tryStartMusic() {
+    if (_musicStarted) return;
+    _musicStarted = true;
+    if (_audioPrefs.musicOn) startMusic();
+}
+['click', 'keydown', 'touchstart'].forEach(evt =>
+    document.addEventListener(evt, _tryStartMusic, { once: false, passive: true })
+);
+
 // ── Global button-click SFX ───────────────────────────────────
 // Covers every button on the page via delegation — home screen and in-game.
-// Specific handlers that play their own sound set e._sfxHandled = true first.
+// Handlers that play their own specific sound set e._sfxHandled = true.
 document.addEventListener('click', (e) => {
     const target = e.target.closest('button, [role="button"], .btn, .action-btn, .card-tile');
     if (!target) return;

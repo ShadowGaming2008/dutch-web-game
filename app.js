@@ -7,6 +7,9 @@ import {
     getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
     createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import {
+    getDatabase, ref, set, onDisconnect, onValue, remove, serverTimestamp as rtdbServerTimestamp
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 // ==========================================
 // FIREBASE CONFIGURATION
@@ -18,13 +21,16 @@ const firebaseConfig = {
   storageBucket: "dutch-card-game-60d1c.firebasestorage.app",
   messagingSenderId: "91699670709",
   appId: "1:91699670709:web:230f57e39f8f55128398fc",
-  measurementId: "G-40FS16HJCN"
+  measurementId: "G-40FS16HJCN",
+  // Realtime Database URL — used for presence/disconnect detection.
+  databaseURL: "https://dutch-card-game-60d1c-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+const rtdb = getDatabase(app);
 
 // ==========================================
 // Toast System
@@ -1301,6 +1307,8 @@ document.getElementById("createRoomBtn").addEventListener("click", async () => {
     };
     await setDoc(doc(db, "rooms", roomCode), gameState);
     setupRoomSubscription(roomCode);
+    registerPresence(roomCode, localPlayerId);
+    startPresenceWatch(roomCode);
 });
 
 document.getElementById("joinRoomBtn").addEventListener("click", async () => {
@@ -1326,6 +1334,96 @@ document.getElementById("joinRoomBtn").addEventListener("click", async () => {
         turnOrder: arrayUnion(localPlayerId)
     });
     setupRoomSubscription(roomCode);
+    registerPresence(roomCode, localPlayerId);
+    startPresenceWatch(roomCode);
+});
+
+// ==========================================
+// Presence / disconnect detection
+// ==========================================
+// Firestore has no way to know a client is "still there" — there's no
+// built-in disconnect signal. Realtime Database does, via onDisconnect():
+// the RTDB *server* removes a node the instant a client's connection drops,
+// for ANY reason (closed tab, browser crash, lost wifi, navigating away) —
+// not just a graceful page unload, which is the part client-side-only code
+// (beforeunload, etc.) can't reliably cover.
+//
+// Each seated player writes a presence node at
+//   presence/{roomCode}/{playerId}
+// the moment they join a room, and registers onDisconnect() to delete that
+// same node when their connection drops. Every client also subscribes to
+// the full presence list for the room; if a player who's still listed in
+// the Firestore room doc has no matching presence node, someone calls the
+// existing applyKick()/lobbyKickPlayer() removal logic for them. This is
+// safe to fire from multiple clients at once — both are no-ops if the
+// player's already gone.
+let presenceUnsub = null;
+let presenceWatchTimer = null;
+
+function registerPresence(code, pid) {
+    const presenceRef = ref(rtdb, `presence/${code}/${pid}`);
+    set(presenceRef, { joinedAt: rtdbServerTimestamp() });
+    onDisconnect(presenceRef).remove();
+}
+
+function clearPresence(code, pid) {
+    if (!code || !pid) return;
+    remove(ref(rtdb, `presence/${code}/${pid}`)).catch(() => {});
+}
+
+// Watches who's actually still connected to this room and removes anyone
+// from the live game who's dropped off. Only meaningfully acts once the
+// game has started or players are seated — harmless to run continuously.
+function startPresenceWatch(code) {
+    stopPresenceWatch();
+    const presenceListRef = ref(rtdb, `presence/${code}`);
+    presenceUnsub = onValue(presenceListRef, (snap) => {
+        const present = snap.val() || {};
+        // Debounce slightly: RTDB presence can lag a beat behind a fresh
+        // join (the local onDisconnect registration happening just after
+        // this listener first fires), so don't act on the very first tick
+        // for players who joined moments ago — give it a couple seconds.
+        clearTimeout(presenceWatchTimer);
+        presenceWatchTimer = setTimeout(() => {
+            if (!gameState.players) return;
+            Object.keys(gameState.players).forEach(pid => {
+                if (present[pid]) return; // still connected, fine
+                if (pid === localPlayerId) return; // never remove ourselves based on our own (possibly stale) view
+                if (gameState.status === 'LOBBY') {
+                    // Lobby removal doesn't need confirmation/host-only gating
+                    // here — they're already gone, this just reflects that.
+                    const newTurnOrder = (gameState.turnOrder || []).filter(p => p !== pid);
+                    updateDoc(doc(db, 'rooms', code), {
+                        [`players.${pid}`]: deleteField(),
+                        turnOrder: newTurnOrder
+                    }).catch(() => {});
+                } else if (gameState.status === 'PLAYING') {
+                    applyKick(pid);
+                }
+            });
+        }, 3000);
+    });
+}
+
+function stopPresenceWatch() {
+    if (presenceUnsub) { presenceUnsub(); presenceUnsub = null; }
+    clearTimeout(presenceWatchTimer);
+}
+
+// Best-effort fast path on top of onDisconnect: clear our own presence node
+// immediately when we click Home or the tab/page is actually closing, so
+// other players see us leave right away instead of waiting on RTDB's
+// connection-timeout detection (which is fast, but not instant).
+// onDisconnect() above remains the real guarantee for crashes/lost network/
+// anything that skips these events entirely.
+const backHomeLink = document.getElementById('backHomeLink');
+if (backHomeLink) {
+    backHomeLink.addEventListener('click', () => {
+        if (roomCode && localPlayerId) clearPresence(roomCode, localPlayerId);
+    });
+}
+window.addEventListener('pagehide', () => {
+    if (roomCode && localPlayerId) clearPresence(roomCode, localPlayerId);
 });
 
 function setupRoomSubscription(code) {
@@ -1695,9 +1793,8 @@ async function dealNewRound() {
         // dealing fresh cards, so nothing stale lingers until this round ends.
         updatedPlayers[pid] = { ...updatedPlayers[pid], cards: [freshDeck.pop(), freshDeck.pop(), freshDeck.pop(), freshDeck.pop()], ready: false, score: 0, lastHandScore: null };
     });
-    const initialDiscard = freshDeck.pop();
     await pushState({
-        status: "PLAYING", deck: freshDeck, discard: [initialDiscard],
+        status: "PLAYING", deck: freshDeck, discard: [],
         players: updatedPlayers, roundNumber: (gameState.roundNumber || 0) + 1,
         currentTurnIdx: 0, turnPhase: 'AWAIT_DRAW', drawnCard: null,
         ability: null, dutchCalledBy: null, finalTurnsLeft: null, pendingGive: null

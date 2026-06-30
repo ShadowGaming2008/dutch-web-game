@@ -194,8 +194,100 @@ const LEVEL_NAMES = [
     'Elite Dealer', 'Shadow Trader', 'Dutch Sage', 'The Deceiver', 'Card Whisperer',
     'Dutch Legend', 'Grand Tactician', 'The Manipulator', 'Void Walker', 'Time Lord',
     'Dutch Grandmaster', 'The Omniscient', 'Dutch God', 'The Untouchable', 'Card Sovereign',
-    'Eternal Dutch', 'The Immortal', 'Dutch Supreme', 'Beyond Mortal', 'Dutch Transcendent'
 ];
+
+// ==========================================
+// Card Skins — unlocked by level, equipped per-player
+// ==========================================
+// id must match the `.skin-<id>` CSS class added to .card-back in dutch.html.
+// 'classic' is always unlocked (level 1) and needs no CSS override.
+const CARD_SKINS = [
+    { id: 'classic',  name: 'Classic Indigo', level: 1,  glyph: '✦', swatch: 'linear-gradient(135deg,#1e1b4b,#312e81,#0f0f23)' },
+    { id: 'emerald',  name: 'Emerald Felt',   level: 4,  glyph: '♣', swatch: 'linear-gradient(135deg,#022c22,#065f46,#021712)' },
+    { id: 'azure',    name: 'Azure Frost',    level: 7,  glyph: '❄', swatch: 'linear-gradient(135deg,#0c1d3d,#1d4ed8,#0a1530)' },
+    { id: 'crimson',  name: 'Crimson Edge',   level: 10, glyph: '♦', swatch: 'linear-gradient(135deg,#450a0a,#7f1d1d,#1c0a0a)' },
+    { id: 'jade',     name: 'Jade Table',     level: 14, glyph: '♠', swatch: 'linear-gradient(135deg,#042f2e,#115e59,#021716)' },
+    { id: 'violet',   name: 'Violet Dusk',    level: 18, glyph: '✪', swatch: 'linear-gradient(135deg,#2e1065,#6d28d9,#1a0a38)' },
+    { id: 'rosegold', name: 'Rose Gold',      level: 22, glyph: '✦', swatch: 'linear-gradient(135deg,#4c1d2e,#9f4a63,#2a0f18)' },
+    { id: 'onyx',     name: 'Onyx Black',     level: 27, glyph: '◆', swatch: 'linear-gradient(135deg,#18181b,#09090b,#000000)' },
+    { id: 'inferno',  name: 'Inferno',        level: 32, glyph: '🔥', swatch: 'linear-gradient(135deg,#431407,#c2410c,#1f0a02)' },
+    { id: 'gold',     name: 'Royal Gold',     level: 38, glyph: '♛', swatch: 'linear-gradient(135deg,#451a03,#92400e,#1c0a02)' },
+    { id: 'cosmic',   name: 'Cosmic Drift',   level: 45, glyph: '✨', swatch: 'linear-gradient(135deg,#1e0a3c,#581c87,#0c4a6e,#06141f)' },
+];
+
+function getSkinById(id) {
+    return CARD_SKINS.find(s => s.id === id) || CARD_SKINS[0];
+}
+
+function isSkinUnlocked(skin, xp) {
+    return getLevelFromXP(xp || 0) >= skin.level;
+}
+
+// The skin a given player has equipped, falling back to classic. Used wherever
+// a face-down card is rendered so opponents see your chosen card back too.
+function skinClassFor(player) {
+    const id = player?.cardSkin || 'classic';
+    return id === 'classic' ? '' : `skin-${id}`;
+}
+
+function renderSkinsModal() {
+    const grid = document.getElementById('skinsGrid');
+    const xp = currentProfile?.stats?.xp || 0;
+    const equipped = currentProfile?.equippedSkin || 'classic';
+    if (!currentUser) {
+        grid.innerHTML = `<div class="col-span-3 text-center text-sm text-slate-400 py-6">Sign in to unlock and equip card skins as you level up.</div>`;
+        return;
+    }
+    grid.innerHTML = CARD_SKINS.map(skin => {
+        const unlocked = isSkinUnlocked(skin, xp);
+        const isEquipped = equipped === skin.id;
+        return `
+        <button data-skin="${skin.id}" class="skin-option-btn text-left rounded-xl border-2 p-2 transition ${isEquipped ? 'border-amber-500 bg-amber-500/10' : unlocked ? 'border-slate-700 hover:border-slate-500 bg-slate-950' : 'border-slate-800 bg-slate-950/60 opacity-60 cursor-not-allowed'}" ${unlocked ? '' : 'disabled'}>
+            <div class="skin-swatch" data-glyph="${skin.glyph}" style="background:${skin.swatch};border:2px solid rgba(255,255,255,0.15)">
+                ${unlocked ? '' : '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.55);font-size:1.1rem">🔒</span>'}
+            </div>
+            <div class="mt-1.5 text-[11px] font-bold text-slate-100 truncate">${skin.name}</div>
+            <div class="text-[10px] ${unlocked ? 'text-emerald-400' : 'text-slate-500'}">${unlocked ? (isEquipped ? 'Equipped' : 'Unlocked') : `Level ${skin.level}`}</div>
+        </button>`;
+    }).join('');
+
+    grid.querySelectorAll('.skin-option-btn').forEach(btn => {
+        if (btn.disabled) return;
+        btn.addEventListener('click', () => equipSkin(btn.dataset.skin));
+    });
+}
+
+async function equipSkin(skinId) {
+    if (!currentUser || !currentProfile) return;
+    const xp = currentProfile.stats?.xp || 0;
+    const skin = getSkinById(skinId);
+    if (!isSkinUnlocked(skin, xp)) return;
+
+    currentProfile.equippedSkin = skinId;
+    await updateDoc(doc(db, "users", currentUser.uid), { equippedSkin: skinId });
+    showToast(`🎴 Equipped "${skin.name}"!`, 'success', 2500);
+    renderSkinsModal();
+
+    // If currently seated in an active room, update the live game doc too so
+    // other players see the new card back immediately (not just next game).
+    if (roomCode && gameState.players && gameState.players[localPlayerId]) {
+        try {
+            await updateDoc(doc(db, "rooms", roomCode), { [`players.${localPlayerId}.cardSkin`]: skinId });
+        } catch (err) { /* room may no longer exist — non-fatal */ }
+    }
+}
+
+document.getElementById('openSkinsBtn').addEventListener('click', () => {
+    document.getElementById('accountDropdown').classList.add('hidden');
+    renderSkinsModal();
+    document.getElementById('skinsModal').classList.remove('hidden');
+});
+document.getElementById('closeSkinsBtn').addEventListener('click', () => {
+    document.getElementById('skinsModal').classList.add('hidden');
+});
+document.getElementById('skinsModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('skinsModal')) document.getElementById('skinsModal').classList.add('hidden');
+});
 
 function xpForLevel(level) {
     // XP needed to reach this level from level 1
@@ -280,6 +372,7 @@ async function loadOrCreateProfile(user) {
             photoURL: user.photoURL || "",
             username: user.displayName || (user.email ? user.email.split('@')[0] : "Player"),
             avatarEmoji: null, // null = use Google photo; set to an emoji string to override
+            equippedSkin: 'classic',
             stats: defaultStats()
         };
         await setDoc(ref, currentProfile);
@@ -287,6 +380,7 @@ async function loadOrCreateProfile(user) {
     if (!currentProfile.stats) currentProfile.stats = defaultStats();
     if (currentProfile.stats.xp === undefined) currentProfile.stats.xp = 0;
     if (currentProfile.avatarEmoji === undefined) currentProfile.avatarEmoji = null;
+    if (!currentProfile.equippedSkin) currentProfile.equippedSkin = 'classic';
 
     // Live-sync from here on: if the nickname/avatar changes on the Game Hub
     // home page (or any other game sharing this users/{uid} doc) while this
@@ -299,6 +393,7 @@ async function loadOrCreateProfile(user) {
         if (!currentProfile.stats) currentProfile.stats = defaultStats();
         if (currentProfile.stats.xp === undefined) currentProfile.stats.xp = 0;
         if (currentProfile.avatarEmoji === undefined) currentProfile.avatarEmoji = null;
+        if (!currentProfile.equippedSkin) currentProfile.equippedSkin = 'classic';
         // Only repaint chrome that reflects identity — avoid touching anything
         // mid-game-render (cards, board) since this can fire during a round.
         if (currentUser) applySignedInUI();
@@ -1301,7 +1396,7 @@ document.getElementById("createRoomBtn").addEventListener("click", async () => {
     gameState = {
         code: roomCode, status: "LOBBY", hostId: localPlayerId,
         turnOrder: [localPlayerId], currentTurnIdx: 0, roundNumber: 0,
-        players: { [localPlayerId]: { name, ready: false, cards: [], score: 0 } },
+        players: { [localPlayerId]: { name, ready: false, cards: [], score: 0, cardSkin: currentProfile?.equippedSkin || 'classic' } },
         deck: createDeck(), discard: [], dutchCalledBy: null, finalTurnsLeft: null,
         turnPhase: 'AWAIT_DRAW', drawnCard: null, ability: null, pendingGive: null
     };
@@ -1330,7 +1425,7 @@ document.getElementById("joinRoomBtn").addEventListener("click", async () => {
         }
     }
     await updateDoc(roomRef, {
-        [`players.${localPlayerId}`]: { name, ready: false, cards: [], score: 0 },
+        [`players.${localPlayerId}`]: { name, ready: false, cards: [], score: 0, cardSkin: currentProfile?.equippedSkin || 'classic' },
         turnOrder: arrayUnion(localPlayerId)
     });
     setupRoomSubscription(roomCode);
@@ -2182,7 +2277,7 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, zone = 
                 <div class="corner-br ${cc}"><div class="rank">${rank}</div>${suit && !seen.isJoker ? `<div class="suit-sm">${suit}</div>` : ''}</div>
             </div>`;
         }
-        return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card card-back ${extraCardClass}" style="width:${cardW}px;height:${cardH}px">
+        return `<div data-pid="${pid}" data-cidx="${idx}" class="game-card card-back ${skinClassFor(player)} ${extraCardClass}" style="width:${cardW}px;height:${cardH}px">
             <div class="card-slot-number">#${idx+1}</div>
         </div>`;
     }).join('');

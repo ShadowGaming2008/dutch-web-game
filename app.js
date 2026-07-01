@@ -1485,13 +1485,17 @@ function startPresenceWatch(code) {
                 if (present[pid]) return; // still connected, fine
                 if (pid === localPlayerId) return; // never remove ourselves based on our own (possibly stale) view
                 if (gameState.status === 'LOBBY') {
-                    // Lobby removal doesn't need confirmation/host-only gating
-                    // here — they're already gone, this just reflects that.
                     const newTurnOrder = (gameState.turnOrder || []).filter(p => p !== pid);
-                    updateDoc(doc(db, 'rooms', code), {
+                    const lobbyUpdates = {
                         [`players.${pid}`]: deleteField(),
                         turnOrder: newTurnOrder
-                    }).catch(() => {});
+                    };
+                    // Transfer host to the next remaining player if the host disconnected,
+                    // otherwise the "Start Game" button stays permanently locked for everyone.
+                    if (gameState.hostId === pid && newTurnOrder.length > 0) {
+                        lobbyUpdates.hostId = newTurnOrder[0];
+                    }
+                    updateDoc(doc(db, 'rooms', code), lobbyUpdates).catch(() => {});
                 } else if (gameState.status === 'PLAYING') {
                     applyKick(pid);
                 }
@@ -2768,6 +2772,23 @@ async function applyKick(targetPid) {
         updates.hostId = newTurnOrder[0];
     }
 
+    // 1v1 case: kicking this player leaves only one person in the room —
+    // there's nobody left to play against, so end immediately and return
+    // everyone to the lobby rather than leaving the last player stuck in
+    // a dead game with no way out except closing the tab.
+    if (newTurnOrder.length < 2 && gameState.status === 'PLAYING') {
+        const targetName = target.name || 'A player';
+        await pushState({
+            ...updates,
+            status: 'LOBBY',
+            turnPhase: 'AWAIT_DRAW',
+            drawnCard: null, ability: null, snapLock: deleteField(),
+            dutchCalledBy: null, finalTurnsLeft: null,
+            lastEvent: makeEvent(`${targetName} left — not enough players to continue.`)
+        });
+        showToast(`${targetName} left — not enough players. Returning to lobby.`, 'warning', 5000);
+        return;
+    }
     if (triggersRoundEnd) {
         // Score off the post-kick player set (the kicked player's entry is
         // already gone from `gameState.players` here via deleteField — but
@@ -2987,6 +3008,7 @@ async function resolveAbilityClick(pid, idx) {
     if (a.type === '78') {
         if (pid !== localPlayerId) { showToast("Pick one of YOUR OWN cards to peek at.", 'warning', NOTIFY_MS); return; }
         const card = gameState.players[pid].cards[idx];
+        if (!card) { showToast("That slot is empty — pick a card that's still in your hand.", 'warning', NOTIFY_MS); return; }
         reveal(pid, idx, card, NOTIFY_MS);
         showToast(`👁️ You peeked at your card #${idx + 1} — it's ${card.name}${card.isJoker ? '' : card.suit}!`, 'ability', NOTIFY_MS);
         const myName = gameState.players[localPlayerId]?.name || 'A player';
@@ -2996,7 +3018,18 @@ async function resolveAbilityClick(pid, idx) {
 
     if (a.type === '910') {
         if (pid === localPlayerId) { showToast("Pick an OPPONENT'S card to spy on.", 'warning', NOTIFY_MS); return; }
-        const card = gameState.players[pid].cards[idx];
+        const targetCards = gameState.players[pid]?.cards || [];
+        const hasAnyCard = targetCards.some(Boolean);
+        if (!hasAnyCard) {
+            // Target has no cards left (all snapped) — ability can't be used on them.
+            // Don't softlock; just skip and end the turn gracefully.
+            showToast(`${gameState.players[pid]?.name || 'That player'} has no cards left — ability skipped.`, 'info', NOTIFY_MS);
+            const myName = gameState.players[localPlayerId]?.name || 'A player';
+            await advanceTurn({ ability: null, lastEvent: makeEvent(`${myName}'s 9/10 ability was skipped — target had no cards.`) });
+            return;
+        }
+        const card = targetCards[idx];
+        if (!card) { showToast("That slot is empty — pick a card that's still in their hand.", 'warning', NOTIFY_MS); return; }
         reveal(pid, idx, card, NOTIFY_MS);
         showToast(`🔍 Spied on ${gameState.players[pid]?.name}'s card #${idx + 1} — it's ${card.name}${card.isJoker ? '' : card.suit}!`, 'ability', NOTIFY_MS);
         const myName = gameState.players[localPlayerId]?.name || 'A player';
@@ -3051,6 +3084,7 @@ async function resolveAbilityClick(pid, idx) {
         if (a.step === 1) {
             // First card: ANY card, yours or any opponent's.
             const card = gameState.players[pid].cards[idx];
+            if (!card) { showToast("That slot is empty — pick a card that's still in play.", 'warning', NOTIFY_MS); return; }
             reveal(pid, idx, card, KING_NOTIFY_MS);
             showToast(`👑 First card — ${describeSlot(pid, idx)} is ${card.name}${card.isJoker ? '' : card.suit}. Now pick a second card to peek at.`, 'ability', KING_NOTIFY_MS);
             await pushState({ ability: { ...a, step: 2, first: { pid, idx } } });
@@ -3071,6 +3105,7 @@ async function resolveAbilityClick(pid, idx) {
             const firstPid = a.first.pid;
             const firstIdx = a.first.idx;
             const card = gameState.players[pid].cards[idx];
+            if (!card) { showToast("That slot is empty — pick a card that's still in play.", 'warning', NOTIFY_MS); return; }
             reveal(pid, idx, card, KING_NOTIFY_MS);
             const secondPid = pid;
             const secondIdx = idx;
@@ -3216,6 +3251,37 @@ async function attemptSnap(pid, idx) {
     const targetCard = gameState.players[pid]?.cards?.[idx];
     if (!targetCard) return;
 
+    // Snap lock — prevents multiple players racing to snap the same card.
+    // The first player to write snapLock wins the snap; everyone else who
+    // clicks in the same window sees snapLock already set to a DIFFERENT pid
+    // and gets a penalty card instead, with a broadcast log entry so everyone
+    // knows what happened. If snapLock is already US, we already won — don't
+    // double-penalise. snapLock is cleared as part of the winning snap write.
+    if (gameState.snapLock && gameState.snapLock !== localPlayerId) {
+        // Someone else won the snap first — give us a penalty card
+        const drawn = await drawCardReplenishingIfNeeded();
+        if (!drawn) return;
+        const myCards = [...gameState.players[localPlayerId].cards];
+        const emptyIdx = firstEmptySlot(myCards);
+        const penaltyIdx = emptyIdx !== -1 ? emptyIdx : myCards.length;
+        if (emptyIdx !== -1) { myCards[emptyIdx] = drawn.card; } else { myCards.push(drawn.card); }
+        const myName = gameState.players[localPlayerId]?.name || 'A player';
+        const winnerName = gameState.players[gameState.snapLock]?.name || 'Someone';
+        highlightSlots([{ pid: localPlayerId, idx: penaltyIdx }], NOTIFY_MS);
+        await pushState({
+            deck: drawn.deck, discard: drawn.discard,
+            [`players.${localPlayerId}.cards`]: myCards,
+            lastEvent: makeEvent(`${myName} was too slow — ${winnerName} already snapped that card! ${myName} takes a penalty.`)
+        });
+        showToast(`❌ Too slow! ${winnerName} already snapped that. Penalty card added.`, 'error', NOTIFY_MS);
+        return;
+    }
+
+    // Claim the snap lock immediately so anyone else who tries in this window is blocked
+    if (!gameState.snapLock) {
+        await pushState({ snapLock: localPlayerId });
+    }
+
     if (targetCard.name === topCard.name) {
         const targetCards = [...gameState.players[pid].cards];
         targetCards[idx] = null; // leave the slot empty in place — don't shift other cards
@@ -3226,6 +3292,7 @@ async function attemptSnap(pid, idx) {
             highlightSlots([{ pid, idx }], NOTIFY_MS);
             await pushState({
                 [`players.${pid}.cards`]: targetCards, discard: newDiscard,
+                snapLock: deleteField(),
                 lastEvent: makeEvent(`${myName} snapped one of their own cards.`, null, null, [{ pid, idx }])
             });
         } else {
@@ -3235,6 +3302,7 @@ async function attemptSnap(pid, idx) {
             await pushState({
                 [`players.${pid}.cards`]: targetCards,
                 discard: newDiscard,
+                snapLock: deleteField(),
                 pendingGive: { fromPid: localPlayerId, toPid: pid, toIdx: idx },
                 lastEvent: makeEvent(
                     `${myName} snapped ${oppName}'s card #${idx + 1}!`,
@@ -3259,6 +3327,7 @@ async function attemptSnap(pid, idx) {
         highlightSlots([{ pid: localPlayerId, idx: penaltyIdx }], NOTIFY_MS);
         await pushState({
             deck: drawn.deck, discard: drawn.discard,
+            snapLock: deleteField(),
             [`players.${localPlayerId}.cards`]: myCards,
             lastEvent: makeEvent(`${myName} attempted a snap but got it wrong and took a penalty card.`)
         });

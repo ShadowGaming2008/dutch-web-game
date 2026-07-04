@@ -1284,6 +1284,49 @@ function describeSlot(pid, idx) {
     return `${who} card #${idx + 1}`;
 }
 
+// Before ever entering AWAIT_ABILITY, verify the ability actually has at
+// least one legal way to be resolved given the CURRENT state of every
+// player's hand. This matters because a board slot with no card in it is
+// never clickable — handleCardInteraction() returns early on an empty slot
+// before any ability-resolution code ever runs. That means the various
+// "gracefully skip, no legal target" checks that live inside
+// resolveAbilityClick() only ever get a chance to run AFTER at least one
+// valid (non-empty) click already happened; they can never fire as the
+// very first move if EVERY legal target is already empty (e.g. every one
+// of your opponents already got all their cards snapped away, or your own
+// hand is completely empty when a 7/8 is drawn). Without this pre-check,
+// that situation left the turn stuck in AWAIT_ABILITY forever with no
+// clickable card anywhere able to resolve or skip it — the only way out
+// was the host's force-unstick button. Checking here, before we ever
+// commit to AWAIT_ABILITY, catches every one of those cases up front.
+function abilityHasLegalTarget(abilityType) {
+    const myCards = gameState.players[localPlayerId]?.cards || [];
+    const iHaveCard = myCards.some(Boolean);
+    const opponentIds = Object.keys(gameState.players).filter(pid => pid !== localPlayerId);
+    const anyOpponentHasCard = opponentIds.some(pid => (gameState.players[pid]?.cards || []).some(Boolean));
+    switch (abilityType) {
+        case '78':
+            // Needs one of YOUR OWN cards to peek at.
+            return iHaveCard;
+        case '910':
+            // Needs an OPPONENT's card to spy on.
+            return anyOpponentHasCard;
+        case 'jq':
+            // Needs one of your own cards AND an opponent's card to swap with.
+            return iHaveCard && anyOpponentHasCard;
+        case 'k': {
+            // Needs at least two cards total, somewhere, in the whole game
+            // (the "both peeked cards belong to the same lone player" case
+            // is already handled gracefully mid-ability, ending after one peek).
+            const totalCards = Object.values(gameState.players)
+                .reduce((sum, p) => sum + (p.cards || []).filter(Boolean).length, 0);
+            return totalCards >= 2;
+        }
+        default:
+            return true;
+    }
+}
+
 const createDeck = () => {
     const suits = ['♠', '♥', '♦', '♣'];
     const values = [
@@ -1388,13 +1431,18 @@ function showAbilityPanel(abilityType, step = 1) {
     document.getElementById('abilityTitle').textContent = cfg.title;
     document.getElementById('abilityDesc').textContent = cfg.steps[step - 1] || cfg.steps[0];
 
-    // Step dots
+    // Step dots. Only two dot elements exist in the DOM, but the King
+    // ability has 4 steps (peek two cards, then optionally swap two cards).
+    // Map step -> dot by PHASE rather than by literal step number, so the
+    // indicator always shows progress instead of going dark on steps 3/4
+    // (which would otherwise look like the ability had frozen/stalled).
     const dot1 = document.getElementById('abilityStepDot1');
     const dot2 = document.getElementById('abilityStepDot2');
     if (cfg.steps.length > 1) {
         dot2.classList.remove('hidden');
-        dot1.className = `w-2 h-2 rounded-full ${step === 1 ? 'bg-indigo-400' : 'bg-slate-600'}`;
-        dot2.className = `w-2 h-2 rounded-full ${step === 2 ? 'bg-indigo-400' : 'bg-slate-600'}`;
+        const onFirstPhase = step <= Math.ceil(cfg.steps.length / 2);
+        dot1.className = `w-2 h-2 rounded-full ${onFirstPhase ? 'bg-indigo-400' : 'bg-slate-600'}`;
+        dot2.className = `w-2 h-2 rounded-full ${!onFirstPhase ? 'bg-indigo-400' : 'bg-slate-600'}`;
     } else {
         dot2.classList.add('hidden');
         dot1.className = 'w-2 h-2 rounded-full bg-indigo-400';
@@ -2343,19 +2391,22 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, zone = 
             }
             if (a.type === 'k') {
                 if (a.step === 1) {
-                    abilityClass = 'ability-opp-target';
+                    // Any card is a valid first pick — colour by whose board
+                    // it's on so it's clear both yours and opponents' cards
+                    // are equally clickable, not just opponents'.
+                    abilityClass = pid === localPlayerId ? 'ability-own-target' : 'ability-opp-target';
                 } else if (a.step === 2 && a.first) {
                     const isFirstSlot = a.first.pid === pid && a.first.idx === idx;
                     const bothWouldBeOwn = a.first.pid === localPlayerId && pid === localPlayerId;
                     if (isFirstSlot) abilityClass = 'ability-selected';
-                    else if (!bothWouldBeOwn) abilityClass = 'ability-opp-target';
+                    else if (!bothWouldBeOwn) abilityClass = pid === localPlayerId ? 'ability-own-target' : 'ability-opp-target';
                 } else if (a.step === 3) {
                     // Free-pick step 3: all cards are valid targets
-                    abilityClass = 'ability-opp-target';
+                    abilityClass = pid === localPlayerId ? 'ability-own-target' : 'ability-opp-target';
                 } else if (a.step === 4 && a.swapFirst) {
                     const isSwapFirstSlot = a.swapFirst.pid === pid && a.swapFirst.idx === idx;
                     if (isSwapFirstSlot) abilityClass = 'ability-selected';
-                    else abilityClass = 'ability-opp-target';
+                    else abilityClass = pid === localPlayerId ? 'ability-own-target' : 'ability-opp-target';
                 }
             }
         }
@@ -2498,7 +2549,16 @@ document.getElementById("discardDrawnBtn").addEventListener("click", async () =>
     const discardMoveEvent = makeEvent(`${myName} discarded their drawn card.`, null, null, [], [
         { from: { type: 'deck' }, to: { type: 'discard' } }
     ]);
-    if (abilityType) {
+    if (abilityType && !abilityHasLegalTarget(abilityType)) {
+        // No legal card anywhere to resolve this ability against — skip it
+        // gracefully right now rather than entering AWAIT_ABILITY with no
+        // clickable card able to ever get us back out of it.
+        showToast("No legal target for that ability — it's skipped.", 'info', NOTIFY_MS);
+        await advanceTurn({
+            discard: newDiscard, drawnCard: null,
+            lastEvent: makeEvent(`${myName}'s ${ABILITY_CONFIG[abilityType]?.title || 'ability'} was skipped — no legal target was available.`)
+        });
+    } else if (abilityType) {
         await pushState({
             discard: newDiscard, drawnCard: null,
             turnPhase: 'AWAIT_ABILITY',
@@ -3230,6 +3290,24 @@ async function resolveAbilityClick(pid, idx) {
                     const myName = gameState.players[localPlayerId]?.name || 'A player';
                     showToast("No opponent has a card left to peek at — ability ends after one peek.", 'info', NOTIFY_MS);
                     await advanceTurn({ ability: null, lastEvent: makeEvent(`${myName} used the Black King ability to peek at one card — no opponent had a second card available.`, null, null, [{ pid, idx }]) });
+                    return;
+                }
+            } else {
+                // Symmetric softlock guard for the other case: the first pick was
+                // an OPPONENT's card, so any other card in the game is a legal
+                // second pick (yours or any opponent's). But if this was the only
+                // card left anywhere on the board (e.g. concurrent snaps emptied
+                // everything else in the moment between drawing the King and
+                // clicking it), there's no legal second card either — skip the
+                // same way instead of leaving the turn stuck.
+                const anyOtherCardExists = Object.entries(gameState.players).some(([otherPid, p]) =>
+                    (p.cards || []).some((c, i) => Boolean(c) && !(otherPid === pid && i === idx))
+                );
+                if (!anyOtherCardExists) {
+                    reveal(pid, idx, card, KING_NOTIFY_MS);
+                    const myName = gameState.players[localPlayerId]?.name || 'A player';
+                    showToast("No other card left to peek at — ability ends after one peek.", 'info', NOTIFY_MS);
+                    await advanceTurn({ ability: null, lastEvent: makeEvent(`${myName} used the Black King ability to peek at one card — no second card was available.`, null, null, [{ pid, idx }]) });
                     return;
                 }
             }

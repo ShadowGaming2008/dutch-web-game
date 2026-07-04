@@ -1327,6 +1327,16 @@ function abilityHasLegalTarget(abilityType) {
     }
 }
 
+// Fisher-Yates — unbiased shuffle, used for randomizing seating/turn order.
+function shuffleArray(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
 const createDeck = () => {
     const suits = ['♠', '♥', '♦', '♣'];
     const values = [
@@ -1966,10 +1976,22 @@ async function dealNewRound() {
         // dealing fresh cards, so nothing stale lingers until this round ends.
         updatedPlayers[pid] = { ...updatedPlayers[pid], cards: [freshDeck.pop(), freshDeck.pop(), freshDeck.pop(), freshDeck.pop()], ready: false, score: 0, lastHandScore: null };
     });
+
+    // Randomize the turn order once, at the start of a fresh game from the
+    // lobby — so the party leader (or whoever joined first) doesn't always
+    // take the first turn. dealNewRound() is also called by "Start Next
+    // Round" to continue an already-running game (status is ROUND_END at
+    // that point, not LOBBY); in that case we deliberately keep the SAME
+    // turnOrder the game already picked, so seating stays stable for the
+    // whole game rather than reshuffling every round. Only actually
+    // starting a brand-new game (from LOBBY) shuffles again.
+    const isFreshGame = gameState.status === 'LOBBY' || !gameState.turnOrder || gameState.turnOrder.length === 0;
+    const turnOrder = isFreshGame ? shuffleArray(Object.keys(updatedPlayers)) : gameState.turnOrder;
+
     await pushState({
         status: "PLAYING", deck: freshDeck, discard: [],
         players: updatedPlayers, roundNumber: (gameState.roundNumber || 0) + 1,
-        currentTurnIdx: 0, turnPhase: 'AWAIT_DRAW', drawnCard: null,
+        turnOrder, currentTurnIdx: 0, turnPhase: 'AWAIT_DRAW', drawnCard: null,
         ability: null, dutchCalledBy: null, finalTurnsLeft: null, pendingGive: null
     });
 }

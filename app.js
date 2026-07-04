@@ -1,7 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
     getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion,
-    collection, addDoc, query, orderBy, limit, getDocs, deleteField, serverTimestamp
+    collection, addDoc, query, orderBy, limit, getDocs, deleteField, serverTimestamp,
+    runTransaction
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
     getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
@@ -1954,7 +1955,71 @@ function setInstruction(text) {
     document.getElementById("actionInstruction").innerText = text;
 }
 
+// ==========================================
+// Host safety valve — force-end a stuck turn
+// ==========================================
+// Covers softlocks that the targeted fixes above can't fully rule out (odd
+// timing windows, a King free-pick step where the only remaining slot
+// vanished mid-ability, etc). Only ever visible to the room host, and only
+// once the SAME stuck-looking state (same phase/ability/give-away) has sat
+// unchanged for a while — so it can't be used to just rush other players
+// through ordinary ability turns.
+let stuckStateSignature = null;
+let stuckStateSince = null;
+const STUCK_REVEAL_MS = 20000; // 20s of no progress before the host gets the option
+
+function updateForceUnstickButton() {
+    const btn = document.getElementById('forceUnstickBtn');
+    if (!btn) return;
+    const isHost = gameState.hostId === localPlayerId;
+    const looksStuck = gameState.status === 'PLAYING' && (
+        gameState.turnPhase === 'AWAIT_ABILITY' ||
+        !!gameState.pendingGive
+    );
+    if (!isHost || !looksStuck) {
+        btn.classList.add('hidden');
+        stuckStateSignature = null;
+        stuckStateSince = null;
+        return;
+    }
+    const signature = JSON.stringify({
+        idx: gameState.currentTurnIdx, round: gameState.roundNumber,
+        phase: gameState.turnPhase, ability: gameState.ability, give: gameState.pendingGive
+    });
+    if (signature !== stuckStateSignature) {
+        // State actually changed (or this is the first time we've seen it) —
+        // restart the countdown and hide the button in the meantime.
+        stuckStateSignature = signature;
+        stuckStateSince = Date.now();
+        btn.classList.add('hidden');
+        setTimeout(() => {
+            if (stuckStateSignature === signature) {
+                document.getElementById('forceUnstickBtn')?.classList.remove('hidden');
+            }
+        }, STUCK_REVEAL_MS);
+        return;
+    }
+    if (Date.now() - stuckStateSince >= STUCK_REVEAL_MS) {
+        btn.classList.remove('hidden');
+    }
+}
+
+document.getElementById('forceUnstickBtn')?.addEventListener('click', async () => {
+    if (gameState.hostId !== localPlayerId) return;
+    const ok = confirm("Force-end the current turn? Only do this if the game looks genuinely stuck (an ability or card give-away that can't be completed).");
+    if (!ok) return;
+    const hostName = gameState.players[localPlayerId]?.name || 'The host';
+    await advanceTurn({
+        ability: null,
+        pendingGive: null,
+        drawnCard: null,
+        lastEvent: makeEvent(`${hostName} (host) force-ended a stuck turn.`)
+    });
+    showToast("Turn force-ended.", 'info', NOTIFY_MS);
+});
+
 function renderGameBoard() {
+    updateForceUnstickButton();
     const activeTurnPlayerId = activePid();
     const isMyTurn = activeTurnPlayerId === localPlayerId;
     const turnBanner = document.getElementById("gameTurnBanner");
@@ -3049,6 +3114,21 @@ async function resolveAbilityClick(pid, idx) {
     if (a.type === 'jq') {
         if (a.step === 1) {
             if (pid !== localPlayerId) { showToast("First, pick one of YOUR OWN cards to swap.", 'warning', NOTIFY_MS); return; }
+            // Softlock guard: this ability needs an opponent's card as the second
+            // half of the swap. If every opponent's hand is completely empty
+            // (e.g. their cards all got snapped away earlier this round, or a
+            // concurrent snap emptied the last one), there's nothing to swap
+            // with and step 2 could never be completed. Skip the ability
+            // gracefully instead of leaving the turn stuck forever.
+            const anyOpponentHasCard = Object.keys(gameState.players).some(
+                otherPid => otherPid !== localPlayerId && (gameState.players[otherPid].cards || []).some(Boolean)
+            );
+            if (!anyOpponentHasCard) {
+                const myName = gameState.players[localPlayerId]?.name || 'A player';
+                showToast("No opponent has a card left to swap with — ability skipped.", 'info', NOTIFY_MS);
+                await advanceTurn({ ability: null, lastEvent: makeEvent(`${myName}'s J/Q ability was skipped — no opponent had a card left.`) });
+                return;
+            }
             showToast("✓ Your card selected. Now pick an opponent's card to swap with.", 'ability', NOTIFY_MS);
             await pushState({ ability: { ...a, step: 2, ownIdx: idx } });
         } else {
@@ -3085,6 +3165,26 @@ async function resolveAbilityClick(pid, idx) {
             // First card: ANY card, yours or any opponent's.
             const card = gameState.players[pid].cards[idx];
             if (!card) { showToast("That slot is empty — pick a card that's still in play.", 'warning', NOTIFY_MS); return; }
+
+            // Softlock guard: if this first pick was one of the acting player's
+            // own cards, the second pick can only legally be an opponent's card
+            // (you can't peek at two of your own). If every opponent's hand is
+            // completely empty at this point, there is no legal second card and
+            // step 2 could never be completed — skip the ability instead of
+            // leaving the turn stuck.
+            if (pid === localPlayerId) {
+                const anyOpponentHasCard = Object.keys(gameState.players).some(
+                    otherPid => otherPid !== localPlayerId && (gameState.players[otherPid].cards || []).some(Boolean)
+                );
+                if (!anyOpponentHasCard) {
+                    reveal(pid, idx, card, KING_NOTIFY_MS);
+                    const myName = gameState.players[localPlayerId]?.name || 'A player';
+                    showToast("No opponent has a card left to peek at — ability ends after one peek.", 'info', NOTIFY_MS);
+                    await advanceTurn({ ability: null, lastEvent: makeEvent(`${myName} used the Black King ability to peek at one card — no opponent had a second card available.`, null, null, [{ pid, idx }]) });
+                    return;
+                }
+            }
+
             reveal(pid, idx, card, KING_NOTIFY_MS);
             showToast(`👑 First card — ${describeSlot(pid, idx)} is ${card.name}${card.isJoker ? '' : card.suit}. Now pick a second card to peek at.`, 'ability', KING_NOTIFY_MS);
             await pushState({ ability: { ...a, step: 2, first: { pid, idx } } });
@@ -3244,94 +3344,158 @@ function firstEmptySlot(cards) {
     return -1;
 }
 
+// Draws a penalty card straight from a room-document snapshot (as read
+// inside a Firestore transaction), rather than from the local `gameState`
+// cache. Mirrors `drawCardReplenishingIfNeeded`, but must not touch
+// `gameState` because transaction callbacks can be retried by the SDK with
+// a fresher read — using the stale local cache here would silently
+// reintroduce the exact race this rewrite is meant to close.
+function drawCardFromRoomData(data) {
+    let deck = [...(data.deck || [])];
+    let discard = [...(data.discard || [])];
+    const replenished = reshuffleDiscardIntoDeckIfNeeded(deck, discard);
+    if (!replenished) return null;
+    deck = replenished.deck;
+    discard = replenished.discard;
+    const card = deck.pop();
+    return { card, deck, discard };
+}
+
+// Snap resolution is done as a single Firestore transaction so that when
+// several players click "snap" at the same instant, exactly one of them
+// can win it — Firestore serializes the competing transactions, and every
+// loser's callback is automatically retried against the state left behind
+// by the winner, so it naturally sees the card already gone (or the
+// discard pile already changed) instead of racing against a stale local
+// cache. This replaces the old two-step "claim a snapLock field, then
+// hope nobody else claimed it in the same window" approach, which had a
+// real window where two clients could both read the lock as free and both
+// think they'd won.
 async function attemptSnap(pid, idx) {
     playSfx('cardSnap');
-    if (!gameState.discard || gameState.discard.length === 0) return;
-    const topCard = gameState.discard[gameState.discard.length - 1];
-    const targetCard = gameState.players[pid]?.cards?.[idx];
-    if (!targetCard) return;
+    const roomRef = doc(db, "rooms", roomCode);
+    const myName = gameState.players[localPlayerId]?.name || 'A player';
 
-    // Snap lock — prevents multiple players racing to snap the same card.
-    // The first player to write snapLock wins the snap; everyone else who
-    // clicks in the same window sees snapLock already set to a DIFFERENT pid
-    // and gets a penalty card instead, with a broadcast log entry so everyone
-    // knows what happened. If snapLock is already US, we already won — don't
-    // double-penalise. snapLock is cleared as part of the winning snap write.
-    if (gameState.snapLock && gameState.snapLock !== localPlayerId) {
-        // Someone else won the snap first — give us a penalty card
-        const drawn = await drawCardReplenishingIfNeeded();
-        if (!drawn) return;
-        const myCards = [...gameState.players[localPlayerId].cards];
-        const emptyIdx = firstEmptySlot(myCards);
-        const penaltyIdx = emptyIdx !== -1 ? emptyIdx : myCards.length;
-        if (emptyIdx !== -1) { myCards[emptyIdx] = drawn.card; } else { myCards.push(drawn.card); }
-        const myName = gameState.players[localPlayerId]?.name || 'A player';
-        const winnerName = gameState.players[gameState.snapLock]?.name || 'Someone';
-        highlightSlots([{ pid: localPlayerId, idx: penaltyIdx }], NOTIFY_MS);
-        await pushState({
-            deck: drawn.deck, discard: drawn.discard,
-            [`players.${localPlayerId}.cards`]: myCards,
-            lastEvent: makeEvent(`${myName} was too slow — ${winnerName} already snapped that card! ${myName} takes a penalty.`)
+    let result;
+    try {
+        result = await runTransaction(db, async (tx) => {
+            const snapDoc = await tx.get(roomRef);
+            if (!snapDoc.exists()) return { outcome: 'noop' };
+            const data = snapDoc.data();
+
+            if (data.status !== 'PLAYING' || !data.discard || data.discard.length === 0) {
+                return { outcome: 'noop' };
+            }
+            const topCard = data.discard[data.discard.length - 1];
+            const targetCard = data.players?.[pid]?.cards?.[idx];
+
+            // The slot is already empty — someone else's snap (or a give-away)
+            // beat us to it between when we clicked and when this transaction
+            // got to run. Penalize us for being too slow rather than silently
+            // doing nothing, and don't try to guess who won it.
+            if (!targetCard) {
+                const drawn = drawCardFromRoomData(data);
+                if (!drawn) return { outcome: 'no-cards' };
+                const myCards = [...(data.players[localPlayerId].cards || [])];
+                const emptyIdx = firstEmptySlot(myCards);
+                const penaltyIdx = emptyIdx !== -1 ? emptyIdx : myCards.length;
+                if (emptyIdx !== -1) { myCards[emptyIdx] = drawn.card; } else { myCards.push(drawn.card); }
+                tx.update(roomRef, {
+                    deck: drawn.deck, discard: drawn.discard,
+                    [`players.${localPlayerId}.cards`]: myCards,
+                    lastEvent: makeEvent(`${myName} was too slow — that card was already snapped! ${myName} takes a penalty.`)
+                });
+                return { outcome: 'too-slow', penaltyIdx };
+            }
+
+            if (targetCard.name === topCard.name) {
+                const targetCards = [...data.players[pid].cards];
+                targetCards[idx] = null; // leave the slot empty in place — don't shift other cards
+                const newDiscard = [...data.discard, targetCard];
+                if (pid === localPlayerId) {
+                    tx.update(roomRef, {
+                        [`players.${pid}.cards`]: targetCards, discard: newDiscard,
+                        lastEvent: makeEvent(`${myName} snapped one of their own cards.`, null, null, [{ pid, idx }])
+                    });
+                    return { outcome: 'snap-own' };
+                } else {
+                    const oppName = data.players[pid]?.name || 'them';
+                    // Normally the snapper now owes the victim a card from
+                    // their own hand. But if the snapper's hand is itself
+                    // completely empty (every one of their cards already
+                    // snapped away earlier this round), there's nothing to
+                    // give — creating a pendingGive here would softlock the
+                    // game waiting on a card that can never be picked. In
+                    // that case, just let the snap stand with no give-away.
+                    const giverHasCard = (data.players[localPlayerId]?.cards || []).some(Boolean);
+                    const updates = {
+                        [`players.${pid}.cards`]: targetCards,
+                        discard: newDiscard,
+                        lastEvent: makeEvent(
+                            giverHasCard
+                                ? `${myName} snapped ${oppName}'s card #${idx + 1}!`
+                                : `${myName} snapped ${oppName}'s card #${idx + 1} — but had no card of their own to give in return!`,
+                            pid,
+                            giverHasCard
+                                ? `${myName} snapped YOUR card #${idx + 1}!`
+                                : `${myName} snapped YOUR card #${idx + 1} — but had nothing to give you in return!`,
+                            [{ pid, idx }]
+                        )
+                    };
+                    if (giverHasCard) {
+                        updates.pendingGive = { fromPid: localPlayerId, toPid: pid, toIdx: idx };
+                    }
+                    tx.update(roomRef, updates);
+                    return { outcome: 'snap-opponent', oppName, giverHasCard };
+                }
+            }
+
+            // Wrong card — penalty.
+            const drawn = drawCardFromRoomData(data);
+            if (!drawn) return { outcome: 'no-cards' };
+            const myCards = [...(data.players[localPlayerId].cards || [])];
+            const emptyIdx = firstEmptySlot(myCards);
+            const penaltyIdx = emptyIdx !== -1 ? emptyIdx : myCards.length;
+            if (emptyIdx !== -1) { myCards[emptyIdx] = drawn.card; } else { myCards.push(drawn.card); }
+            tx.update(roomRef, {
+                deck: drawn.deck, discard: drawn.discard,
+                [`players.${localPlayerId}.cards`]: myCards,
+                lastEvent: makeEvent(`${myName} attempted a snap but got it wrong and took a penalty card.`)
+            });
+            return { outcome: 'wrong', penaltyIdx };
         });
-        showToast(`❌ Too slow! ${winnerName} already snapped that. Penalty card added.`, 'error', NOTIFY_MS);
+    } catch (e) {
+        console.error('Snap transaction failed', e);
+        showToast("Couldn't process that snap — try again.", 'error', NOTIFY_MS);
         return;
     }
 
-    // Claim the snap lock immediately so anyone else who tries in this window is blocked
-    if (!gameState.snapLock) {
-        await pushState({ snapLock: localPlayerId });
-    }
-
-    if (targetCard.name === topCard.name) {
-        const targetCards = [...gameState.players[pid].cards];
-        targetCards[idx] = null; // leave the slot empty in place — don't shift other cards
-        const newDiscard = [...gameState.discard, targetCard];
-        const myName = gameState.players[localPlayerId]?.name || 'A player';
-        if (pid === localPlayerId) {
+    switch (result.outcome) {
+        case 'snap-own':
             showToast("⚡ Snap! Card removed from your hand!", 'success', NOTIFY_MS);
             highlightSlots([{ pid, idx }], NOTIFY_MS);
-            await pushState({
-                [`players.${pid}.cards`]: targetCards, discard: newDiscard,
-                snapLock: deleteField(),
-                lastEvent: makeEvent(`${myName} snapped one of their own cards.`, null, null, [{ pid, idx }])
-            });
-        } else {
-            const oppName = gameState.players[pid]?.name || 'them';
-            showToast(`⚡ Snapped ${oppName}'s card! Now pick one of YOUR cards to give them.`, 'success', NOTIFY_MS);
+            break;
+        case 'snap-opponent':
+            if (result.giverHasCard) {
+                showToast(`⚡ Snapped ${result.oppName}'s card! Now pick one of YOUR cards to give them.`, 'success', NOTIFY_MS);
+            } else {
+                showToast(`⚡ Snapped ${result.oppName}'s card! You had nothing to give back.`, 'success', NOTIFY_MS);
+            }
             highlightSlots([{ pid, idx }], NOTIFY_MS);
-            await pushState({
-                [`players.${pid}.cards`]: targetCards,
-                discard: newDiscard,
-                snapLock: deleteField(),
-                pendingGive: { fromPid: localPlayerId, toPid: pid, toIdx: idx },
-                lastEvent: makeEvent(
-                    `${myName} snapped ${oppName}'s card #${idx + 1}!`,
-                    pid,
-                    `${myName} snapped YOUR card #${idx + 1}!`,
-                    [{ pid, idx }]
-                )
-            });
-        }
-    } else {
-        const drawn = await drawCardReplenishingIfNeeded();
-        if (!drawn) return; // both deck and discard were empty — nothing to penalize with
-        const myCards = [...gameState.players[localPlayerId].cards];
-        const emptyIdx = firstEmptySlot(myCards);
-        const penaltyIdx = emptyIdx !== -1 ? emptyIdx : myCards.length;
-        if (emptyIdx !== -1) {
-            myCards[emptyIdx] = drawn.card;
-        } else {
-            myCards.push(drawn.card); // no empty slot — genuinely grow the hand by one
-        }
-        const myName = gameState.players[localPlayerId]?.name || 'A player';
-        highlightSlots([{ pid: localPlayerId, idx: penaltyIdx }], NOTIFY_MS);
-        await pushState({
-            deck: drawn.deck, discard: drawn.discard,
-            snapLock: deleteField(),
-            [`players.${localPlayerId}.cards`]: myCards,
-            lastEvent: makeEvent(`${myName} attempted a snap but got it wrong and took a penalty card.`)
-        });
-        showToast("❌ Wrong snap! Penalty card added to your hand.", 'error', NOTIFY_MS);
+            break;
+        case 'wrong':
+            showToast("❌ Wrong snap! Penalty card added to your hand.", 'error', NOTIFY_MS);
+            highlightSlots([{ pid: localPlayerId, idx: result.penaltyIdx }], NOTIFY_MS);
+            break;
+        case 'too-slow':
+            showToast("❌ Too slow! Someone already snapped that. Penalty card added.", 'error', NOTIFY_MS);
+            highlightSlots([{ pid: localPlayerId, idx: result.penaltyIdx }], NOTIFY_MS);
+            break;
+        case 'no-cards':
+            showToast("No cards left to draw — deck and discard are both empty!", 'warning');
+            break;
+        default:
+            break; // noop — stale click, nothing to do
     }
 }
 

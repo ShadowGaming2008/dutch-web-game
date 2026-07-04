@@ -1077,6 +1077,12 @@
                     <!-- Turn banner floats here -->
                     <div id="gameTurnBanner" class="px-4 py-1.5 rounded-xl font-black text-center text-xs shadow-lg" style="position:relative;transform:none;top:auto;left:auto;">Waiting...</div>
 
+                    <!-- Host-only safety valve: unsticks the game if a turn/ability/give-away
+                         gets stuck for any reason (e.g. every valid target vanished). Only
+                         ever visible to the room host, and only once a turn has been going
+                         on a little while, so it's not a way to rush people normally. -->
+                    <button id="forceUnstickBtn" class="hidden btn-sm" style="background:#7f1d1d;color:#fecaca;border:1px solid #b91c1c;margin-top:4px;" title="Use this if the game seems stuck (e.g. an ability or give-away can't be completed).">🛠️ Force End Turn</button>
+
                     <!-- Ability panel (inline above board) -->
                     <div id="abilityPanel" class="hidden ability-panel bg-slate-950 border-2 border-indigo-500 rounded-xl p-3 shadow-2xl">
                         <div class="flex items-start gap-3">

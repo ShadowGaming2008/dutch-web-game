@@ -286,6 +286,8 @@
                 </div>
             </div>
             <div class="flex items-center gap-2">
+                <!-- Back-to-parties button, hidden until inside a room -->
+                <button id="backToPartiesBtn" class="text-xs text-slate-400 hover:text-white font-semibold px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 transition is-hidden">← Parties</button>
                 <!-- Code copy button, hidden until in a room -->
                 <button id="copyCodeBtn" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold px-3 py-1.5 rounded-lg bg-indigo-900/30 border border-indigo-800/50 transition is-hidden"></button>
                 <button id="closeChatBtn" class="text-slate-400 hover:text-white text-xl font-bold w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-800 transition">✕</button>
@@ -294,7 +296,15 @@
 
         <!-- Room picker (shown when no room joined) -->
         <div id="chatLobby">
+            <!-- Saved parties the signed-in player has joined before -->
+            <div id="savedPartiesSection" class="is-hidden" style="width:100%;">
+                <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Your Parties</p>
+                <div id="savedPartiesList" class="space-y-2" style="width:100%;"></div>
+                <div style="border-top:1px solid #1e293b;margin:14px 0;"></div>
+            </div>
+
             <p class="text-slate-400 text-sm text-center">Create a new party or join one with a code.</p>
+            <input type="text" id="newPartyNameInput" placeholder="Party name (optional)" maxlength="30" style="width:100%;" />
             <button id="createRoomBtn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm">✨ Create Party</button>
             <div class="flex gap-2 w-full">
                 <input type="text" id="joinCodeInput" placeholder="Enter room code" maxlength="6" style="text-transform:uppercase;letter-spacing:0.1em;flex:1;" />
@@ -347,7 +357,8 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import {
             getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot,
-            collection, addDoc, query, orderBy, serverTimestamp
+            collection, addDoc, query, orderBy, serverTimestamp,
+            getDocs, deleteDoc
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import {
             getAuth, GoogleAuthProvider, signInWithPopup,
@@ -511,6 +522,9 @@
                 if (profileUnsub) { profileUnsub(); profileUnsub = null; }
                 currentProfile = null;
                 hide(profileBar);
+                // Signing out mid-chat shouldn't leave a stale room open for
+                // whoever signs in next on this device.
+                backToPartyList();
             }
         });
 
@@ -669,6 +683,7 @@
 
         function openChat() {
             show(chatModal);
+            refreshSavedPartiesList();
         }
 
         function closeChat() {
@@ -685,13 +700,22 @@
         // ─────────────────────────────────────────────
         // Room create / join
         // ─────────────────────────────────────────────
+        // Parties are permanent Firestore documents (chatRooms/{code}). A
+        // player's membership is recorded under users/{uid}/parties/{code}
+        // so we can show them a "Your Parties" list to rejoin later,
+        // without needing to remember the code again.
         document.getElementById('createRoomBtn').addEventListener('click', async () => {
             if (!currentUser) { openAuthModal(); return; }
             const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            const nameInput = document.getElementById('newPartyNameInput');
+            const partyName = nameInput.value.trim() || `Party ${code}`;
+            nameInput.value = '';
             await setDoc(doc(db, 'chatRooms', code), {
                 createdBy: currentUser.uid,
-                createdAt: serverTimestamp()
+                createdAt: serverTimestamp(),
+                name: partyName
             });
+            await recordPartyMembership(code, partyName);
             await enterRoom(code);
         });
 
@@ -701,12 +725,33 @@
             if (!code) return;
             const snap = await getDoc(doc(db, 'chatRooms', code));
             if (!snap.exists()) { alert('Room not found. Double-check the code.'); return; }
+            document.getElementById('joinCodeInput').value = '';
+            await recordPartyMembership(code, snap.data()?.name || `Party ${code}`);
             await enterRoom(code);
         });
 
         document.getElementById('joinCodeInput').addEventListener('keydown', e => {
             if (e.key === 'Enter') document.getElementById('joinRoomBtn').click();
         });
+
+        // Records (or refreshes) that the current user is a member of this
+        // party, both on the party doc itself (so it's easy to see who's
+        // been in it) and under the user's own profile (so we can list
+        // "Your Parties" without a slow reverse lookup across all rooms).
+        async function recordPartyMembership(code, name) {
+            if (!currentUser) return;
+            await setDoc(doc(db, 'chatRooms', code), {
+                [`members.${currentUser.uid}`]: {
+                    name: currentProfile?.username || currentUser.displayName || currentUser.email?.split('@')[0] || 'Guest',
+                    joinedAt: serverTimestamp()
+                }
+            }, { merge: true });
+            await setDoc(doc(db, 'users', currentUser.uid, 'parties', code), {
+                code,
+                name,
+                lastJoined: serverTimestamp()
+            }, { merge: true });
+        }
 
         async function enterRoom(code) {
             currentRoomId = code;
@@ -716,9 +761,12 @@
             chatMessages.classList.remove('panel-hidden');
             chatInputArea.classList.remove('panel-hidden');
 
-            document.getElementById('chatRoomLabel').textContent = `Party · ${code}`;
+            const roomSnap = await getDoc(doc(db, 'chatRooms', code));
+            const roomName = roomSnap.exists() ? (roomSnap.data().name || `Party ${code}`) : `Party ${code}`;
+            document.getElementById('chatRoomLabel').textContent = roomName;
             copyCodeBtn.textContent = code;
             show(copyCodeBtn);
+            show(document.getElementById('backToPartiesBtn'));
 
             // Live message subscription
             if (msgUnsub) msgUnsub();
@@ -739,6 +787,83 @@
                     chatMessages.appendChild(el);
                 });
                 chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+        }
+
+        // Leaves the current room's message view and returns to the party
+        // list — this does NOT remove the player's membership, it's just
+        // navigation, so the party stays in "Your Parties" for next time.
+        function backToPartyList() {
+            if (msgUnsub) { msgUnsub(); msgUnsub = null; }
+            currentRoomId = null;
+            chatMessages.innerHTML = '';
+            chatMessages.classList.add('panel-hidden');
+            chatInputArea.classList.add('panel-hidden');
+            chatLobby.classList.remove('panel-hidden');
+            hide(copyCodeBtn);
+            hide(document.getElementById('backToPartiesBtn'));
+            document.getElementById('chatRoomLabel').textContent = 'Party Chat';
+            refreshSavedPartiesList();
+        }
+
+        document.getElementById('backToPartiesBtn').addEventListener('click', backToPartyList);
+
+        // ─────────────────────────────────────────────
+        // Saved parties list ("Your Parties" — rejoin without a code)
+        // ─────────────────────────────────────────────
+        async function refreshSavedPartiesList() {
+            const section = document.getElementById('savedPartiesSection');
+            const list = document.getElementById('savedPartiesList');
+            if (!currentUser) { hide(section); list.innerHTML = ''; return; }
+
+            const q = query(collection(db, 'users', currentUser.uid, 'parties'), orderBy('lastJoined', 'desc'));
+            let snap;
+            try {
+                snap = await getDocs(q);
+            } catch (e) {
+                hide(section);
+                return;
+            }
+            if (snap.empty) { hide(section); list.innerHTML = ''; return; }
+
+            show(section);
+            list.innerHTML = '';
+            snap.forEach(d => {
+                const p = d.data();
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:8px;width:100%;';
+                row.innerHTML = `
+                    <button class="rejoin-party-btn" data-code="${p.code}" style="flex:1;text-align:left;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:10px 12px;color:#e2e8f0;font-size:13px;font-weight:600;cursor:pointer;">
+                        ${escHtml(p.name || p.code)}
+                        <span style="display:block;color:#64748b;font-weight:500;font-size:11px;margin-top:2px;letter-spacing:0.05em;">${p.code}</span>
+                    </button>
+                    <button class="forget-party-btn" data-code="${p.code}" title="Remove from your list (doesn't delete the party)" style="background:transparent;border:none;color:#64748b;font-size:16px;cursor:pointer;padding:6px;">✕</button>
+                `;
+                list.appendChild(row);
+            });
+
+            list.querySelectorAll('.rejoin-party-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const code = btn.dataset.code;
+                    const snap = await getDoc(doc(db, 'chatRooms', code));
+                    if (!snap.exists()) {
+                        alert("This party no longer exists.");
+                        await deleteDoc(doc(db, 'users', currentUser.uid, 'parties', code));
+                        refreshSavedPartiesList();
+                        return;
+                    }
+                    await recordPartyMembership(code, snap.data()?.name || `Party ${code}`);
+                    await enterRoom(code);
+                });
+            });
+
+            list.querySelectorAll('.forget-party-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const code = btn.dataset.code;
+                    await deleteDoc(doc(db, 'users', currentUser.uid, 'parties', code));
+                    refreshSavedPartiesList();
+                });
             });
         }
 

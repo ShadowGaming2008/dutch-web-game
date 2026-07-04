@@ -992,8 +992,27 @@ async function openLeaderboard() {
 // Standard duration (ms) for toasts and the matching on-card highlight/reveal,
 // so a notification and the card it's talking about stay visible together
 // long enough to actually read. King ability gets extra time since it's two steps.
-const NOTIFY_MS = 4500;
-const KING_NOTIFY_MS = 6000;
+// Adjustable from Settings — persisted so it carries across sessions. Both
+// `let` (not `const`) so every call site that reads them at call-time (all
+// the `duration = NOTIFY_MS` default params and direct references) picks up
+// a change immediately without needing a page reload.
+const NOTIFY_MS_MIN = 1500;
+const NOTIFY_MS_MAX = 10000;
+const NOTIFY_MS_DEFAULT = 4500;
+const KING_NOTIFY_RATIO = 6000 / 4500; // keep King's "extra time" proportional to the base duration
+let NOTIFY_MS = clampNotifyMs(parseInt(localStorage.getItem('dutch_notifyMs') ?? String(NOTIFY_MS_DEFAULT), 10));
+let KING_NOTIFY_MS = Math.round(NOTIFY_MS * KING_NOTIFY_RATIO);
+
+function clampNotifyMs(ms) {
+    if (!Number.isFinite(ms)) return NOTIFY_MS_DEFAULT;
+    return Math.min(NOTIFY_MS_MAX, Math.max(NOTIFY_MS_MIN, ms));
+}
+
+function setNotifyDuration(ms) {
+    NOTIFY_MS = clampNotifyMs(ms);
+    KING_NOTIFY_MS = Math.round(NOTIFY_MS * KING_NOTIFY_RATIO);
+    localStorage.setItem('dutch_notifyMs', String(NOTIFY_MS));
+}
 
 // ============================================================
 // AUDIO ENGINE — Web Audio API, no external files needed
@@ -1190,6 +1209,8 @@ document.getElementById('settingsBtn').addEventListener('click', (e) => {
     document.getElementById('sfxVolLabel').textContent   = Math.round(_audioPrefs.sfxVol   * 100) + '%';
     document.getElementById('musicToggleBtn').textContent = _audioPrefs.musicOn ? 'On' : 'Off';
     document.getElementById('sfxToggleBtn').textContent   = _audioPrefs.sfxOn   ? 'On' : 'Off';
+    document.getElementById('notifyDurationSlider').value = NOTIFY_MS;
+    document.getElementById('notifyDurationLabel').textContent = (NOTIFY_MS / 1000).toFixed(1) + 's';
     document.getElementById('settingsModal').classList.remove('hidden');
 });
 document.getElementById('settingsCloseBtn').addEventListener('click', (e) => {
@@ -1209,6 +1230,10 @@ document.getElementById('sfxVolSlider').addEventListener('input', e => {
     const v = e.target.value / 100;
     document.getElementById('sfxVolLabel').textContent = e.target.value + '%';
     _audioPrefs.sfxVol = v; _savePrefs();
+});
+document.getElementById('notifyDurationSlider').addEventListener('input', e => {
+    setNotifyDuration(parseInt(e.target.value, 10));
+    document.getElementById('notifyDurationLabel').textContent = (NOTIFY_MS / 1000).toFixed(1) + 's';
 });
 document.getElementById('musicToggleBtn').addEventListener('click', (e) => {
     e._sfxHandled = true;
@@ -2267,6 +2292,16 @@ function reveal(pid, idx, card, ms = NOTIFY_MS) {
     setTimeout(() => { renderGameBoard(); }, ms + 50);
 }
 
+// A player's card grid is fully rebuilt from scratch (root.innerHTML = ...)
+// on every re-render — which happens on almost every game event, not just
+// this player's own actions. That used to reset anyone's hand-scroll
+// position back to the top constantly, since the scrollable wrapper div is
+// a brand-new DOM node each time and starts at scrollTop 0. This map
+// remembers the last scroll position per player (kept fresh by a 'scroll'
+// listener on whichever wrapper currently exists) so it can be restored
+// onto the freshly-built wrapper immediately after each rebuild.
+const savedScrollTops = {};
+
 function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, zone = 'top') {
     const root = document.createElement("div");
     const isMyTurn = activePid() === localPlayerId;
@@ -2365,7 +2400,7 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, zone = 
             </div>
             <span class="score-chip">Pts: <span>${player.score || 0}</span></span>
         </div>
-        <div style="${scrollStyle}">
+        <div style="${scrollStyle}" ${needsScroll ? `data-scroll-pid="${pid}"` : ''}>
             <div style="${gridStyle}">${cardsHTML}</div>
         </div>
     `;
@@ -2373,6 +2408,16 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, zone = 
     root.querySelectorAll('.game-card').forEach(el => {
         el.addEventListener('click', () => handleCardInteraction(el.dataset.pid, parseInt(el.dataset.cidx)));
     });
+
+    // Restore this player's remembered scroll position on the freshly-built
+    // wrapper, and keep the memory updated as they scroll it further.
+    if (needsScroll) {
+        const scrollEl = root.querySelector(`[data-scroll-pid="${pid}"]`);
+        if (scrollEl) {
+            if (savedScrollTops[pid] != null) scrollEl.scrollTop = savedScrollTops[pid];
+            scrollEl.addEventListener('scroll', () => { savedScrollTops[pid] = scrollEl.scrollTop; });
+        }
+    }
 
     return root;
 }
@@ -2385,13 +2430,17 @@ function createPlayerBoardElement(player, pid, isHero, topCard, canSnap, zone = 
 // must stay face-up and in play) is shuffled and becomes the new deck.
 // Returns { card, deck, discard } on success, or null if there's truly
 // nowhere left to draw from (deck empty AND discard has 0-1 cards).
-function reshuffleDiscardIntoDeckIfNeeded(deck, discard) {
+function reshuffleDiscardIntoDeckIfNeeded(deck, discard, { silent = false } = {}) {
     if (deck.length > 0) return { deck, discard };
     if (!discard || discard.length <= 1) return null; // nothing to reshuffle (need to keep the top card)
     const topCard = discard[discard.length - 1];
     const rest = discard.slice(0, -1);
     const reshuffled = rest.sort(() => Math.random() - 0.5);
-    showToast("🔄 Deck empty — reshuffled the discard pile!", 'info', NOTIFY_MS);
+    // Not shown when called from inside attemptSnap's transaction — that
+    // callback can be retried by the SDK on contention, which would fire
+    // this toast more than once for what the player experiences as a
+    // single click.
+    if (!silent) showToast("🔄 Deck empty — reshuffled the discard pile!", 'info', NOTIFY_MS);
     return { deck: reshuffled, discard: [topCard] };
 }
 
@@ -3344,6 +3393,17 @@ function firstEmptySlot(cards) {
     return -1;
 }
 
+// Guards against a single client firing off multiple overlapping snap
+// transactions. Each snap now does a real network round-trip (a Firestore
+// transaction always hits the server, never the local cache), so if a
+// player double- or triple-clicks while waiting — which is exactly what
+// people do when something feels slow — every extra click used to kick off
+// its own competing transaction. Those don't just waste a request: they
+// contend with each other AND with the transaction already in flight,
+// which is what actually made things feel laggy. Now only one snap
+// attempt per client is ever in flight at a time.
+let snapInFlight = false;
+
 // Draws a penalty card straight from a room-document snapshot (as read
 // inside a Firestore transaction), rather than from the local `gameState`
 // cache. Mirrors `drawCardReplenishingIfNeeded`, but must not touch
@@ -3353,7 +3413,7 @@ function firstEmptySlot(cards) {
 function drawCardFromRoomData(data) {
     let deck = [...(data.deck || [])];
     let discard = [...(data.discard || [])];
-    const replenished = reshuffleDiscardIntoDeckIfNeeded(deck, discard);
+    const replenished = reshuffleDiscardIntoDeckIfNeeded(deck, discard, { silent: true });
     if (!replenished) return null;
     deck = replenished.deck;
     discard = replenished.discard;
@@ -3372,6 +3432,19 @@ function drawCardFromRoomData(data) {
 // real window where two clients could both read the lock as free and both
 // think they'd won.
 async function attemptSnap(pid, idx) {
+    if (snapInFlight) return; // a previous click from this same client is still being processed
+    snapInFlight = true;
+    document.body.style.cursor = 'wait';
+
+    // If the round-trip is taking a noticeable moment (slow connection,
+    // heavy contention from several people snapping at once), let the
+    // player know something is actually happening rather than leaving them
+    // wondering if their click registered at all. Cleared as soon as we
+    // have an answer, so on a fast connection this never appears.
+    const slowNoticeTimer = setTimeout(() => {
+        showToast("⚡ Processing your snap...", 'info', 1200);
+    }, 500);
+
     playSfx('cardSnap');
     const roomRef = doc(db, "rooms", roomCode);
     const myName = gameState.players[localPlayerId]?.name || 'A player';
@@ -3467,8 +3540,14 @@ async function attemptSnap(pid, idx) {
     } catch (e) {
         console.error('Snap transaction failed', e);
         showToast("Couldn't process that snap — try again.", 'error', NOTIFY_MS);
+        clearTimeout(slowNoticeTimer);
+        snapInFlight = false;
+        document.body.style.cursor = '';
         return;
     }
+    clearTimeout(slowNoticeTimer);
+    snapInFlight = false;
+    document.body.style.cursor = '';
 
     switch (result.outcome) {
         case 'snap-own':

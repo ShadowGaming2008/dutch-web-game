@@ -1040,7 +1040,7 @@ function _savePrefs() {
 }
 
 // ── Music (MP3) ───────────────────────────────────────────────
-const _bgAudio = new Audio('dutch-background-music.wav');
+const _bgAudio = new Audio('dutch-background-music.mov');
 _bgAudio.loop   = true;
 _bgAudio.volume = _audioPrefs.musicVol * 0.5;
 
@@ -1480,7 +1480,7 @@ document.getElementById("createRoomBtn").addEventListener("click", async () => {
     gameState = {
         code: roomCode, status: "LOBBY", hostId: localPlayerId,
         turnOrder: [localPlayerId], currentTurnIdx: 0, roundNumber: 0,
-        players: { [localPlayerId]: { name, ready: false, cards: [], score: 0, cardSkin: currentProfile?.equippedSkin || 'classic' } },
+        players: { [localPlayerId]: { name, ready: false, cards: [], score: 0, cardSkin: currentProfile?.equippedSkin || 'classic', avatarEmoji: currentProfile?.avatarEmoji || null, photoURL: currentProfile?.photoURL || null } },
         deck: createDeck(), discard: [], dutchCalledBy: null, finalTurnsLeft: null,
         turnPhase: 'AWAIT_DRAW', drawnCard: null, ability: null, pendingGive: null
     };
@@ -1509,7 +1509,7 @@ document.getElementById("joinRoomBtn").addEventListener("click", async () => {
         }
     }
     await updateDoc(roomRef, {
-        [`players.${localPlayerId}`]: { name, ready: false, cards: [], score: 0, cardSkin: currentProfile?.equippedSkin || 'classic' },
+        [`players.${localPlayerId}`]: { name, ready: false, cards: [], score: 0, cardSkin: currentProfile?.equippedSkin || 'classic', avatarEmoji: currentProfile?.avatarEmoji || null, photoURL: currentProfile?.photoURL || null },
         turnOrder: arrayUnion(localPlayerId)
     });
     setupRoomSubscription(roomCode);
@@ -3699,45 +3699,91 @@ document.getElementById("leaderboardModal").addEventListener("click", (e) => {
 });
 
 // ==========================================
-// Party Chat
+// Party Chat (Discord-style)
 // ==========================================
 let chatUnsub = null;         // Firestore listener for the room's chat subcollection
-let chatCollapsed = true;     // current collapsed state
+let chatOpen = false;         // whether the full panel is open
 let chatHasUnread = false;    // unread badge tracking
+let chatMembersUnsub = null;  // RTDB presence listener feeding the member list
+let chatMembersVisible = true; // member sidebar shown/hidden inside the open panel
+let chatLastGroupSenderId = null; // for message grouping (consecutive same-sender)
+let chatLastGroupEl = null;
 
+const chatLauncher = document.getElementById('chat-launcher');
 const chatPanel = document.getElementById('party-chat-panel');
 const chatToggle = document.getElementById('chat-toggle');
-const chatChevron = document.getElementById('chat-chevron');
+const chatCloseBtn = document.getElementById('chat-close-btn');
+const chatMembersToggleBtn = document.getElementById('chat-members-toggle');
 const chatBadge = document.getElementById('chat-badge');
 const chatMessages = document.getElementById('chat-messages');
 const chatEmpty = document.getElementById('chat-empty');
 const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
+const chatMembersList = document.getElementById('chat-members-list');
+const chatMembersHeading = document.getElementById('chat-members-heading');
 
-// Only show the chat panel when a game is in progress
-function showChatPanel() { chatPanel.style.display = 'flex'; }
-function hideChatPanel() { chatPanel.style.display = 'none'; }
+// Only show the launcher/panel when a game room is active
+function showChatPanel() { chatLauncher.classList.remove('is-hidden'); }
+function hideChatPanel() {
+    chatLauncher.classList.add('is-hidden');
+    chatPanel.classList.add('chat-collapsed');
+}
 hideChatPanel(); // hidden on load until a room is joined
 
-// Toggle collapse/expand
-chatToggle.addEventListener('click', () => {
-    chatCollapsed = !chatCollapsed;
-    chatPanel.classList.toggle('chat-collapsed', chatCollapsed);
-    chatChevron.style.transform = chatCollapsed ? '' : 'rotate(180deg)';
-    if (!chatCollapsed) {
-        // Clear unread badge when opened
-        chatBadge.classList.remove('has-new');
-        chatHasUnread = false;
-        // Scroll to bottom
-        requestAnimationFrame(() => { chatMessages.scrollTop = chatMessages.scrollHeight; });
-        chatInput.focus();
-    }
+function openChatPanel() {
+    chatOpen = true;
+    chatPanel.classList.remove('chat-collapsed');
+    chatLauncher.classList.add('is-hidden');
+    chatBadge.classList.remove('has-new');
+    chatHasUnread = false;
+    requestAnimationFrame(() => { chatMessages.scrollTop = chatMessages.scrollHeight; });
+    chatInput.focus();
+}
+
+function closeChatPanel() {
+    chatOpen = false;
+    chatPanel.classList.add('chat-collapsed');
+    chatLauncher.classList.remove('is-hidden');
+}
+
+chatToggle.addEventListener('click', (e) => {
+    // Ignore clicks on header action buttons — they have their own handlers
+    if (e.target.closest('.chat-header-btn')) return;
+    if (chatOpen) closeChatPanel(); else openChatPanel();
+});
+chatLauncher.addEventListener('click', openChatPanel);
+chatCloseBtn.addEventListener('click', closeChatPanel);
+
+chatMembersToggleBtn.addEventListener('click', () => {
+    chatMembersVisible = !chatMembersVisible;
+    chatPanel.classList.toggle('members-hidden', !chatMembersVisible);
+    chatMembersToggleBtn.classList.toggle('is-active', chatMembersVisible);
 });
 
 function formatChatTime(ts) {
     if (!ts) return '';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// Renders a Discord-style avatar circle: emoji > photo > initial-letter fallback
+function buildAvatarStyle(name, avatarEmoji, photoURL) {
+    if (avatarEmoji) {
+        return { html: escapeHtml(avatarEmoji), bg: '' };
+    } else if (photoURL) {
+        return { html: '', bg: `background-image:url('${photoURL}');` };
+    }
+    const initial = (name || '?').trim().charAt(0).toUpperCase() || '?';
+    return { html: escapeHtml(initial), bg: '' };
+}
+
+function getPlayerAvatarInfo(pid, fallbackName) {
+    const p = gameState.players && gameState.players[pid];
+    return {
+        name: p?.name || fallbackName || 'Player',
+        avatarEmoji: p?.avatarEmoji || null,
+        photoURL: p?.photoURL || null
+    };
 }
 
 function appendChatMessage({ senderId, senderName, text, ts }) {
@@ -3748,13 +3794,34 @@ function appendChatMessage({ senderId, senderName, text, ts }) {
         chatEmpty.remove();
     }
 
-    const div = document.createElement('div');
-    div.className = 'chat-msg';
-    div.innerHTML = `
-        <div class="chat-sender${isMe ? ' is-me' : ''}">${isMe ? 'You' : escapeHtml(senderName)}</div>
-        <div class="chat-text">${escapeHtml(text)}</div>
-        <div class="chat-time">${formatChatTime(ts)}</div>`;
-    chatMessages.appendChild(div);
+    const info = getPlayerAvatarInfo(senderId, senderName);
+    const avatar = buildAvatarStyle(info.name, info.avatarEmoji, info.photoURL);
+    const timeStr = formatChatTime(ts);
+
+    // Group consecutive messages from the same sender, Discord-style
+    if (chatLastGroupSenderId === senderId && chatLastGroupEl) {
+        const line = document.createElement('div');
+        line.className = 'chat-msg-solo';
+        line.innerHTML = `
+            <span class="chat-msg-hover-time">${timeStr}</span>
+            <span class="chat-msg-line">${escapeHtml(text)}</span>`;
+        chatLastGroupEl.appendChild(line);
+    } else {
+        const group = document.createElement('div');
+        group.className = 'chat-msg-group';
+        group.innerHTML = `
+            <div class="chat-group-avatar" style="${avatar.bg}">${avatar.html}</div>
+            <div class="chat-group-body">
+                <div class="chat-group-headline">
+                    <span class="chat-group-sender${isMe ? ' is-me' : ''}">${isMe ? 'You' : escapeHtml(info.name)}</span>
+                    <span class="chat-group-time">${timeStr}</span>
+                </div>
+                <div class="chat-msg-line">${escapeHtml(text)}</div>
+            </div>`;
+        chatMessages.appendChild(group);
+        chatLastGroupEl = group;
+        chatLastGroupSenderId = senderId;
+    }
 
     // Auto-scroll only when already near the bottom or if it's our own message
     const nearBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 60;
@@ -3762,8 +3829,8 @@ function appendChatMessage({ senderId, senderName, text, ts }) {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // Show unread badge if panel is collapsed and message isn't ours
-    if (chatCollapsed && !isMe) {
+    // Show unread badge if panel is closed and message isn't ours
+    if (!chatOpen && !isMe) {
         chatBadge.classList.add('has-new');
         chatHasUnread = true;
     }
@@ -3781,10 +3848,12 @@ function escapeHtml(str) {
 function subscribeChatForRoom(code) {
     if (chatUnsub) { chatUnsub(); chatUnsub = null; }
 
-    // Reset messages area
+    // Reset messages area + grouping state
     chatMessages.innerHTML = '';
     chatMessages.appendChild(chatEmpty);
     chatEmpty.style.display = '';
+    chatLastGroupSenderId = null;
+    chatLastGroupEl = null;
 
     const chatRef = collection(db, 'rooms', code, 'chat');
     const chatQuery = query(chatRef, orderBy('ts', 'asc'), limit(80));
@@ -3840,27 +3909,76 @@ chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); sendChatMessage(); }
 });
 
+// ==========================================
+// Party Chat — member list (Discord-style sidebar)
+// ==========================================
+// Renders the member sidebar from gameState.players, marking online status
+// from the same RTDB presence data already used for disconnect detection.
+function renderChatMembers(presentMap) {
+    if (!gameState.players) { chatMembersList.innerHTML = ''; chatMembersHeading.textContent = 'Party — 0'; return; }
+
+    const pids = Object.keys(gameState.players);
+    chatMembersHeading.textContent = `Party — ${pids.length}`;
+
+    // Online members first, then offline, alphabetical-ish by join order otherwise
+    const sorted = [...pids].sort((a, b) => {
+        const aOnline = !!(presentMap && presentMap[a]);
+        const bOnline = !!(presentMap && presentMap[b]);
+        if (aOnline === bOnline) return 0;
+        return aOnline ? -1 : 1;
+    });
+
+    chatMembersList.innerHTML = sorted.map(pid => {
+        const p = gameState.players[pid];
+        const isMe = pid === localPlayerId;
+        const isHost = gameState.hostId === pid;
+        const isOnline = !!(presentMap && presentMap[pid]);
+        const avatar = buildAvatarStyle(p?.name, p?.avatarEmoji, p?.photoURL);
+        return `
+            <div class="chat-member-row${isOnline ? ' is-online' : ''}">
+                <div class="chat-member-avatar-wrap">
+                    <div class="chat-member-avatar" style="${avatar.bg}${isOnline ? '' : 'filter:grayscale(60%);opacity:0.6;'}">${avatar.html}</div>
+                    <div class="chat-member-status${isOnline ? ' is-online' : ''}"></div>
+                </div>
+                <span class="chat-member-name">${escapeHtml(p?.name || 'Player')}${isHost ? '<span class="chat-member-crown" title="Host">👑</span>' : ''}${isMe ? ' <span class="you-tag">(you)</span>' : ''}</span>
+            </div>`;
+    }).join('');
+}
+
+function subscribeChatMembers(code) {
+    unsubscribeChatMembers();
+    const presenceListRef = ref(rtdb, `presence/${code}`);
+    chatMembersUnsub = onValue(presenceListRef, (snap) => {
+        renderChatMembers(snap.val() || {});
+    });
+}
+
+function unsubscribeChatMembers() {
+    if (chatMembersUnsub) { chatMembersUnsub(); chatMembersUnsub = null; }
+}
+
 // Hook into room subscription setup — show chat when a room is joined
-// We patch into setupRoomSubscription by intercepting the existing call.
-// Instead, we expose a helper that app code calls when screen transitions happen.
 function onChatRoomJoined(code) {
     showChatPanel();
     subscribeChatForRoom(code);
-    // Auto-expand on first join so players notice the chat
-    if (chatCollapsed) {
-        chatCollapsed = false;
-        chatPanel.classList.remove('chat-collapsed');
-        chatChevron.style.transform = 'rotate(180deg)';
-    }
+    subscribeChatMembers(code);
+    renderChatMembers(null); // paint immediately from gameState while presence loads
 }
 
 function onChatRoomLeft() {
     hideChatPanel();
     unsubscribeChat();
-    chatCollapsed = true;
+    unsubscribeChatMembers();
+    chatOpen = false;
     chatPanel.classList.add('chat-collapsed');
-    chatChevron.style.transform = '';
+    chatPanel.classList.remove('members-hidden');
+    chatMembersVisible = true;
+    chatMembersToggleBtn.classList.add('is-active');
     chatBadge.classList.remove('has-new');
     chatMessages.innerHTML = '';
     chatMessages.appendChild(chatEmpty);
+    chatMembersList.innerHTML = '';
+    chatMembersHeading.textContent = 'Party — 0';
+    chatLastGroupSenderId = null;
+    chatLastGroupEl = null;
 }

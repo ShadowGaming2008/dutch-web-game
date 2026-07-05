@@ -76,22 +76,16 @@
         #chatModal {
             position: fixed; inset: 0;
             background: rgba(2,6,23,0.88);
-            backdrop-filter: blur(6px);
             z-index: 50;
-            display: flex; align-items: center; justify-content: center;
-            padding: 1rem;
+            display: flex;
         }
         #chatModal.is-hidden { display: none !important; }
 
         #chatPanel {
             background: var(--dc-bg-primary);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 16px;
             width: 100%;
-            max-width: 860px;
-            height: min(640px, 90vh);
+            height: 100%;
             display: flex;
-            box-shadow: 0 32px 80px rgba(0,0,0,0.7);
             overflow: hidden;
             font-family: 'Inter', sans-serif;
         }
@@ -230,13 +224,12 @@
         .msg-hover-time {
             visibility: hidden;
             position: absolute;
-            left: -6px;
-            top: 2px;
-            transform: translateX(-100%);
+            left: 20px;
+            top: 3px;
             font-size: 10px;
             color: var(--dc-text-muted);
             width: 42px;
-            text-align: right;
+            text-align: left;
         }
 
         /* ---- Member sidebar ---- */
@@ -267,6 +260,12 @@
             border-radius: 6px;
         }
         .chat-member-row:hover { background: rgba(255,255,255,0.04); }
+        .chat-member-avatar-wrap {
+            position: relative;
+            width: 30px;
+            height: 30px;
+            flex-shrink: 0;
+        }
         .chat-member-avatar {
             width: 30px;
             height: 30px;
@@ -281,8 +280,20 @@
             background-size: cover;
             background-position: center;
             overflow: hidden;
-            flex-shrink: 0;
         }
+        .chat-member-status {
+            position: absolute;
+            bottom: -1px;
+            right: -1px;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            border: 2.5px solid var(--dc-bg-secondary);
+            background: #80848e;
+        }
+        .chat-member-status.is-online { background: var(--dc-green); }
+        .chat-member-row .chat-member-name { color: var(--dc-text-muted); }
+        .chat-member-row.is-online .chat-member-name { color: var(--dc-text-normal); }
         .chat-member-name {
             font-size: 13px;
             font-weight: 500;
@@ -297,7 +308,7 @@
             font-size: 11px;
         }
 
-        #chatHeaderBtn {
+        #chatMembersToggleBtn {
             width: 28px;
             height: 28px;
             border-radius: 6px;
@@ -311,8 +322,8 @@
             justify-content: center;
             transition: background 0.12s, color 0.12s;
         }
-        #chatHeaderBtn:hover { background: rgba(255,255,255,0.06); color: var(--dc-text-header); }
-        #chatHeaderBtn.is-active { color: var(--dc-text-header); background: rgba(255,255,255,0.08); }
+        #chatMembersToggleBtn:hover { background: rgba(255,255,255,0.06); color: var(--dc-text-header); }
+        #chatMembersToggleBtn.is-active { color: var(--dc-text-header); background: rgba(255,255,255,0.08); }
 
         /* Lobby: create/join party cards, Discord-ish dark inputs */
         #chatLobby p { color: var(--dc-text-muted); }
@@ -349,7 +360,6 @@
         }
 
         @media (max-width: 640px) {
-            #chatPanel { max-width: 100%; height: 92vh; }
             #chatMembersCol { display: none !important; }
         }
 
@@ -624,6 +634,9 @@
             signOut, onAuthStateChanged,
             createUserWithEmailAndPassword, signInWithEmailAndPassword
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import {
+            getDatabase, ref, set, onDisconnect, onValue, remove, serverTimestamp as rtdbServerTimestamp
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
         // ─────────────────────────────────────────────
         // Firebase init
@@ -634,13 +647,15 @@
             projectId: "dutch-card-game-60d1c",
             storageBucket: "dutch-card-game-60d1c.firebasestorage.app",
             messagingSenderId: "91699670709",
-            appId: "1:91699670709:web:230f57e39f8f55128398fc"
+            appId: "1:91699670709:web:230f57e39f8f55128398fc",
+            databaseURL: "https://dutch-card-game-60d1c-default-rtdb.europe-west1.firebasedatabase.app"
         };
 
         const app = initializeApp(firebaseConfig);
         const db  = getFirestore(app);
         const auth = getAuth(app);
         const googleProvider = new GoogleAuthProvider();
+        const rtdb = getDatabase(app);
 
         let currentUser   = null;
         let currentRoomId = null;
@@ -648,6 +663,10 @@
         let chatMembersVisible = true;
         let lastGroupSenderUid = null;
         let lastGroupEl = null;
+        let partyPresenceUnsub = null;   // RTDB listener for who's online in this party
+        let partyRoomUnsub = null;       // Firestore listener for the members map
+        let latestPartyMembers = null;   // cached members map so presence updates can re-render
+        let latestPartyPresence = null;  // cached presence map so member updates can re-render
 
         // Profile (users/{uid} doc) — same collection Dutch (and any future
         // game) reads/writes, so a nickname/avatar change anywhere is
@@ -955,23 +974,69 @@
             chatMembersToggleBtn.classList.toggle('is-active', chatMembersVisible);
         });
 
-        // Renders the member sidebar from the party doc's `members` map.
-        // No live presence tracking here — just everyone who has ever joined.
-        function renderPartyMembers(membersMap) {
-            const members = membersMap || {};
-            const uids = Object.keys(members);
+        // Renders the member sidebar from the party doc's `members` map,
+        // marking who's currently online via RTDB presence.
+        function renderPartyMembers(membersMap, presentMap) {
+            const members = membersMap !== undefined ? membersMap : latestPartyMembers;
+            const present = presentMap !== undefined ? presentMap : latestPartyPresence;
+            latestPartyMembers = members;
+            latestPartyPresence = present;
+
+            const uids = Object.keys(members || {});
             chatMembersHeading.textContent = `Members — ${uids.length}`;
-            chatMembersList.innerHTML = uids.map(uid => {
-                const m = members[uid];
+
+            // Online members first
+            const sorted = [...uids].sort((a, b) => {
+                const aOnline = !!(present && present[a]);
+                const bOnline = !!(present && present[b]);
+                if (aOnline === bOnline) return 0;
+                return aOnline ? -1 : 1;
+            });
+
+            chatMembersList.innerHTML = sorted.map(uid => {
+                const m = (members || {})[uid];
                 const isMe = currentUser && uid === currentUser.uid;
+                const isOnline = !!(present && present[uid]);
                 const avatar = buildPartyAvatarStyle(m?.name, m?.avatarEmoji, m?.photoURL);
                 return `
-                    <div class="chat-member-row">
-                        <div class="chat-member-avatar" style="${avatar.bg}">${avatar.html}</div>
+                    <div class="chat-member-row${isOnline ? ' is-online' : ''}">
+                        <div class="chat-member-avatar-wrap">
+                            <div class="chat-member-avatar" style="${avatar.bg}${isOnline ? '' : 'filter:grayscale(60%);opacity:0.6;'}">${avatar.html}</div>
+                            <div class="chat-member-status${isOnline ? ' is-online' : ''}"></div>
+                        </div>
                         <span class="chat-member-name">${escHtml(m?.name || 'Guest')}${isMe ? ' <span class="you-tag">(you)</span>' : ''}</span>
                     </div>`;
             }).join('');
         }
+
+        // Registers this user's presence in the party's RTDB node, removing
+        // it automatically on disconnect (tab close, network loss, etc.).
+        function registerPartyPresence(code, uid) {
+            const presenceRef = ref(rtdb, `partyPresence/${code}/${uid}`);
+            set(presenceRef, { joinedAt: rtdbServerTimestamp() });
+            onDisconnect(presenceRef).remove();
+        }
+
+        function clearPartyPresence(code, uid) {
+            if (!code || !uid) return;
+            remove(ref(rtdb, `partyPresence/${code}/${uid}`)).catch(() => {});
+        }
+
+        function subscribePartyPresence(code) {
+            unsubscribePartyPresence();
+            const presenceListRef = ref(rtdb, `partyPresence/${code}`);
+            partyPresenceUnsub = onValue(presenceListRef, (snap) => {
+                renderPartyMembers(undefined, snap.val() || {});
+            });
+        }
+
+        function unsubscribePartyPresence() {
+            if (partyPresenceUnsub) { partyPresenceUnsub(); partyPresenceUnsub = null; }
+        }
+
+        window.addEventListener('pagehide', () => {
+            if (currentRoomId && currentUser) clearPartyPresence(currentRoomId, currentUser.uid);
+        });
 
         // ─────────────────────────────────────────────
         // Party Chat tile
@@ -1079,14 +1144,19 @@
             chatMembersVisible = true;
             chatMembersCol.classList.remove('is-hidden');
             chatMembersToggleBtn.classList.add('is-active');
-            renderPartyMembers(roomData?.members);
+            renderPartyMembers(roomData?.members || {}, {});
 
             // Keep the member sidebar live too, since members can join while we're in the room
-            const roomUnsub = onSnapshot(doc(db, 'chatRooms', code), snap => {
-                if (snap.exists()) renderPartyMembers(snap.data()?.members);
+            if (partyRoomUnsub) { partyRoomUnsub(); partyRoomUnsub = null; }
+            partyRoomUnsub = onSnapshot(doc(db, 'chatRooms', code), snap => {
+                if (snap.exists()) renderPartyMembers(snap.data()?.members || {}, undefined);
             });
-            // Stash so backToPartyList can clean it up alongside msgUnsub
-            window.__partyRoomUnsub = roomUnsub;
+
+            // Live presence — who's actually online in this party right now
+            if (currentUser) {
+                registerPartyPresence(code, currentUser.uid);
+                subscribePartyPresence(code);
+            }
 
             // Live message subscription
             if (msgUnsub) msgUnsub();
@@ -1149,7 +1219,11 @@
         // navigation, so the party stays in "Your Parties" for next time.
         function backToPartyList() {
             if (msgUnsub) { msgUnsub(); msgUnsub = null; }
-            if (window.__partyRoomUnsub) { window.__partyRoomUnsub(); window.__partyRoomUnsub = null; }
+            if (partyRoomUnsub) { partyRoomUnsub(); partyRoomUnsub = null; }
+            unsubscribePartyPresence();
+            if (currentRoomId && currentUser) clearPartyPresence(currentRoomId, currentUser.uid);
+            latestPartyMembers = null;
+            latestPartyPresence = null;
             currentRoomId = null;
             chatMessages.innerHTML = '';
             chatMessages.classList.add('panel-hidden');

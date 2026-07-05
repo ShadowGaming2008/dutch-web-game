@@ -1040,7 +1040,7 @@ function _savePrefs() {
 }
 
 // ── Music (MP3) ───────────────────────────────────────────────
-const _bgAudio = new Audio('dutch-background-music.mp3');
+const _bgAudio = new Audio('dutch-background-music.wav');
 _bgAudio.loop   = true;
 _bgAudio.volume = _audioPrefs.musicVol * 0.5;
 

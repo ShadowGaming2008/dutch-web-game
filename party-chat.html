@@ -23,11 +23,17 @@
         #gateScreen.is-hidden { display: none !important; }
 
         #widgetWrap {
-            min-height: 100vh;
+            height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
         #widgetWrap.is-hidden { display: none !important; }
+
+        #widgetWrap > widgetbot {
+            flex: 1;
+            min-height: 0;
+        }
 
         #widgetHeader {
             display: flex;
@@ -83,13 +89,14 @@
             <span class="font-bold text-white">Discord Chat</span>
             <a class="btn btn-ghost" href="index.html">&larr; Back to Game Hub</a>
         </div>
-        <!-- WidgetBot Crate mounts as a floating bubble; this page just gates access to it -->
-        <script src="https://cdn.jsdelivr.net/npm/@widgetbot/crate@3" async defer>
-            new Crate({
-                server: '1271950362659520723', // 🅲🅷🅸🅻🅻
-                channel: '1523379765367537739' // #test-chat
-            })
-        </script>
+        <!-- WidgetBot html-embed — fills the available space below the header -->
+        <widgetbot
+            server="1271950362659520723"
+            channel="1523379765367537739"
+            width="100%"
+            height="100%"
+        ></widgetbot>
+        <script src="https://cdn.jsdelivr.net/npm/@widgetbot/html-embed"></script>
     </div>
 
     <!-- ── Auth check ── -->

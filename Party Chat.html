@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Party Chat — Game Hub</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: #020617; }
+
+        #gateScreen {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 2rem;
+            text-align: center;
+        }
+        #gateScreen.is-hidden { display: none !important; }
+
+        #widgetWrap {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #widgetWrap.is-hidden { display: none !important; }
+
+        #widgetHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 10px;
+            background: #4f46e5;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .btn:hover { background: #6366f1; }
+
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #cbd5e1;
+        }
+        .btn-ghost:hover { background: #1e293b; }
+    </style>
+</head>
+<body class="text-slate-100">
+
+    <!-- ── Shown while checking auth / if not signed in ── -->
+    <div id="gateScreen">
+        <div id="gateLoading">
+            <p class="text-slate-400 text-sm">Checking your session…</p>
+        </div>
+        <div id="gateLoggedOut" class="is-hidden">
+            <h1 class="text-2xl font-bold text-white mb-2">Sign in required</h1>
+            <p class="text-slate-400 text-sm mb-6 max-w-sm">
+                Party Chat is only available to signed-in Game Hub members.
+                Head back to the main site to sign in first.
+            </p>
+            <a class="btn" href="index.html">Go to Game Hub</a>
+        </div>
+    </div>
+
+    <!-- ── Shown once signed-in confirmed ── -->
+    <div id="widgetWrap" class="is-hidden">
+        <div id="widgetHeader">
+            <span class="font-bold text-white">Party Chat (Discord)</span>
+            <a class="btn btn-ghost" href="index.html">&larr; Back to Game Hub</a>
+        </div>
+        <!-- WidgetBot Crate mounts as a floating bubble; this page just gates access to it -->
+        <script src="https://cdn.jsdelivr.net/npm/@widgetbot/crate@3" async defer>
+            new Crate({
+                server: '1276613335739011248',
+                // channel: 'YOUR_CHANNEL_ID', // uncomment + fill in once you've locked the bot to one channel
+            })
+        </script>
+    </div>
+
+    <!-- ── Auth check ── -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // Same Firebase project as the main Game Hub site — do not change these,
+        // they need to match index.html exactly so the login session carries over.
+        const firebaseConfig = {
+            apiKey: "AIzaSyDTIz9LcVxLwJ4l5keMeSSAoCh2oTSWg9E",
+            authDomain: "dutch-card-game-60d1c.firebaseapp.com",
+            projectId: "dutch-card-game-60d1c",
+            storageBucket: "dutch-card-game-60d1c.firebasestorage.app",
+            messagingSenderId: "91699670709",
+            appId: "1:91699670709:web:230f57e39f8f55128398fc"
+        };
+
+        const app  = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        const gateScreen   = document.getElementById('gateScreen');
+        const gateLoading  = document.getElementById('gateLoading');
+        const gateLoggedOut = document.getElementById('gateLoggedOut');
+        const widgetWrap   = document.getElementById('widgetWrap');
+
+        onAuthStateChanged(auth, user => {
+            gateLoading.classList.add('is-hidden');
+            if (user) {
+                gateScreen.classList.add('is-hidden');
+                widgetWrap.classList.remove('is-hidden');
+            } else {
+                gateScreen.classList.remove('is-hidden');
+                gateLoggedOut.classList.remove('is-hidden');
+                widgetWrap.classList.add('is-hidden');
+            }
+        });
+    </script>
+</body>
+</html>

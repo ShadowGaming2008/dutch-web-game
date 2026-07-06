@@ -247,15 +247,25 @@ html, body {
 .msg-group { display: flex; gap: 12px; padding: 3px 20px; margin-top: 14px; position: relative; }
 .msg-group:first-child { margin-top: 4px; }
 .msg-group:hover { background: rgba(4,4,5,0.07); }
-.msg-group:hover .msg-delete-btn, .msg-solo:hover .msg-delete-btn { opacity: 1; }
-.msg-delete-btn {
-    position: absolute; top: -6px; right: 16px; opacity: 0;
-    width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--dc-divider);
-    background: var(--dc-bg-primary); color: var(--dc-text-muted); font-size: 12px;
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+.msg-group:hover .msg-actions, .msg-solo:hover .msg-actions { opacity: 1; pointer-events: all; }
+
+/* Action toolbar (reply + delete) that floats on hover */
+.msg-actions {
+    position: absolute; top: -14px; right: 16px; opacity: 0; pointer-events: none;
+    display: flex; gap: 2px; background: var(--dc-bg-secondary);
+    border: 1px solid var(--dc-divider); border-radius: 8px; padding: 2px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: opacity 0.1s; z-index: 2;
 }
-.msg-delete-btn:hover { color: var(--dc-red); border-color: var(--dc-red); }
+.msg-solo .msg-actions { top: -10px; }
+.msg-action-btn {
+    width: 28px; height: 28px; border-radius: 6px; border: none;
+    background: transparent; color: var(--dc-text-muted); font-size: 14px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.1s, color 0.1s;
+}
+.msg-action-btn:hover { background: rgba(255,255,255,0.08); color: var(--dc-text-header); }
+.msg-action-btn.is-delete:hover { color: var(--dc-red); }
+
 .msg-avatar {
     width: 38px; height: 38px; border-radius: 50%;
     background: var(--dc-blurple);
@@ -269,14 +279,75 @@ html, body {
 .msg-sender.is-me { color: #86efac; }
 .msg-time { font-size: 11px; color: var(--dc-text-muted); font-weight: 500; }
 .msg-line { font-size: 15px; line-height: 1.375; color: var(--dc-text-normal); word-break: break-word; }
-.msg-solo { display: flex; padding: 1px 20px 1px 70px; position: relative; }
-.msg-solo .msg-delete-btn { top: -2px; right: 16px; }
+
+/* Reply quote shown inside messages that are replies */
+.msg-reply-quote {
+    display: flex; align-items: flex-start; gap: 6px;
+    margin-bottom: 4px; padding: 4px 8px; border-radius: 4px;
+    background: rgba(255,255,255,0.04); border-left: 3px solid var(--dc-blurple);
+    cursor: pointer; max-width: 480px;
+}
+.msg-reply-quote:hover { background: rgba(255,255,255,0.07); }
+.msg-reply-quote-name { font-size: 12px; font-weight: 700; color: var(--dc-blurple); white-space: nowrap; flex-shrink: 0; }
+.msg-reply-quote-text { font-size: 12px; color: var(--dc-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Emoji reactions */
+.msg-reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.reaction-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; padding: 2px 8px; font-size: 13px; cursor: pointer;
+    transition: background 0.1s, border-color 0.1s; user-select: none;
+}
+.reaction-pill:hover { background: rgba(88,101,242,0.2); border-color: var(--dc-blurple); }
+.reaction-pill.is-mine { background: rgba(88,101,242,0.25); border-color: var(--dc-blurple); }
+.reaction-pill .reaction-count { font-size: 12px; color: var(--dc-text-muted); font-weight: 600; }
+.reaction-pill.is-mine .reaction-count { color: var(--dc-blurple); }
+
+.msg-solo { display: flex; flex-direction: column; padding: 1px 20px 1px 70px; position: relative; }
+.msg-solo-inner { display: flex; position: relative; align-items: flex-start; }
 .msg-solo:hover { background: rgba(4,4,5,0.07); }
 .msg-solo:hover .msg-hover-time { visibility: visible; }
 .msg-hover-time {
-    visibility: hidden; position: absolute; left: 20px; top: 3px;
-    font-size: 10px; color: var(--dc-text-muted); width: 42px; text-align: left;
+    visibility: hidden; position: absolute; left: -50px; top: 3px;
+    font-size: 10px; color: var(--dc-text-muted); width: 42px; text-align: right;
 }
+
+/* Typing indicator */
+#typingIndicator {
+    height: 18px; padding: 0 20px; font-size: 12px; color: var(--dc-text-muted);
+    font-style: italic; flex-shrink: 0; overflow: hidden;
+}
+#typingIndicator .typing-dots span {
+    display: inline-block; width: 4px; height: 4px; border-radius: 50%;
+    background: var(--dc-text-muted); margin: 0 1px; vertical-align: middle;
+    animation: typingBounce 1.2s infinite ease-in-out;
+}
+#typingIndicator .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+#typingIndicator .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Reply preview bar shown above input */
+#replyBar {
+    display: none; align-items: center; gap: 8px;
+    margin: 0 16px 4px; padding: 6px 12px; border-radius: 6px;
+    background: rgba(255,255,255,0.04); border-left: 3px solid var(--dc-blurple);
+    font-size: 13px;
+}
+#replyBar.is-visible { display: flex; }
+#replyBarLabel { color: var(--dc-text-muted); white-space: nowrap; }
+#replyBarName { font-weight: 700; color: var(--dc-blurple); white-space: nowrap; }
+#replyBarText { color: var(--dc-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+#replyBarClose { margin-left: 4px; background: none; border: none; color: var(--dc-text-muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; flex-shrink: 0; }
+#replyBarClose:hover { color: var(--dc-text-header); }
+
+/* Char counter */
+#charCounter { font-size: 11px; color: var(--dc-text-muted); flex-shrink: 0; transition: color 0.15s; }
+#charCounter.is-warning { color: #f0a500; }
+#charCounter.is-danger { color: var(--dc-red); }
 
 #chatEmptyState {
     flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -483,9 +554,16 @@ html, body {
 
         <div id="messagesArea" style="display:none;position:relative;"></div>
         <button id="jumpToBottomBtn">↓ Jump to latest</button>
+        <div id="typingIndicator"></div>
+        <div id="replyBar">
+            <span id="replyBarLabel">Replying to </span><span id="replyBarName"></span>
+            <span id="replyBarText"></span>
+            <button id="replyBarClose" title="Cancel reply">✕</button>
+        </div>
         <div id="inputRow" style="display:none;">
             <input type="text" id="msgInput" placeholder="Message..." maxlength="500" autocomplete="off" />
-            <button id="sendBtn" title="Send" disabled>➤</button>
+            <span id="charCounter"></span>
+            <button id="sendBtn" title="Send (Enter)" disabled>➤</button>
         </div>
     </div>
 
@@ -635,6 +713,14 @@ let onlineUids = {};
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000; // messages from the same sender within 5 min are visually grouped
 
+// Reply state
+let replyingTo = null; // { senderId, senderName, text, msgId } | null
+
+// Typing indicator state
+let typingTimeout = null;
+let typingUnsub = null;
+let isCurrentlyTyping = false;
+
 // ─────────────────────────────────────────────
 // DOM refs
 // ─────────────────────────────────────────────
@@ -661,6 +747,12 @@ const inputRow = document.getElementById('inputRow');
 const msgInput = document.getElementById('msgInput');
 const sendBtn = document.getElementById('sendBtn');
 const jumpToBottomBtn = document.getElementById('jumpToBottomBtn');
+const typingIndicator = document.getElementById('typingIndicator');
+const replyBar = document.getElementById('replyBar');
+const replyBarName = document.getElementById('replyBarName');
+const replyBarText = document.getElementById('replyBarText');
+const replyBarClose = document.getElementById('replyBarClose');
+const charCounter = document.getElementById('charCounter');
 
 const memberCol = document.getElementById('memberCol');
 const memberList = document.getElementById('memberList');
@@ -976,6 +1068,8 @@ async function openDm(dmId) {
 
     showConversationUI();
     subscribeMessages('dms', dmId);
+    subscribeTyping();
+    updateInputPlaceholder();
 }
 
 startDmBtn.addEventListener('click', () => openDmModal());
@@ -1359,6 +1453,8 @@ function switchChannel(serverId, channelId, channelName) {
     mainHeaderTitle.textContent = channelName || 'channel';
     showConversationUI();
     subscribeMessages('servers', serverId, channelId);
+    subscribeTyping();
+    updateInputPlaceholder();
 }
 
 let channelModalServerId = null;
@@ -1463,6 +1559,7 @@ function showEmptyState(title, sub) {
     chatEmptyState.style.display = 'flex';
     messagesArea.style.display = 'none';
     inputRow.style.display = 'none';
+    typingIndicator.style.display = 'none';
     jumpToBottomBtn.classList.remove('is-visible');
     chatEmptyState.querySelector('div:nth-child(2)').textContent = title;
     chatEmptyState.querySelector('div:nth-child(3)').textContent = sub;
@@ -1472,12 +1569,17 @@ function showConversationUI() {
     chatEmptyState.style.display = 'none';
     messagesArea.style.display = 'block';
     inputRow.style.display = 'flex';
+    typingIndicator.style.display = 'block';
+    updateInputPlaceholder();
 }
 
 function teardownActiveConversation() {
     if (activeMessagesUnsub) { activeMessagesUnsub(); activeMessagesUnsub = null; }
     if (activeMetaUnsub) { activeMetaUnsub(); activeMetaUnsub = null; }
     if (activeChannelsUnsub) { activeChannelsUnsub(); activeChannelsUnsub = null; }
+    if (typingUnsub) { typingUnsub(); typingUnsub = null; }
+    clearTypingStatus();
+    cancelReply();
     messagesArea.innerHTML = '';
     lastGroupSenderId = null;
     lastGroupEl = null;
@@ -1535,11 +1637,24 @@ function appendMessage(m, msgRef) {
     const avatar = buildAvatarStyle(m.senderName, m.senderAvatarEmoji, m.senderPhotoURL);
     const timeStr = formatTime(m.ts);
     const msgMs = m.ts?.toDate ? m.ts.toDate().getTime() : (m.ts ? new Date(m.ts).getTime() : Date.now());
-    const deleteBtnHtml = (isMe && msgRef)
-        ? `<button class="msg-delete-btn" title="Delete message">🗑</button>`
-        : '';
+    const msgId = msgRef?.id || null;
 
-    // Insert a day divider whenever the calendar day changes
+    // Build action toolbar (reply always shown; delete only for own messages)
+    const actionsHtml = `
+        <div class="msg-actions">
+            <button class="msg-action-btn" data-action="react" title="React">😄</button>
+            <button class="msg-action-btn" data-action="reply" title="Reply">↩</button>
+            ${msgRef ? `<button class="msg-action-btn is-delete" data-action="delete" title="Delete">🗑</button>` : ''}
+        </div>`;
+
+    // Build reply-quote block if this message is a reply
+    const replyHtml = m.replyTo
+        ? `<div class="msg-reply-quote" data-reply-id="${escHtml(m.replyTo.msgId || '')}">
+               <span class="msg-reply-quote-name">${escHtml(m.replyTo.senderName)}</span>
+               <span class="msg-reply-quote-text">${escHtml(m.replyTo.text)}</span>
+           </div>` : '';
+
+    // Day divider
     const dayKey = m.ts ? formatDayKey(m.ts) : lastDayKey;
     if (dayKey && dayKey !== lastDayKey) {
         const divider = document.createElement('div');
@@ -1547,54 +1662,80 @@ function appendMessage(m, msgRef) {
         divider.textContent = formatDayLabel(m.ts);
         messagesArea.appendChild(divider);
         lastDayKey = dayKey;
-        // A day change always starts a fresh group, even for the same sender
         lastGroupSenderId = null;
         lastGroupEl = null;
     }
 
     const withinGroupWindow = (msgMs - lastGroupTs) < GROUP_WINDOW_MS;
+    // A reply always starts a new visual group regardless of sender/timing
+    const isReply = !!m.replyTo;
+    let el;
 
-    if (lastGroupSenderId === m.senderId && lastGroupEl && withinGroupWindow) {
-        const line = document.createElement('div');
-        line.className = 'msg-solo';
-        line.innerHTML = `
-            <span class="msg-hover-time">${timeStr}</span>
-            <span class="msg-line">${escHtml(m.text)}</span>
-            ${deleteBtnHtml}`;
-        // Append as a sibling in the message list (not inside the flex-row
-        // group), so it stacks below the previous line instead of sitting
-        // next to the avatar/body row.
-        messagesArea.appendChild(line);
-        wireMessageDelete(line, msgRef);
+    if (lastGroupSenderId === m.senderId && lastGroupEl && withinGroupWindow && !isReply) {
+        el = document.createElement('div');
+        el.className = 'msg-solo';
+        if (msgId) el.dataset.msgId = msgId;
+        el.innerHTML = `
+            <div class="msg-solo-inner">
+                <span class="msg-hover-time">${timeStr}</span>
+                <div class="msg-line-wrap" style="flex:1;min-width:0;">
+                    ${replyHtml}
+                    <span class="msg-line">${escHtml(m.text)}</span>
+                    ${renderReactions(m.reactions, msgRef)}
+                </div>
+                ${actionsHtml}
+            </div>`;
+        messagesArea.appendChild(el);
     } else {
-        const group = document.createElement('div');
-        group.className = 'msg-group';
-        group.innerHTML = `
+        el = document.createElement('div');
+        el.className = 'msg-group';
+        if (msgId) el.dataset.msgId = msgId;
+        el.innerHTML = `
             <div class="msg-avatar" style="${avatar.bg}">${avatar.html}</div>
             <div class="msg-body">
+                ${replyHtml}
                 <div class="msg-headline">
                     <span class="msg-sender${isMe ? ' is-me' : ''}">${isMe ? 'You' : escHtml(m.senderName)}</span>
                     <span class="msg-time">${timeStr}</span>
                 </div>
                 <div class="msg-line">${escHtml(m.text)}</div>
+                ${renderReactions(m.reactions, msgRef)}
             </div>
-            ${deleteBtnHtml}`;
-        messagesArea.appendChild(group);
-        wireMessageDelete(group, msgRef);
-        lastGroupEl = group;
+            ${actionsHtml}`;
+        messagesArea.appendChild(el);
+        lastGroupEl = el;
         lastGroupSenderId = m.senderId;
     }
     lastGroupTs = msgMs;
+    wireMessageActions(el, m, msgRef);
 }
 
-// Wires the delete button inside a rendered message element, if present.
-// Only messages sent by the current user get a delete button in the first
-// place (see appendMessage), so no extra ownership check is needed here.
-function wireMessageDelete(el, msgRef) {
-    const btn = el.querySelector('.msg-delete-btn');
-    if (!btn || !msgRef) return;
-    btn.addEventListener('click', async (e) => {
+function renderReactions(reactions, msgRef) {
+    if (!reactions || Object.keys(reactions).length === 0) return '';
+    // reactions = { "👍": { uid1: true, uid2: true }, "❤️": { uid1: true } }
+    const pills = Object.entries(reactions).map(([emoji, uids]) => {
+        const count = Object.keys(uids).length;
+        if (count === 0) return '';
+        const isMine = currentUser && uids[currentUser.uid];
+        return `<span class="reaction-pill${isMine ? ' is-mine' : ''}" data-emoji="${escHtml(emoji)}" title="${escHtml(emoji)} ${count}">${emoji}<span class="reaction-count">${count}</span></span>`;
+    }).filter(Boolean).join('');
+    if (!pills) return '';
+    return `<div class="msg-reactions">${pills}</div>`;
+}
+
+function wireMessageActions(el, m, msgRef) {
+    const isMe = m.senderId === currentUser.uid;
+
+    // Reply button
+    el.querySelector('[data-action="reply"]')?.addEventListener('click', (e) => {
         e.stopPropagation();
+        startReply({ msgId: msgRef?.id || null, senderId: m.senderId, senderName: isMe ? 'yourself' : m.senderName, text: m.text });
+    });
+
+    // Delete button — only shown for own messages (msgRef present)
+    el.querySelector('[data-action="delete"]')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!msgRef) return;
         if (!confirm('Delete this message?')) return;
         try {
             await deleteDoc(msgRef);
@@ -1605,31 +1746,250 @@ function wireMessageDelete(el, msgRef) {
                 : 'Could not delete message — try again.');
         }
     });
+
+    // React button — show quick-pick popover
+    el.querySelector('[data-action="react"]')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!msgRef) return;
+        showReactionPicker(e.currentTarget, msgRef);
+    });
+
+    // Clicking an existing reaction pill toggles it
+    el.querySelectorAll('.reaction-pill').forEach(pill => {
+        pill.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!msgRef) return;
+            toggleReaction(msgRef, pill.dataset.emoji);
+        });
+    });
+
+    // Clicking a reply-quote scrolls to the original message
+    el.querySelector('.msg-reply-quote')?.addEventListener('click', () => {
+        const id = el.querySelector('.msg-reply-quote')?.dataset.replyId;
+        if (!id) return;
+        const target = messagesArea.querySelector(`[data-msg-id="${id}"]`);
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target.style.background = 'rgba(88,101,242,0.15)';
+            setTimeout(() => { target.style.background = ''; }, 1200);
+        }
+    });
 }
+
+// ── Reply ──────────────────────────────────────────────────────────────────
+function startReply(meta) {
+    replyingTo = meta;
+    replyBarName.textContent = meta.senderName;
+    replyBarText.textContent = ' — ' + meta.text;
+    replyBar.classList.add('is-visible');
+    msgInput.placeholder = 'Reply to ' + meta.senderName + '…';
+    msgInput.focus();
+}
+
+function cancelReply() {
+    replyingTo = null;
+    replyBar.classList.remove('is-visible');
+    // Reset placeholder to current channel/DM name
+    updateInputPlaceholder();
+}
+
+function updateInputPlaceholder() {
+    if (!activeContext) return;
+    if (activeContext.type === 'dm') {
+        const d = myDms[activeContext.id];
+        msgInput.placeholder = d ? `Message @${d.otherName}` : 'Message…';
+    } else if (activeContext.type === 'server' && activeContext.channelId) {
+        const ch = myChannels[activeContext.channelId];
+        msgInput.placeholder = ch ? `Message #${ch.name}` : 'Message…';
+    } else {
+        msgInput.placeholder = 'Message…';
+    }
+}
+
+replyBarClose.addEventListener('click', () => { cancelReply(); msgInput.focus(); });
+
+// ── Emoji reactions ────────────────────────────────────────────────────────
+const QUICK_REACTIONS = ['👍','❤️','😂','😮','😢','🔥'];
+let pickerEl = null;
+
+function showReactionPicker(anchorBtn, msgRef) {
+    // Remove any existing picker
+    if (pickerEl) { pickerEl.remove(); pickerEl = null; }
+
+    pickerEl = document.createElement('div');
+    pickerEl.style.cssText = `
+        position:fixed; background:var(--dc-bg-secondary); border:1px solid var(--dc-divider);
+        border-radius:10px; padding:6px 8px; display:flex; gap:4px; z-index:200;
+        box-shadow:0 4px 16px rgba(0,0,0,0.4);
+    `;
+    pickerEl.innerHTML = QUICK_REACTIONS.map(e =>
+        `<button style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px;border-radius:6px;line-height:1;" data-e="${e}">${e}</button>`
+    ).join('');
+
+    // Position above the anchor button
+    document.body.appendChild(pickerEl);
+    const rect = anchorBtn.getBoundingClientRect();
+    pickerEl.style.left = Math.min(rect.left, window.innerWidth - 240) + 'px';
+    pickerEl.style.top = (rect.top - pickerEl.offsetHeight - 6) + 'px';
+
+    pickerEl.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(255,255,255,0.1)');
+        btn.addEventListener('mouseleave', () => btn.style.background = 'none');
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleReaction(msgRef, btn.dataset.e);
+            pickerEl?.remove(); pickerEl = null;
+        });
+    });
+
+    // Close on outside click
+    setTimeout(() => {
+        document.addEventListener('click', () => { pickerEl?.remove(); pickerEl = null; }, { once: true });
+    }, 0);
+}
+
+async function toggleReaction(msgRef, emoji) {
+    if (!currentUser) return;
+    try {
+        const snap = await getDoc(msgRef);
+        if (!snap.exists()) return;
+        const reactions = snap.data().reactions || {};
+        const emojiUids = reactions[emoji] || {};
+        const alreadyReacted = !!emojiUids[currentUser.uid];
+        // Toggle: add if not present, remove if present
+        const newEmojiUids = { ...emojiUids };
+        if (alreadyReacted) {
+            delete newEmojiUids[currentUser.uid];
+        } else {
+            newEmojiUids[currentUser.uid] = true;
+        }
+        await updateDoc(msgRef, { [`reactions.${emoji}`]: newEmojiUids });
+    } catch (err) {
+        console.warn('React failed:', err.code || err);
+        showToast('Could not add reaction.');
+    }
+}
+
+// ── Typing indicator ───────────────────────────────────────────────────────
+function getTypingRef() {
+    if (!activeContext || !currentUser) return null;
+    if (activeContext.type === 'server' && activeContext.channelId) {
+        return ref(rtdb, `typing/server_${activeContext.id}_${activeContext.channelId}/${currentUser.uid}`);
+    }
+    if (activeContext.type === 'dm') {
+        return ref(rtdb, `typing/dm_${activeContext.id}/${currentUser.uid}`);
+    }
+    return null;
+}
+
+function getTypingRootRef() {
+    if (!activeContext) return null;
+    if (activeContext.type === 'server' && activeContext.channelId) {
+        return ref(rtdb, `typing/server_${activeContext.id}_${activeContext.channelId}`);
+    }
+    if (activeContext.type === 'dm') {
+        return ref(rtdb, `typing/dm_${activeContext.id}`);
+    }
+    return null;
+}
+
+function startTyping() {
+    const tRef = getTypingRef();
+    if (!tRef) return;
+    if (!isCurrentlyTyping) {
+        isCurrentlyTyping = true;
+        set(tRef, true);
+        onDisconnect(tRef).remove();
+    }
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(stopTyping, 4000);
+}
+
+function stopTyping() {
+    isCurrentlyTyping = false;
+    clearTimeout(typingTimeout);
+    const tRef = getTypingRef();
+    if (tRef) remove(tRef).catch(() => {});
+}
+
+function clearTypingStatus() {
+    stopTyping();
+    if (typingUnsub) { typingUnsub(); typingUnsub = null; }
+    typingIndicator.textContent = '';
+}
+
+function subscribeTyping() {
+    if (typingUnsub) { typingUnsub(); typingUnsub = null; }
+    const rootRef = getTypingRootRef();
+    if (!rootRef) return;
+
+    typingUnsub = onValue(rootRef, (snap) => {
+        const typingMap = snap.val() || {};
+        const names = [];
+        Object.keys(typingMap).forEach(uid => {
+            if (uid === currentUser.uid) return;
+            // Look up display name from server members or DM list
+            let name = null;
+            if (activeContext.type === 'server') {
+                name = (window.__currentServerMembers || {})[uid]?.name;
+            } else if (activeContext.type === 'dm') {
+                const d = myDms[activeContext.id];
+                if (d?.otherUid === uid) name = d.otherName;
+            }
+            names.push(name || 'Someone');
+        });
+
+        if (names.length === 0) {
+            typingIndicator.textContent = '';
+        } else if (names.length === 1) {
+            typingIndicator.innerHTML = `<span class="typing-dots"><span></span><span></span><span></span></span> ${escHtml(names[0])} is typing…`;
+        } else if (names.length === 2) {
+            typingIndicator.innerHTML = `<span class="typing-dots"><span></span><span></span><span></span></span> ${escHtml(names[0])} and ${escHtml(names[1])} are typing…`;
+        } else {
+            typingIndicator.innerHTML = `<span class="typing-dots"><span></span><span></span><span></span></span> Several people are typing…`;
+        }
+    });
+}
+
+
 
 async function sendMessage() {
     const text = msgInput.value.trim();
     if (!text || !activeContext || (activeContext.type !== 'server' && activeContext.type !== 'dm')) return;
     if (activeContext.type === 'server' && !activeContext.channelId) return;
+
+    const pendingReply = replyingTo;
     msgInput.value = '';
     updateSendBtnState();
+    updateCharCounter();
+    cancelReply();
+    stopTyping();
     msgInput.focus();
 
     const messagesRef = activeContext.type === 'server'
         ? collection(db, 'servers', activeContext.id, 'channels', activeContext.channelId, 'messages')
         : collection(db, 'dms', activeContext.id, 'messages');
 
-    try {
-        await addDoc(messagesRef, {
-            senderId: currentUser.uid,
-            senderName: currentProfile.username || 'Player',
-            senderAvatarEmoji: currentProfile.avatarEmoji || null,
-            senderPhotoURL: currentProfile.photoURL || null,
-            text,
-            ts: serverTimestamp()
-        });
+    const payload = {
+        senderId: currentUser.uid,
+        senderName: currentProfile.username || 'Player',
+        senderAvatarEmoji: currentProfile.avatarEmoji || null,
+        senderPhotoURL: currentProfile.photoURL || null,
+        text,
+        ts: serverTimestamp()
+    };
+    if (pendingReply) {
+        payload.replyTo = {
+            msgId: pendingReply.msgId || null,
+            senderId: pendingReply.senderId,
+            senderName: pendingReply.senderName,
+            text: pendingReply.text.slice(0, 80)
+        };
+    }
 
-        // Bump lastActive on DM pointers so the list can sort by recency later
+    try {
+        await addDoc(messagesRef, payload);
+
         if (activeContext.type === 'dm') {
             const d = myDms[activeContext.id];
             if (d) {
@@ -1646,12 +2006,33 @@ async function sendMessage() {
 function updateSendBtnState() {
     sendBtn.disabled = msgInput.value.trim().length === 0;
 }
-msgInput.addEventListener('input', updateSendBtnState);
+
+function updateCharCounter() {
+    const len = msgInput.value.length;
+    const remaining = 500 - len;
+    if (remaining > 100) {
+        charCounter.textContent = '';
+        charCounter.className = '';
+    } else if (remaining > 20) {
+        charCounter.textContent = remaining;
+        charCounter.className = 'is-warning';
+    } else {
+        charCounter.textContent = remaining;
+        charCounter.className = 'is-danger';
+    }
+}
+
+msgInput.addEventListener('input', () => {
+    updateSendBtnState();
+    updateCharCounter();
+    startTyping();
+});
 updateSendBtnState();
 
 sendBtn.addEventListener('click', sendMessage);
 msgInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); sendMessage(); }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    if (e.key === 'Escape') { cancelReply(); }
 });
 
 homeNavBtn.addEventListener('click', () => {

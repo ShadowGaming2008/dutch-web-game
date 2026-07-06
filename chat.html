@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat — Game Hub</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+* { box-sizing: border-box; }
+html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font-family: 'Inter', sans-serif;
+    background: #1e1f22;
+}
+
+:root {
+    --dc-bg-primary: #313338;
+    --dc-bg-secondary: #2b2d31;
+    --dc-bg-tertiary: #1e1f22;
+    --dc-blurple: #5865f2;
+    --dc-blurple-hover: #4752c4;
+    --dc-green: #23a55a;
+    --dc-red: #f23f43;
+    --dc-text-normal: #dbdee1;
+    --dc-text-muted: #949ba4;
+    --dc-text-header: #f2f3f5;
+    --dc-divider: rgba(255,255,255,0.06);
+}
+
+#appRoot { display: flex; height: 100vh; width: 100vw; }
+
+/* ============ SERVER RAIL ============ */
+#serverRail {
+    width: 72px;
+    flex-shrink: 0;
+    background: var(--dc-bg-tertiary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    gap: 8px;
+    overflow-y: auto;
+}
+#serverRail::-webkit-scrollbar { display: none; }
+
+.rail-icon-wrap { position: relative; width: 48px; flex-shrink: 0; }
+.rail-pill {
+    position: absolute;
+    left: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 8px;
+    border-radius: 0 4px 4px 0;
+    background: white;
+    opacity: 0;
+    transition: opacity 0.15s, height 0.15s;
+}
+.rail-icon-wrap:hover .rail-pill { opacity: 1; height: 20px; }
+.rail-icon-wrap.is-active .rail-pill { opacity: 1; height: 36px; }
+
+.rail-icon {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    background: var(--dc-bg-secondary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    color: var(--dc-text-normal);
+    cursor: pointer;
+    transition: border-radius 0.15s, background 0.15s, color 0.15s;
+    font-weight: 700;
+    background-size: cover;
+    background-position: center;
+    overflow: hidden;
+    user-select: none;
+}
+.rail-icon:hover { border-radius: 16px; background: var(--dc-blurple); color: white; }
+.rail-icon-wrap.is-active .rail-icon { border-radius: 16px; background: var(--dc-blurple); color: white; }
+
+.rail-divider {
+    width: 32px;
+    height: 2px;
+    background: var(--dc-divider);
+    border-radius: 1px;
+    margin: 2px 0;
+    flex-shrink: 0;
+}
+
+.rail-icon.is-dm-icon { font-size: 22px; }
+.rail-icon.is-add-icon { color: var(--dc-green); font-size: 22px; font-weight: 800; }
+.rail-icon.is-add-icon:hover { background: var(--dc-green); color: white; }
+
+/* ============ SECOND COLUMN (channel/DM list) ============ */
+#secondCol {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--dc-bg-secondary);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+#secondColHeader {
+    height: 52px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--dc-divider);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.15);
+    font-weight: 700;
+    color: var(--dc-text-header);
+    font-size: 15px;
+    justify-content: space-between;
+}
+
+#secondColBody { flex: 1; overflow-y: auto; padding: 8px; }
+#secondColBody::-webkit-scrollbar { width: 4px; }
+#secondColBody::-webkit-scrollbar-thumb { background: #232428; border-radius: 2px; }
+
+.channel-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    color: var(--dc-text-muted);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 2px;
+}
+.channel-row:hover { background: rgba(255,255,255,0.04); color: var(--dc-text-normal); }
+.channel-row.is-active { background: rgba(255,255,255,0.08); color: var(--dc-text-header); }
+.channel-hash { font-size: 16px; color: inherit; opacity: 0.7; }
+
+.dm-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 2px;
+}
+.dm-row:hover { background: rgba(255,255,255,0.04); }
+.dm-row.is-active { background: rgba(255,255,255,0.08); }
+.dm-avatar-wrap { position: relative; width: 32px; height: 32px; flex-shrink: 0; }
+.dm-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--dc-blurple);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: white; font-weight: 700;
+    background-size: cover; background-position: center; overflow: hidden;
+}
+.dm-status-dot {
+    position: absolute; bottom: -1px; right: -1px;
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 2.5px solid var(--dc-bg-secondary);
+    background: #80848e;
+}
+.dm-status-dot.is-online { background: var(--dc-green); }
+.dm-name { font-size: 14px; font-weight: 500; color: var(--dc-text-normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.second-col-section-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.02em; color: var(--dc-text-muted);
+    padding: 12px 8px 6px;
+}
+.second-col-section-label:first-child { padding-top: 4px; }
+
+.small-action-btn {
+    width: 26px; height: 26px; border-radius: 6px;
+    border: none; background: transparent; color: var(--dc-text-muted);
+    font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.12s, color 0.12s;
+}
+.small-action-btn:hover { background: rgba(255,255,255,0.08); color: var(--dc-text-header); }
+
+/* User bar pinned to bottom of second column */
+#userBar {
+    height: 54px;
+    flex-shrink: 0;
+    background: #232428;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 8px;
+}
+#userBarAvatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--dc-blurple);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: white; font-weight: 700;
+    background-size: cover; background-position: center; overflow: hidden;
+    flex-shrink: 0;
+}
+#userBarName { font-size: 13px; font-weight: 600; color: var(--dc-text-header); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#userBarSub { font-size: 11px; color: var(--dc-text-muted); }
+
+/* ============ MAIN CHAT COLUMN ============ */
+#mainCol {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--dc-bg-primary);
+}
+
+#mainHeader {
+    height: 52px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--dc-divider);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.15);
+}
+#mainHeaderLeft { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#mainHeaderTitle { font-weight: 700; color: var(--dc-text-header); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#mainHeaderSub { font-size: 12px; color: var(--dc-text-muted); }
+
+#messagesArea { flex: 1; overflow-y: auto; padding: 12px 0 8px; }
+#messagesArea::-webkit-scrollbar { width: 8px; }
+#messagesArea::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+
+.msg-group { display: flex; gap: 12px; padding: 3px 20px; margin-top: 14px; }
+.msg-group:first-child { margin-top: 4px; }
+.msg-group:hover { background: rgba(4,4,5,0.07); }
+.msg-avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: var(--dc-blurple);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: white; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+    background-size: cover; background-position: center; overflow: hidden;
+}
+.msg-body { min-width: 0; flex: 1; }
+.msg-headline { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.msg-sender { font-size: 15px; font-weight: 600; color: var(--dc-text-header); white-space: nowrap; }
+.msg-sender.is-me { color: #86efac; }
+.msg-time { font-size: 11px; color: var(--dc-text-muted); font-weight: 500; }
+.msg-line { font-size: 15px; line-height: 1.375; color: var(--dc-text-normal); word-break: break-word; }
+.msg-solo { display: flex; padding: 1px 20px 1px 70px; position: relative; }
+.msg-solo:hover { background: rgba(4,4,5,0.07); }
+.msg-solo:hover .msg-hover-time { visibility: visible; }
+.msg-hover-time {
+    visibility: hidden; position: absolute; left: 20px; top: 3px;
+    font-size: 10px; color: var(--dc-text-muted); width: 42px; text-align: left;
+}
+
+#chatEmptyState {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; color: var(--dc-text-muted); text-align: center; padding: 2rem;
+}
+#chatEmptyState .big-icon { font-size: 48px; opacity: 0.6; }
+
+#inputRow {
+    display: flex; align-items: center; gap: 8px;
+    margin: 0 16px 16px; padding: 0 12px; height: 44px;
+    background: #383a40; border-radius: 8px; flex-shrink: 0;
+}
+#msgInput { flex: 1; background: transparent; border: none; padding: 0; font-size: 14px; color: var(--dc-text-normal); outline: none; min-width: 0; font-family: 'Inter', sans-serif; }
+#msgInput::placeholder { color: var(--dc-text-muted); }
+#sendBtn { background: transparent; border: none; color: var(--dc-text-muted); font-size: 15px; padding: 0 2px; cursor: pointer; transition: color 0.15s; flex-shrink: 0; display: flex; align-items: center; }
+#sendBtn:hover { color: var(--dc-blurple); }
+
+/* ============ MEMBER SIDEBAR ============ */
+#memberCol {
+    width: 200px; flex-shrink: 0;
+    background: var(--dc-bg-secondary);
+    border-left: 1px solid var(--dc-divider);
+    overflow-y: auto; padding: 12px 8px;
+}
+#memberCol::-webkit-scrollbar { width: 4px; }
+#memberCol::-webkit-scrollbar-thumb { background: #232428; border-radius: 2px; }
+#memberCol.is-hidden { display: none; }
+.member-heading { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: var(--dc-text-muted); padding: 4px 8px 8px; }
+.member-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; }
+.member-row:hover { background: rgba(255,255,255,0.04); }
+.member-avatar-wrap { position: relative; width: 28px; height: 28px; flex-shrink: 0; }
+.member-avatar {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--dc-blurple);
+    display: flex; align-items: center; justify-content: center; font-size: 13px; color: white; font-weight: 700;
+    background-size: cover; background-position: center; overflow: hidden;
+}
+.member-status { position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2.5px solid var(--dc-bg-secondary); background: #80848e; }
+.member-status.is-online { background: var(--dc-green); }
+.member-name { font-size: 13px; font-weight: 500; color: var(--dc-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.member-row.is-online .member-name { color: var(--dc-text-normal); }
+.member-name .you-tag { color: #949ba4; font-weight: 400; font-size: 11px; }
+.member-crown { font-size: 10px; margin-left: 2px; }
+
+/* ============ MODALS ============ */
+.dc-modal-backdrop {
+    position: fixed; inset: 0; background: rgba(2,6,23,0.7);
+    z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.dc-modal-backdrop.is-hidden { display: none; }
+.dc-modal {
+    background: var(--dc-bg-primary); border-radius: 12px; width: 100%; max-width: 420px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6); overflow: hidden;
+}
+.dc-modal-header { padding: 20px 20px 8px; }
+.dc-modal-header h2 { margin: 0; color: var(--dc-text-header); font-size: 20px; font-weight: 700; }
+.dc-modal-header p { margin: 6px 0 0; color: var(--dc-text-muted); font-size: 13px; }
+.dc-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.dc-modal-footer { padding: 16px 20px; background: var(--dc-bg-secondary); display: flex; justify-content: flex-end; gap: 8px; }
+.dc-label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--dc-text-muted); margin-bottom: 6px; display: block; }
+.dc-input {
+    width: 100%; background: var(--dc-bg-tertiary); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px; padding: 10px 12px; color: var(--dc-text-normal); font-size: 14px;
+    outline: none; font-family: 'Inter', sans-serif;
+}
+.dc-input:focus { border-color: var(--dc-blurple); }
+.dc-btn {
+    padding: 10px 18px; border-radius: 6px; border: none; font-weight: 600; font-size: 14px; cursor: pointer;
+    transition: background 0.12s;
+}
+.dc-btn-primary { background: var(--dc-blurple); color: white; }
+.dc-btn-primary:hover { background: var(--dc-blurple-hover); }
+.dc-btn-ghost { background: transparent; color: var(--dc-text-normal); }
+.dc-btn-ghost:hover { text-decoration: underline; }
+.dc-tab-row { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--dc-divider); }
+.dc-tab { padding: 10px 4px; margin-right: 16px; color: var(--dc-text-muted); font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; }
+.dc-tab.is-active { color: var(--dc-text-header); border-bottom-color: var(--dc-blurple); }
+
+.search-result-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; cursor: pointer;
+}
+.search-result-row:hover { background: rgba(255,255,255,0.06); }
+.search-result-avatar {
+    width: 32px; height: 32px; border-radius: 50%; background: var(--dc-blurple);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: 700; flex-shrink: 0;
+    background-size: cover; background-position: center; overflow: hidden;
+}
+
+/* ============ AUTH GATE ============ */
+#authGate {
+    position: fixed; inset: 0; background: var(--dc-bg-tertiary); z-index: 200;
+    display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 1rem;
+}
+#authGate.is-hidden { display: none; }
+#authGate .gate-card {
+    background: var(--dc-bg-primary); border-radius: 12px; padding: 2rem; max-width: 360px; width: 100%; text-align: center;
+}
+
+.toast-msg {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: #1a1b1e; color: white; padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; z-index: 300; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    border-left: 3px solid var(--dc-blurple);
+}
+
+@media (max-width: 900px) {
+    #memberCol { display: none !important; }
+}
+@media (max-width: 680px) {
+    #secondCol { position: fixed; left: 72px; top: 0; bottom: 0; z-index: 40; box-shadow: 8px 0 24px rgba(0,0,0,0.4); }
+    #secondCol.is-collapsed { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── AUTH GATE ── -->
+<div id="authGate">
+    <div class="gate-card">
+        <div style="font-size:40px;margin-bottom:8px;">💬</div>
+        <h1 style="color:#f2f3f5;font-size:20px;font-weight:800;margin:0 0 8px;">Sign in required</h1>
+        <p style="color:#949ba4;font-size:13px;margin:0 0 20px;">Chat is only available to signed-in Game Hub members.</p>
+        <a href="index.html" class="dc-btn dc-btn-primary" style="display:inline-block;text-decoration:none;">Go to Game Hub</a>
+    </div>
+</div>
+
+<div id="appRoot" style="display:none;">
+    <!-- ── SERVER RAIL ── -->
+    <div id="serverRail">
+        <div class="rail-icon-wrap is-active" id="dmRailIcon" title="Direct Messages">
+            <div class="rail-pill"></div>
+            <div class="rail-icon is-dm-icon">💬</div>
+        </div>
+        <div class="rail-divider"></div>
+        <div id="serverIconList" style="display:flex;flex-direction:column;align-items:center;gap:8px;"></div>
+        <div class="rail-icon-wrap" id="addServerRailIcon" title="Add a server">
+            <div class="rail-pill"></div>
+            <div class="rail-icon is-add-icon">+</div>
+        </div>
+    </div>
+
+    <!-- ── SECOND COLUMN ── -->
+    <div id="secondCol">
+        <div id="secondColHeader">
+            <span id="secondColHeaderText">Direct Messages</span>
+            <button class="small-action-btn" id="startDmBtn" title="New DM">✎</button>
+        </div>
+        <div id="secondColBody"></div>
+        <div id="userBar">
+            <div id="userBarAvatar">?</div>
+            <div style="min-width:0;flex:1;">
+                <div id="userBarName">—</div>
+                <div id="userBarSub">Online</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MAIN CHAT COLUMN ── -->
+    <div id="mainCol">
+        <div id="mainHeader">
+            <div id="mainHeaderLeft">
+                <span id="mainHeaderIcon">#</span>
+                <div>
+                    <div id="mainHeaderTitle">Select a chat</div>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+                <button class="small-action-btn" id="mainMembersToggleBtn" title="Toggle member list" style="display:none;">☰</button>
+                <a href="index.html" class="small-action-btn" title="Back to Game Hub" style="text-decoration:none;display:flex;">←</a>
+            </div>
+        </div>
+
+        <div id="chatEmptyState">
+            <div class="big-icon">👋</div>
+            <div style="font-weight:700;color:#dbdee1;font-size:16px;">Pick a conversation</div>
+            <div style="font-size:13px;">Choose a server or DM on the left, or start a new one.</div>
+        </div>
+
+        <div id="messagesArea" style="display:none;"></div>
+        <div id="inputRow" style="display:none;">
+            <input type="text" id="msgInput" placeholder="Message..." maxlength="500" autocomplete="off" />
+            <button id="sendBtn" title="Send">➤</button>
+        </div>
+    </div>
+
+    <!-- ── MEMBER SIDEBAR ── -->
+    <div id="memberCol" class="is-hidden">
+        <div class="member-heading" id="memberHeading">Members — 0</div>
+        <div id="memberList"></div>
+    </div>
+</div>
+
+<!-- ── CREATE/JOIN SERVER MODAL ── -->
+<div class="dc-modal-backdrop is-hidden" id="serverModalBackdrop">
+    <div class="dc-modal">
+        <div class="dc-modal-header">
+            <h2 id="serverModalTitle">Add a Server</h2>
+            <p id="serverModalSub">Create your own or join one with a code.</p>
+        </div>
+        <div class="dc-tab-row">
+            <div class="dc-tab is-active" data-tab="create">Create</div>
+            <div class="dc-tab" data-tab="join">Join</div>
+        </div>
+        <div class="dc-modal-body" id="createServerPane">
+            <div>
+                <label class="dc-label">Server name</label>
+                <input type="text" class="dc-input" id="newServerNameInput" placeholder="My awesome server" maxlength="40" />
+            </div>
+        </div>
+        <div class="dc-modal-body is-hidden" id="joinServerPane">
+            <div>
+                <label class="dc-label">Invite code</label>
+                <input type="text" class="dc-input" id="joinServerCodeInput" placeholder="e.g. 8F3K2A" maxlength="8" style="text-transform:uppercase;letter-spacing:0.1em;" />
+            </div>
+        </div>
+        <div class="dc-modal-footer">
+            <button class="dc-btn dc-btn-ghost" id="serverModalCancelBtn">Cancel</button>
+            <button class="dc-btn dc-btn-primary" id="serverModalSubmitBtn">Create</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── NEW DM / USER SEARCH MODAL ── -->
+<div class="dc-modal-backdrop is-hidden" id="dmModalBackdrop">
+    <div class="dc-modal">
+        <div class="dc-modal-header">
+            <h2>Find a player</h2>
+            <p>Search by username to start a DM.</p>
+        </div>
+        <div class="dc-modal-body">
+            <input type="text" class="dc-input" id="dmSearchInput" placeholder="Search username..." maxlength="30" />
+            <div id="dmSearchResults" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;"></div>
+        </div>
+        <div class="dc-modal-footer">
+            <button class="dc-btn dc-btn-ghost" id="dmModalCancelBtn">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── SERVER INVITE CODE MODAL ── -->
+<div class="dc-modal-backdrop is-hidden" id="inviteModalBackdrop">
+    <div class="dc-modal">
+        <div class="dc-modal-header">
+            <h2>Invite people</h2>
+            <p>Share this code so others can join your server.</p>
+        </div>
+        <div class="dc-modal-body">
+            <div style="display:flex;gap:8px;">
+                <input type="text" class="dc-input" id="inviteCodeDisplay" readonly style="text-align:center;font-weight:700;letter-spacing:0.15em;font-size:16px;" />
+                <button class="dc-btn dc-btn-primary" id="copyInviteBtn">Copy</button>
+            </div>
+        </div>
+        <div class="dc-modal-footer">
+            <button class="dc-btn dc-btn-ghost" id="inviteModalCloseBtn">Done</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+    getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, addDoc,
+    query, orderBy, serverTimestamp, getDocs, deleteDoc, where, limit
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import {
+    getDatabase, ref, set, onDisconnect, onValue, remove, serverTimestamp as rtdbServerTimestamp
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyDTIz9LcVxLwJ4l5keMeSSAoCh2oTSWg9E",
+    authDomain: "dutch-card-game-60d1c.firebaseapp.com",
+    projectId: "dutch-card-game-60d1c",
+    storageBucket: "dutch-card-game-60d1c.firebasestorage.app",
+    messagingSenderId: "91699670709",
+    appId: "1:91699670709:web:230f57e39f8f55128398fc",
+    databaseURL: "https://dutch-card-game-60d1c-default-rtdb.europe-west1.firebasedatabase.app"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const rtdb = getDatabase(app);
+
+// ─────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────
+let currentUser = null;
+let currentProfile = null;
+
+let mySeversUnsub = null;       // listens to users/{uid}/servers to populate rail
+let myServers = {};              // serverId -> { name, icon }
+let myDmsUnsub = null;           // listens to users/{uid}/dms to populate DM list
+let myDms = {};                   // dmId -> { otherUid, otherName, otherAvatarEmoji, otherPhotoURL }
+
+let activeContext = null;        // { type: 'server'|'dm', id: string }
+let activeMessagesUnsub = null;
+let activeMetaUnsub = null;      // listens to the server/dm doc itself (members map)
+let activePresenceUnsub = null;
+let lastGroupSenderId = null;
+let lastGroupEl = null;
+
+let globalPresenceUnsub = null;  // presence/{uid} -> online for DM status dots
+let onlineUids = {};
+
+// ─────────────────────────────────────────────
+// DOM refs
+// ─────────────────────────────────────────────
+const authGate = document.getElementById('authGate');
+const appRoot = document.getElementById('appRoot');
+const serverIconList = document.getElementById('serverIconList');
+const dmRailIcon = document.getElementById('dmRailIcon');
+const addServerRailIcon = document.getElementById('addServerRailIcon');
+
+const secondColHeaderText = document.getElementById('secondColHeaderText');
+const secondColBody = document.getElementById('secondColBody');
+const startDmBtn = document.getElementById('startDmBtn');
+
+const userBarAvatar = document.getElementById('userBarAvatar');
+const userBarName = document.getElementById('userBarName');
+
+const mainHeaderIcon = document.getElementById('mainHeaderIcon');
+const mainHeaderTitle = document.getElementById('mainHeaderTitle');
+const mainMembersToggleBtn = document.getElementById('mainMembersToggleBtn');
+
+const chatEmptyState = document.getElementById('chatEmptyState');
+const messagesArea = document.getElementById('messagesArea');
+const inputRow = document.getElementById('inputRow');
+const msgInput = document.getElementById('msgInput');
+const sendBtn = document.getElementById('sendBtn');
+
+const memberCol = document.getElementById('memberCol');
+const memberList = document.getElementById('memberList');
+const memberHeading = document.getElementById('memberHeading');
+
+const serverModalBackdrop = document.getElementById('serverModalBackdrop');
+const serverModalTitle = document.getElementById('serverModalTitle');
+const serverModalSub = document.getElementById('serverModalSub');
+const serverModalSubmitBtn = document.getElementById('serverModalSubmitBtn');
+const serverModalCancelBtn = document.getElementById('serverModalCancelBtn');
+const createServerPane = document.getElementById('createServerPane');
+const joinServerPane = document.getElementById('joinServerPane');
+const newServerNameInput = document.getElementById('newServerNameInput');
+const joinServerCodeInput = document.getElementById('joinServerCodeInput');
+
+const dmModalBackdrop = document.getElementById('dmModalBackdrop');
+const dmSearchInput = document.getElementById('dmSearchInput');
+const dmSearchResults = document.getElementById('dmSearchResults');
+const dmModalCancelBtn = document.getElementById('dmModalCancelBtn');
+
+const inviteModalBackdrop = document.getElementById('inviteModalBackdrop');
+const inviteCodeDisplay = document.getElementById('inviteCodeDisplay');
+const copyInviteBtn = document.getElementById('copyInviteBtn');
+const inviteModalCloseBtn = document.getElementById('inviteModalCloseBtn');
+
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+function escHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function buildAvatarStyle(name, avatarEmoji, photoURL) {
+    if (avatarEmoji) return { html: escHtml(avatarEmoji), bg: '' };
+    if (photoURL) return { html: '', bg: `background-image:url('${photoURL}');` };
+    const initial = (name || '?').trim().charAt(0).toUpperCase() || '?';
+    return { html: escHtml(initial), bg: '' };
+}
+
+function showToast(text) {
+    const el = document.createElement('div');
+    el.className = 'toast-msg';
+    el.textContent = text;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2600);
+}
+
+function genCode(len = 6) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let out = '';
+    for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    return out;
+}
+
+function dmIdFor(uidA, uidB) {
+    return [uidA, uidB].sort().join('_');
+}
+
+function formatTime(ts) {
+    if (!ts) return '';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// ─────────────────────────────────────────────
+// Auth
+// ─────────────────────────────────────────────
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        currentUser = null;
+        authGate.classList.remove('is-hidden');
+        appRoot.style.display = 'none';
+        return;
+    }
+    currentUser = user;
+    authGate.classList.add('is-hidden');
+    appRoot.style.display = 'flex';
+
+    await loadOrCreateProfile();
+    userBarName.textContent = currentProfile.username || 'Player';
+    const av = buildAvatarStyle(currentProfile.username, currentProfile.avatarEmoji, currentProfile.photoURL);
+    userBarAvatar.innerHTML = av.html;
+    userBarAvatar.style.cssText += av.bg;
+
+    registerGlobalPresence();
+    subscribeGlobalPresence();
+    subscribeMyServers();
+    subscribeMyDms();
+});
+
+async function loadOrCreateProfile() {
+    const ref = doc(db, 'users', currentUser.uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+        currentProfile = snap.data();
+        // Backfill usernameLower for search if missing
+        if (currentProfile.username && !currentProfile.usernameLower) {
+            const usernameLower = currentProfile.username.toLowerCase();
+            await updateDoc(ref, { usernameLower });
+            currentProfile.usernameLower = usernameLower;
+        }
+    } else {
+        const username = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Player');
+        currentProfile = { username, usernameLower: username.toLowerCase() };
+        await setDoc(ref, currentProfile, { merge: true });
+    }
+}
+
+// ─────────────────────────────────────────────
+// Presence (global, RTDB) — used for DM online dots + server member lists
+// ─────────────────────────────────────────────
+function registerGlobalPresence() {
+    const presenceRef = ref(rtdb, `chatPresence/${currentUser.uid}`);
+    set(presenceRef, { since: rtdbServerTimestamp() });
+    onDisconnect(presenceRef).remove();
+}
+
+function subscribeGlobalPresence() {
+    if (globalPresenceUnsub) globalPresenceUnsub();
+    globalPresenceUnsub = onValue(ref(rtdb, 'chatPresence'), (snap) => {
+        onlineUids = snap.val() || {};
+        // Re-render whichever list is visible so status dots stay live
+        if (activeContext?.type === 'dm' || !activeContext) renderDmList();
+        if (activeContext?.type === 'server') renderMemberList();
+    });
+}
+
+window.addEventListener('pagehide', () => {
+    if (currentUser) remove(ref(rtdb, `chatPresence/${currentUser.uid}`)).catch(() => {});
+});
+
+// ─────────────────────────────────────────────
+// Server rail — "Your Servers"
+// ─────────────────────────────────────────────
+function subscribeMyServers() {
+    if (mySeversUnsub) mySeversUnsub();
+    mySeversUnsub = onSnapshot(collection(db, 'users', currentUser.uid, 'servers'), (snap) => {
+        myServers = {};
+        snap.forEach(d => { myServers[d.id] = d.data(); });
+        renderServerRail();
+    });
+}
+
+function renderServerRail() {
+    const ids = Object.keys(myServers);
+    serverIconList.innerHTML = ids.map(id => {
+        const s = myServers[id];
+        const isActive = activeContext?.type === 'server' && activeContext.id === id;
+        const avatar = buildAvatarStyle(s.name, s.icon, null);
+        return `
+            <div class="rail-icon-wrap${isActive ? ' is-active' : ''}" data-server-id="${id}" title="${escHtml(s.name)}">
+                <div class="rail-pill"></div>
+                <div class="rail-icon">${avatar.html || escHtml((s.name || '?').charAt(0).toUpperCase())}</div>
+            </div>`;
+    }).join('');
+
+    serverIconList.querySelectorAll('[data-server-id]').forEach(el => {
+        el.addEventListener('click', () => openServer(el.dataset.serverId));
+    });
+
+    // Keep dm rail icon's active state in sync
+    dmRailIcon.classList.toggle('is-active', activeContext?.type !== 'server');
+}
+
+dmRailIcon.addEventListener('click', () => openDmHome());
+addServerRailIcon.addEventListener('click', () => openServerModal());
+
+// ─────────────────────────────────────────────
+// DM list ("Direct Messages" home view)
+// ─────────────────────────────────────────────
+function subscribeMyDms() {
+    if (myDmsUnsub) myDmsUnsub();
+    myDmsUnsub = onSnapshot(collection(db, 'users', currentUser.uid, 'dms'), (snap) => {
+        myDms = {};
+        snap.forEach(d => { myDms[d.id] = d.data(); });
+        if (activeContext?.type !== 'server') renderDmList();
+    });
+}
+
+function openDmHome() {
+    activeContext = { type: 'dm-home' };
+    secondColHeaderText.textContent = 'Direct Messages';
+    startDmBtn.style.display = '';
+    renderDmList();
+    renderServerRail();
+    teardownActiveConversation();
+    showEmptyState('Select a conversation', 'Pick a DM on the left, or start a new one.');
+    mainMembersToggleBtn.style.display = 'none';
+    memberCol.classList.add('is-hidden');
+}
+
+function renderDmList() {
+    const ids = Object.keys(myDms);
+    if (ids.length === 0) {
+        secondColBody.innerHTML = `<div style="padding:16px 8px;color:#6b7078;font-size:13px;">No DMs yet. Hit ✎ to find someone.</div>`;
+        return;
+    }
+    secondColBody.innerHTML = `<div class="second-col-section-label">Direct Messages</div>` + ids.map(id => {
+        const d = myDms[id];
+        const isActive = activeContext?.type === 'dm' && activeContext.id === id;
+        const isOnline = !!onlineUids[d.otherUid];
+        const avatar = buildAvatarStyle(d.otherName, d.otherAvatarEmoji, d.otherPhotoURL);
+        return `
+            <div class="dm-row${isActive ? ' is-active' : ''}" data-dm-id="${id}">
+                <div class="dm-avatar-wrap">
+                    <div class="dm-avatar" style="${avatar.bg}">${avatar.html}</div>
+                    <div class="dm-status-dot${isOnline ? ' is-online' : ''}"></div>
+                </div>
+                <span class="dm-name">${escHtml(d.otherName || 'Player')}</span>
+            </div>`;
+    }).join('');
+
+    secondColBody.querySelectorAll('[data-dm-id]').forEach(el => {
+        el.addEventListener('click', () => openDm(el.dataset.dmId));
+    });
+}
+
+async function openDm(dmId) {
+    activeContext = { type: 'dm', id: dmId };
+    renderDmList();
+    renderServerRail();
+
+    const d = myDms[dmId];
+    mainHeaderIcon.textContent = '@';
+    mainHeaderTitle.textContent = d?.otherName || 'Direct Message';
+    mainMembersToggleBtn.style.display = 'none';
+    memberCol.classList.add('is-hidden');
+
+    showConversationUI();
+    subscribeMessages('dms', dmId);
+}
+
+startDmBtn.addEventListener('click', () => openDmModal());
+
+// ─────────────────────────────────────────────
+// DM search modal
+// ─────────────────────────────────────────────
+function openDmModal() {
+    dmModalBackdrop.classList.remove('is-hidden');
+    dmSearchInput.value = '';
+    dmSearchResults.innerHTML = '';
+    dmSearchInput.focus();
+}
+dmModalCancelBtn.addEventListener('click', () => dmModalBackdrop.classList.add('is-hidden'));
+
+let dmSearchDebounce = null;
+dmSearchInput.addEventListener('input', () => {
+    clearTimeout(dmSearchDebounce);
+    const term = dmSearchInput.value.trim().toLowerCase();
+    if (!term) { dmSearchResults.innerHTML = ''; return; }
+    dmSearchDebounce = setTimeout(() => runUserSearch(term), 250);
+});
+
+async function runUserSearch(term) {
+    dmSearchResults.innerHTML = `<div style="padding:8px;color:#6b7078;font-size:13px;">Searching...</div>`;
+    try {
+        const q = query(
+            collection(db, 'users'),
+            where('usernameLower', '>=', term),
+            where('usernameLower', '<=', term + '\uf8ff'),
+            limit(15)
+        );
+        const snap = await getDocs(q);
+        const results = [];
+        snap.forEach(d => {
+            if (d.id !== currentUser.uid) results.push({ uid: d.id, ...d.data() });
+        });
+        if (results.length === 0) {
+            dmSearchResults.innerHTML = `<div style="padding:8px;color:#6b7078;font-size:13px;">No players found.</div>`;
+            return;
+        }
+        dmSearchResults.innerHTML = results.map(r => {
+            const avatar = buildAvatarStyle(r.username, r.avatarEmoji, r.photoURL);
+            return `
+                <div class="search-result-row" data-uid="${r.uid}" data-name="${escHtml(r.username || 'Player')}">
+                    <div class="search-result-avatar" style="${avatar.bg}">${avatar.html}</div>
+                    <span style="font-size:14px;color:#dbdee1;font-weight:500;">${escHtml(r.username || 'Player')}</span>
+                </div>`;
+        }).join('');
+        dmSearchResults.querySelectorAll('[data-uid]').forEach(el => {
+            el.addEventListener('click', () => startDmWith(el.dataset.uid, el.dataset.name));
+        });
+    } catch (err) {
+        console.warn('User search failed:', err);
+        dmSearchResults.innerHTML = `<div style="padding:8px;color:#f23f43;font-size:13px;">Search failed — try again.</div>`;
+    }
+}
+
+async function startDmWith(otherUid, otherName) {
+    const dmId = dmIdFor(currentUser.uid, otherUid);
+
+    // Fetch the other user's current avatar fields fresh
+    let otherAvatarEmoji = null, otherPhotoURL = null;
+    try {
+        const otherSnap = await getDoc(doc(db, 'users', otherUid));
+        if (otherSnap.exists()) {
+            otherAvatarEmoji = otherSnap.data().avatarEmoji || null;
+            otherPhotoURL = otherSnap.data().photoURL || null;
+        }
+    } catch {}
+
+    // Create/merge the shared DM thread doc
+    await setDoc(doc(db, 'dms', dmId), {
+        participants: {
+            [currentUser.uid]: true,
+            [otherUid]: true
+        },
+        createdAt: serverTimestamp()
+    }, { merge: true });
+
+    // Pointer in my own DM list, pointing at the other person's info
+    await setDoc(doc(db, 'users', currentUser.uid, 'dms', dmId), {
+        otherUid, otherName,
+        otherAvatarEmoji, otherPhotoURL,
+        lastActive: serverTimestamp()
+    }, { merge: true });
+
+    // Pointer in their DM list, pointing at my info, so it shows up for them too
+    await setDoc(doc(db, 'users', otherUid, 'dms', dmId), {
+        otherUid: currentUser.uid,
+        otherName: currentProfile.username || 'Player',
+        otherAvatarEmoji: currentProfile.avatarEmoji || null,
+        otherPhotoURL: currentProfile.photoURL || null,
+        lastActive: serverTimestamp()
+    }, { merge: true });
+
+    dmModalBackdrop.classList.add('is-hidden');
+    openDm(dmId);
+}
+
+// ─────────────────────────────────────────────
+// Servers ("parties")
+// ─────────────────────────────────────────────
+let serverModalMode = 'create';
+function openServerModal() {
+    serverModalBackdrop.classList.remove('is-hidden');
+    setServerModalTab('create');
+    newServerNameInput.value = '';
+    joinServerCodeInput.value = '';
+}
+serverModalCancelBtn.addEventListener('click', () => serverModalBackdrop.classList.add('is-hidden'));
+
+serverModalBackdrop.querySelectorAll('.dc-tab').forEach(tab => {
+    tab.addEventListener('click', () => setServerModalTab(tab.dataset.tab));
+});
+function setServerModalTab(tab) {
+    serverModalMode = tab;
+    serverModalBackdrop.querySelectorAll('.dc-tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === tab));
+    createServerPane.classList.toggle('is-hidden', tab !== 'create');
+    joinServerPane.classList.toggle('is-hidden', tab !== 'join');
+    serverModalSubmitBtn.textContent = tab === 'create' ? 'Create' : 'Join';
+    serverModalTitle.textContent = tab === 'create' ? 'Create a Server' : 'Join a Server';
+    serverModalSub.textContent = tab === 'create' ? 'Give your server a name to get started.' : 'Enter an invite code to join an existing server.';
+}
+
+serverModalSubmitBtn.addEventListener('click', async () => {
+    if (serverModalMode === 'create') {
+        await createServer(newServerNameInput.value.trim());
+    } else {
+        await joinServerByCode(joinServerCodeInput.value.trim().toUpperCase());
+    }
+});
+
+async function createServer(name) {
+    if (!name) { showToast('Give your server a name first.'); return; }
+    const code = genCode(6);
+    const serverRef = doc(collection(db, 'servers'));
+    const serverId = serverRef.id;
+
+    await setDoc(serverRef, {
+        name,
+        inviteCode: code,
+        ownerId: currentUser.uid,
+        members: {
+            [currentUser.uid]: {
+                name: currentProfile.username || 'Player',
+                avatarEmoji: currentProfile.avatarEmoji || null,
+                photoURL: currentProfile.photoURL || null,
+                joinedAt: serverTimestamp()
+            }
+        },
+        createdAt: serverTimestamp()
+    });
+
+    // Also index by invite code so joins can look it up
+    await setDoc(doc(db, 'serverInvites', code), { serverId });
+
+    await setDoc(doc(db, 'users', currentUser.uid, 'servers', serverId), {
+        name, joinedAt: serverTimestamp()
+    });
+
+    serverModalBackdrop.classList.add('is-hidden');
+    openServer(serverId);
+    showToast(`Server created! Invite code: ${code}`);
+}
+
+async function joinServerByCode(code) {
+    if (!code) { showToast('Enter an invite code first.'); return; }
+    try {
+        const inviteSnap = await getDoc(doc(db, 'serverInvites', code));
+        if (!inviteSnap.exists()) { showToast('Invalid invite code.'); return; }
+        const serverId = inviteSnap.data().serverId;
+        const serverSnap = await getDoc(doc(db, 'servers', serverId));
+        if (!serverSnap.exists()) { showToast('That server no longer exists.'); return; }
+        const serverData = serverSnap.data();
+
+        await updateDoc(doc(db, 'servers', serverId), {
+            [`members.${currentUser.uid}`]: {
+                name: currentProfile.username || 'Player',
+                avatarEmoji: currentProfile.avatarEmoji || null,
+                photoURL: currentProfile.photoURL || null,
+                joinedAt: serverTimestamp()
+            }
+        });
+        await setDoc(doc(db, 'users', currentUser.uid, 'servers', serverId), {
+            name: serverData.name, joinedAt: serverTimestamp()
+        });
+
+        serverModalBackdrop.classList.add('is-hidden');
+        openServer(serverId);
+        showToast(`Joined ${serverData.name}!`);
+    } catch (err) {
+        console.warn('Join server failed:', err);
+        showToast('Could not join — check the code and try again.');
+    }
+}
+
+async function openServer(serverId) {
+    activeContext = { type: 'server', id: serverId };
+    renderServerRail();
+
+    const serverSnap = await getDoc(doc(db, 'servers', serverId));
+    const serverData = serverSnap.exists() ? serverSnap.data() : null;
+    const serverName = serverData?.name || 'Server';
+
+    secondColHeaderText.textContent = serverName;
+    startDmBtn.style.display = 'none';
+    secondColBody.innerHTML = `
+        <div class="second-col-section-label">Text Channels</div>
+        <div class="channel-row is-active" data-channel="general">
+            <span class="channel-hash">#</span><span>general</span>
+        </div>
+        <div class="second-col-section-label" style="margin-top:18px;">
+            <button class="dc-btn dc-btn-ghost" id="showInviteBtn" style="padding:2px 0;font-size:11px;">📋 Invite people</button>
+        </div>
+    `;
+    document.getElementById('showInviteBtn')?.addEventListener('click', () => {
+        inviteCodeDisplay.value = serverData?.inviteCode || '';
+        inviteModalBackdrop.classList.remove('is-hidden');
+    });
+
+    mainHeaderIcon.textContent = '#';
+    mainHeaderTitle.textContent = 'general';
+    mainMembersToggleBtn.style.display = 'flex';
+    memberCol.classList.remove('is-hidden');
+
+    showConversationUI();
+    subscribeMessages('servers', serverId);
+    subscribeServerMeta(serverId);
+}
+
+function subscribeServerMeta(serverId) {
+    if (activeMetaUnsub) { activeMetaUnsub(); activeMetaUnsub = null; }
+    activeMetaUnsub = onSnapshot(doc(db, 'servers', serverId), (snap) => {
+        if (snap.exists()) {
+            window.__currentServerMembers = snap.data().members || {};
+            renderMemberList();
+        }
+    });
+}
+
+function renderMemberList() {
+    const members = window.__currentServerMembers || {};
+    const uids = Object.keys(members);
+    memberHeading.textContent = `Members — ${uids.length}`;
+    const sorted = [...uids].sort((a, b) => {
+        const aOn = !!onlineUids[a], bOn = !!onlineUids[b];
+        if (aOn === bOn) return 0;
+        return aOn ? -1 : 1;
+    });
+    memberList.innerHTML = sorted.map(uid => {
+        const m = members[uid];
+        const isMe = uid === currentUser.uid;
+        const isOnline = !!onlineUids[uid];
+        const avatar = buildAvatarStyle(m?.name, m?.avatarEmoji, m?.photoURL);
+        return `
+            <div class="member-row${isOnline ? ' is-online' : ''}">
+                <div class="member-avatar-wrap">
+                    <div class="member-avatar" style="${avatar.bg}${isOnline ? '' : 'filter:grayscale(60%);opacity:0.6;'}">${avatar.html}</div>
+                    <div class="member-status${isOnline ? ' is-online' : ''}"></div>
+                </div>
+                <span class="member-name">${escHtml(m?.name || 'Player')}${isMe ? ' <span class="you-tag">(you)</span>' : ''}</span>
+            </div>`;
+    }).join('');
+}
+
+mainMembersToggleBtn.addEventListener('click', () => {
+    memberCol.classList.toggle('is-hidden');
+    mainMembersToggleBtn.classList.toggle('is-active');
+});
+
+copyInviteBtn.addEventListener('click', async () => {
+    try {
+        await navigator.clipboard.writeText(inviteCodeDisplay.value);
+        showToast('Invite code copied!');
+    } catch {
+        inviteCodeDisplay.select();
+        showToast('Select and copy the code above.');
+    }
+});
+inviteModalCloseBtn.addEventListener('click', () => inviteModalBackdrop.classList.add('is-hidden'));
+
+// ─────────────────────────────────────────────
+// Shared conversation UI (messages) — works for both servers/{id} and dms/{id}
+// ─────────────────────────────────────────────
+function showEmptyState(title, sub) {
+    chatEmptyState.style.display = 'flex';
+    messagesArea.style.display = 'none';
+    inputRow.style.display = 'none';
+    chatEmptyState.querySelector('div:nth-child(2)').textContent = title;
+    chatEmptyState.querySelector('div:nth-child(3)').textContent = sub;
+}
+
+function showConversationUI() {
+    chatEmptyState.style.display = 'none';
+    messagesArea.style.display = 'block';
+    inputRow.style.display = 'flex';
+}
+
+function teardownActiveConversation() {
+    if (activeMessagesUnsub) { activeMessagesUnsub(); activeMessagesUnsub = null; }
+    if (activeMetaUnsub) { activeMetaUnsub(); activeMetaUnsub = null; }
+    messagesArea.innerHTML = '';
+    lastGroupSenderId = null;
+    lastGroupEl = null;
+}
+
+function subscribeMessages(collectionRoot, contextId) {
+    if (activeMessagesUnsub) { activeMessagesUnsub(); activeMessagesUnsub = null; }
+    messagesArea.innerHTML = '';
+    lastGroupSenderId = null;
+    lastGroupEl = null;
+
+    const q = query(
+        collection(db, collectionRoot, contextId, 'messages'),
+        orderBy('ts', 'asc'),
+        limit(100)
+    );
+    activeMessagesUnsub = onSnapshot(q, (snap) => {
+        messagesArea.innerHTML = '';
+        lastGroupSenderId = null;
+        lastGroupEl = null;
+        snap.forEach(d => appendMessage(d.data()));
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+    });
+}
+
+function appendMessage(m) {
+    const isMe = m.senderId === currentUser.uid;
+    const avatar = buildAvatarStyle(m.senderName, m.senderAvatarEmoji, m.senderPhotoURL);
+    const timeStr = formatTime(m.ts);
+
+    if (lastGroupSenderId === m.senderId && lastGroupEl) {
+        const line = document.createElement('div');
+        line.className = 'msg-solo';
+        line.innerHTML = `
+            <span class="msg-hover-time">${timeStr}</span>
+            <span class="msg-line">${escHtml(m.text)}</span>`;
+        lastGroupEl.appendChild(line);
+    } else {
+        const group = document.createElement('div');
+        group.className = 'msg-group';
+        group.innerHTML = `
+            <div class="msg-avatar" style="${avatar.bg}">${avatar.html}</div>
+            <div class="msg-body">
+                <div class="msg-headline">
+                    <span class="msg-sender${isMe ? ' is-me' : ''}">${isMe ? 'You' : escHtml(m.senderName)}</span>
+                    <span class="msg-time">${timeStr}</span>
+                </div>
+                <div class="msg-line">${escHtml(m.text)}</div>
+            </div>`;
+        messagesArea.appendChild(group);
+        lastGroupEl = group;
+        lastGroupSenderId = m.senderId;
+    }
+}
+
+async function sendMessage() {
+    const text = msgInput.value.trim();
+    if (!text || !activeContext || (activeContext.type !== 'server' && activeContext.type !== 'dm')) return;
+    msgInput.value = '';
+    msgInput.focus();
+
+    const collectionRoot = activeContext.type === 'server' ? 'servers' : 'dms';
+    try {
+        await addDoc(collection(db, collectionRoot, activeContext.id, 'messages'), {
+            senderId: currentUser.uid,
+            senderName: currentProfile.username || 'Player',
+            senderAvatarEmoji: currentProfile.avatarEmoji || null,
+            senderPhotoURL: currentProfile.photoURL || null,
+            text,
+            ts: serverTimestamp()
+        });
+
+        // Bump lastActive on DM pointers so the list can sort by recency later
+        if (activeContext.type === 'dm') {
+            const d = myDms[activeContext.id];
+            if (d) {
+                setDoc(doc(db, 'users', currentUser.uid, 'dms', activeContext.id), { lastActive: serverTimestamp() }, { merge: true }).catch(() => {});
+                setDoc(doc(db, 'users', d.otherUid, 'dms', activeContext.id), { lastActive: serverTimestamp() }, { merge: true }).catch(() => {});
+            }
+        }
+    } catch (err) {
+        console.warn('Send message failed:', err);
+        showToast('Could not send — check your connection.');
+    }
+}
+
+sendBtn.addEventListener('click', sendMessage);
+msgInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); sendMessage(); }
+});
+
+// Default view on load
+openDmHome();
+</script>
+</body>
+</html>

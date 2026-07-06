@@ -6,489 +6,399 @@
     <title>Game Hub</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
         * { box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; margin: 0; background: #020617; }
-        .font-display { font-family: 'Playfair Display', serif; }
+        html { scroll-behavior: smooth; }
 
-        .card-tile {
-            background: #0f172a;
-            border: 1px solid #1e293b;
-            border-radius: 20px;
-            padding: 2rem;
-            transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-            text-decoration: none;
-            display: block;
-        }
-        .card-tile:hover {
-            border-color: #334155;
-            transform: translateY(-4px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-        }
-        .card-tile.amber:hover { border-color: #f59e0b; box-shadow: 0 20px 40px rgba(245,158,11,0.15); }
-        .card-tile.indigo:hover { border-color: #818cf8; box-shadow: 0 20px 40px rgba(129,140,248,0.15); }
-
-        .pill {
-            display: inline-block;
-            font-size: 11px;
-            font-weight: 700;
-            padding: 3px 10px;
-            border-radius: 99px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        /* Auth modal — uses our own is-hidden class, NOT Tailwind's hidden,
-           to avoid conflicts with the Tailwind CDN loading asynchronously   */
-        .modal-backdrop {
-            position: fixed; inset: 0;
-            background: rgba(2,6,23,0.85);
-            backdrop-filter: blur(4px);
-            z-index: 50;
-            display: flex; align-items: center; justify-content: center;
-            padding: 1rem;
-        }
-        .is-hidden { display: none !important; }
-
-        .modal-box {
-            background: #0f172a;
-            border: 1px solid #1e293b;
-            border-radius: 20px;
-            width: 100%; max-width: 380px;
-            padding: 2rem;
-        }
-
-        /* ── Party Chat modal (Discord-style, full-screen overlay) ── */
-        :root {
-            --dc-bg-primary: #313338;
-            --dc-bg-secondary: #2b2d31;
-            --dc-bg-tertiary: #1e1f22;
-            --dc-blurple: #5865f2;
-            --dc-blurple-hover: #4752c4;
-            --dc-green: #23a55a;
-            --dc-text-normal: #dbdee1;
-            --dc-text-muted: #949ba4;
-            --dc-text-header: #f2f3f5;
-            --dc-divider: rgba(255,255,255,0.06);
-        }
-
-        #chatModal {
-            position: fixed; inset: 0;
-            background: rgba(2,6,23,0.88);
-            z-index: 50;
-            display: flex;
-        }
-        #chatModal.is-hidden { display: none !important; }
-
-        #chatPanel {
-            background: var(--dc-bg-primary);
-            width: 100%;
-            height: 100%;
-            display: flex;
-            overflow: hidden;
+        body {
             font-family: 'Inter', sans-serif;
+            margin: 0;
+            background: #12181f;
+            color: #e8e3d5;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
         }
 
-        /* Header spans the main column only, Discord-style */
-        #chatMainCol {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
+        .font-display { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* ── Ambient backdrop: a faint felt-table glow behind the hero, ──
+           ── nothing louder than that.                                  ── */
+        .table-glow {
+            position: absolute;
+            top: -220px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 1100px;
+            height: 560px;
+            background: radial-gradient(ellipse at center, rgba(91,122,153,0.16) 0%, rgba(200,147,63,0.08) 45%, transparent 72%);
+            pointer-events: none;
+            z-index: 0;
         }
-        #chatHeaderBar {
+
+        :focus-visible {
+            outline: 2px solid #c8933f;
+            outline-offset: 2px;
+        }
+
+        input {
+            width: 100%;
+            background: #0d1319;
+            border: 1px solid #263140;
+            border-radius: 10px;
+            padding: 11px 14px;
+            color: #e8e3d5;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            transition: border-color 0.15s;
+        }
+        input::placeholder { color: #56606d; }
+        input:focus { outline: none; border-color: #c8933f; }
+
+        button { font-family: 'Inter', sans-serif; }
+
+        /* ── NAV ── */
+        .top-nav {
+            position: relative;
+            z-index: 10;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 1.25rem;
-            height: 52px;
-            flex-shrink: 0;
-            border-bottom: 1px solid var(--dc-divider);
-            box-shadow: 0 1px 0 rgba(0,0,0,0.15);
+            padding: 20px 28px;
+            border-bottom: 1px solid rgba(232,227,213,0.08);
         }
-
-        #chatLobby {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 1rem;
-            padding: 2rem;
-            overflow-y: auto;
-            background: var(--dc-bg-primary);
-        }
-
-        #chatMessages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1rem 0 0.5rem;
-            display: flex;
-            flex-direction: column;
-            background: var(--dc-bg-primary);
-        }
-        #chatMessages::-webkit-scrollbar { width: 8px; }
-        #chatMessages::-webkit-scrollbar-track { background: transparent; }
-        #chatMessages::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
-
-        #chatInputArea {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin: 0 1rem 1rem;
-            padding: 0 12px;
-            height: 44px;
-            background: #383a40;
-            border-radius: 8px;
-            flex-shrink: 0;
-        }
-        #chatInputArea input[type="text"] {
-            background: transparent;
-            border: none;
-            padding: 0;
-            width: auto;
-        }
-        #chatInputArea input[type="text"]:focus { border-color: transparent; }
-        #sendMsgBtn {
-            background: transparent !important;
-            color: var(--dc-text-muted);
-            padding: 0 2px;
-            border-radius: 0;
-        }
-        #sendMsgBtn:hover { color: var(--dc-blurple); background: transparent; }
-
-        /* Hide chat sub-sections until in a room */
-        #chatMessages.panel-hidden,
-        #chatInputArea.panel-hidden { display: none; }
-        #chatLobby.panel-hidden { display: none; }
-
-        /* Discord-style message groups */
-        .msg-group {
-            display: flex;
-            gap: 12px;
-            padding: 3px 20px;
-            margin-top: 14px;
-        }
-        .msg-group:first-child { margin-top: 4px; }
-        .msg-group:hover { background: rgba(4,4,5,0.07); }
-        .msg-avatar {
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            background: var(--dc-blurple);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            color: white;
-            font-weight: 700;
-            flex-shrink: 0;
-            margin-top: 1px;
-            background-size: cover;
-            background-position: center;
-            overflow: hidden;
-        }
-        .msg-body { min-width: 0; flex: 1; }
-        .msg-headline {
-            display: flex;
-            align-items: baseline;
-            gap: 8px;
-            margin-bottom: 2px;
-        }
-        .msg-sender {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--dc-text-header);
-            white-space: nowrap;
-        }
-        .msg-sender.is-me { color: #86efac; }
-        .msg-time {
-            font-size: 11px;
-            color: var(--dc-text-muted);
-            font-weight: 500;
-        }
-        .msg-line {
-            font-size: 15px;
-            line-height: 1.375;
-            color: var(--dc-text-normal);
-            word-break: break-word;
-        }
-        .msg-solo {
-            display: flex;
-            padding: 1px 20px 1px 70px;
-            position: relative;
-        }
-        .msg-solo:hover { background: rgba(4,4,5,0.07); }
-        .msg-solo:hover .msg-hover-time { visibility: visible; }
-        .msg-hover-time {
-            visibility: hidden;
-            position: absolute;
-            left: 20px;
-            top: 3px;
-            font-size: 10px;
-            color: var(--dc-text-muted);
-            width: 42px;
-            text-align: left;
-        }
-
-        /* ---- Member sidebar ---- */
-        #chatMembersCol {
-            width: 200px;
-            flex-shrink: 0;
-            background: var(--dc-bg-secondary);
-            border-left: 1px solid var(--dc-divider);
-            overflow-y: auto;
-            padding: 16px 10px;
-        }
-        #chatMembersCol::-webkit-scrollbar { width: 4px; }
-        #chatMembersCol::-webkit-scrollbar-thumb { background: #232428; border-radius: 2px; }
-        #chatMembersCol.is-hidden { display: none; }
-        .chat-members-heading {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.02em;
-            color: var(--dc-text-muted);
-            padding: 4px 8px 10px;
-        }
-        .chat-member-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 8px;
-            border-radius: 6px;
-        }
-        .chat-member-row:hover { background: rgba(255,255,255,0.04); }
-        .chat-member-avatar-wrap {
-            position: relative;
-            width: 30px;
-            height: 30px;
-            flex-shrink: 0;
-        }
-        .chat-member-avatar {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: var(--dc-blurple);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13px;
-            color: white;
-            font-weight: 700;
-            background-size: cover;
-            background-position: center;
-            overflow: hidden;
-        }
-        .chat-member-status {
-            position: absolute;
-            bottom: -1px;
-            right: -1px;
-            width: 11px;
-            height: 11px;
-            border-radius: 50%;
-            border: 2.5px solid var(--dc-bg-secondary);
-            background: #80848e;
-        }
-        .chat-member-status.is-online { background: var(--dc-green); }
-        .chat-member-row .chat-member-name { color: var(--dc-text-muted); }
-        .chat-member-row.is-online .chat-member-name { color: var(--dc-text-normal); }
-        .chat-member-name {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--dc-text-normal);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .chat-member-name .you-tag {
-            color: var(--dc-text-muted);
-            font-weight: 400;
-            font-size: 11px;
-        }
-
-        #chatMembersToggleBtn {
-            width: 28px;
-            height: 28px;
-            border-radius: 6px;
-            border: none;
-            background: transparent;
-            color: var(--dc-text-muted);
-            font-size: 13px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.12s, color 0.12s;
-        }
-        #chatMembersToggleBtn:hover { background: rgba(255,255,255,0.06); color: var(--dc-text-header); }
-        #chatMembersToggleBtn.is-active { color: var(--dc-text-header); background: rgba(255,255,255,0.08); }
-
-        /* Lobby: create/join party cards, Discord-ish dark inputs */
-        #chatLobby p { color: var(--dc-text-muted); }
-        #chatLobby input[type="text"] {
-            background: var(--dc-bg-tertiary);
-            border: 1px solid rgba(255,255,255,0.06);
-        }
-        #chatLobby input[type="text"]:focus { border-color: var(--dc-blurple); }
-        #createRoomBtn, #joinRoomBtn {
-            background: var(--dc-blurple) !important;
-        }
-        #createRoomBtn:hover, #joinRoomBtn:hover { background: var(--dc-blurple-hover) !important; }
-
-        .party-row-btn {
-            flex: 1; text-align: left;
-            background: var(--dc-bg-tertiary);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 10px;
-            padding: 10px 12px;
-            color: var(--dc-text-normal);
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
+        .brand-mark {
             display: flex;
             align-items: center;
             gap: 10px;
         }
-        .party-row-btn:hover { border-color: var(--dc-blurple); }
-        .party-row-avatar {
-            width: 28px; height: 28px; border-radius: 50%;
-            background: var(--dc-blurple);
+        .brand-glyph {
+            width: 34px; height: 34px;
+            border-radius: 9px;
+            background: linear-gradient(145deg, #c8933f, #9c6f2a);
             display: flex; align-items: center; justify-content: center;
-            font-size: 13px; color: white; font-weight: 700; flex-shrink: 0;
+            font-size: 16px;
+            box-shadow: 0 4px 14px rgba(200,147,63,0.25);
+            flex-shrink: 0;
+        }
+        .brand-name {
+            font-family: 'Fraunces', serif;
+            font-weight: 700;
+            font-size: 19px;
+            letter-spacing: -0.01em;
+            color: #f5f1e8;
         }
 
-        @media (max-width: 640px) {
-            #chatMembersCol { display: none !important; }
-        }
-
-        input[type="text"], input[type="email"], input[type="password"] {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 10px;
-            color: #f1f5f9;
-            padding: 10px 14px;
-            font-size: 14px;
-            width: 100%;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        input:focus { border-color: #818cf8; }
-
-        /* ── Profile bar (small, top of page near sign-in) ── */
+        /* ── Profile bar ── */
         #profileBar {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 4px 6px 4px 4px;
+            gap: 9px;
+            padding: 5px 14px 5px 5px;
             border-radius: 99px;
-            background: #0f172a;
-            border: 1px solid #1e293b;
+            background: #1a2530;
+            border: 1px solid #263140;
             cursor: pointer;
             transition: border-color 0.2s, background 0.2s;
         }
-        #profileBar:hover { border-color: #334155; background: #131f35; }
+        #profileBar:hover { border-color: #3a4859; background: #1f2c39; }
         .avatar-circle {
             width: 28px; height: 28px;
             border-radius: 50%;
-            background: #1e293b;
-            border: 1px solid #334155;
+            background: #263140;
+            border: 1px solid #3a4859;
             display: flex; align-items: center; justify-content: center;
             font-size: 14px;
             flex-shrink: 0;
             background-size: cover;
             background-position: center;
-            color: #64748b;
+            color: #8a94a3;
             font-weight: 700;
         }
-        .avatar-circle.lg { width: 44px; height: 44px; font-size: 22px; }
-        .avatar-circle.md { width: 36px; height: 36px; font-size: 18px; }
+        .avatar-circle.lg { width: 46px; height: 46px; font-size: 22px; }
 
         .avatar-pick-btn {
             width: 38px; height: 38px;
             border-radius: 10px;
             display: flex; align-items: center; justify-content: center;
             font-size: 18px;
-            border: 2px solid #1e293b;
-            background: #0b1220;
+            border: 2px solid #263140;
+            background: #0d1319;
             cursor: pointer;
             transition: border-color 0.15s, background 0.15s;
         }
-        .avatar-pick-btn:hover { border-color: #475569; }
-        .avatar-pick-btn.selected { border-color: #818cf8; background: rgba(129,140,248,0.12); }
+        .avatar-pick-btn:hover { border-color: #56606d; }
+        .avatar-pick-btn.selected { border-color: #c8933f; background: rgba(200,147,63,0.12); }
 
-        #profileEditModal.is-hidden { display: none !important; }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 11px 18px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, transform 0.1s;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-brass { background: #c8933f; color: #14100a; }
+        .btn-brass:hover { background: #d8a552; }
+        .btn-slate { background: #263140; color: #e8e3d5; border: 1px solid #3a4859; }
+        .btn-slate:hover { background: #2d3a4a; }
+        .btn-ghost { background: transparent; color: #9aa5b3; border: 1px solid #263140; }
+        .btn-ghost:hover { background: #1a2530; color: #e8e3d5; }
+
+        .is-hidden { display: none !important; }
+
+        /* ── HERO ── */
+        .hero {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 88px 24px 56px;
+        }
+        .hero-eyebrow {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #c8933f;
+            margin-bottom: 18px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .hero-eyebrow::before, .hero-eyebrow::after {
+            content: '';
+            width: 24px; height: 1px;
+            background: rgba(200,147,63,0.5);
+        }
+        .hero h1 {
+            font-family: 'Fraunces', serif;
+            font-weight: 900;
+            font-size: clamp(2.6rem, 6vw, 4.2rem);
+            letter-spacing: -0.02em;
+            line-height: 1.02;
+            color: #f5f1e8;
+            margin: 0 0 16px;
+        }
+        .hero h1 em {
+            font-style: italic;
+            font-weight: 500;
+            color: #c8933f;
+        }
+        .hero p {
+            color: #9aa5b3;
+            font-size: 17px;
+            max-width: 460px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* ── TILES — styled like game cards, corner index instead of ── */
+        /* ── numbered badges, since these are two "cards on the table" ── */
+        .tile-grid {
+            position: relative;
+            z-index: 1;
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 8px 24px 100px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 22px;
+        }
+        @media (max-width: 720px) {
+            .tile-grid { grid-template-columns: 1fr; }
+        }
+
+        .game-card {
+            position: relative;
+            background: #1a2530;
+            border: 1px solid #263140;
+            border-radius: 18px;
+            padding: 34px 30px 30px;
+            text-decoration: none;
+            display: block;
+            overflow: hidden;
+            transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+        }
+        .game-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(160deg, rgba(255,255,255,0.03), transparent 40%);
+            pointer-events: none;
+        }
+        .game-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 24px 48px rgba(0,0,0,0.35);
+        }
+        .game-card.suit-brass:hover { border-color: #c8933f; box-shadow: 0 24px 48px rgba(200,147,63,0.14); }
+        .game-card.suit-slate:hover { border-color: #5b7a99; box-shadow: 0 24px 48px rgba(91,122,153,0.16); }
+
+        .card-index {
+            position: absolute;
+            top: 18px; right: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            opacity: 0.55;
+        }
+        .suit-brass .card-index { color: #c8933f; }
+        .suit-slate .card-index { color: #5b7a99; }
+
+        .card-glyph { font-size: 2.1rem; margin-bottom: 18px; display: block; }
+
+        .card-title {
+            font-family: 'Fraunces', serif;
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: #f5f1e8;
+            margin: 0 0 4px;
+        }
+        .card-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10.5px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 3px 9px;
+            border-radius: 5px;
+            display: inline-block;
+            margin-bottom: 14px;
+        }
+        .suit-brass .card-tag { background: rgba(200,147,63,0.15); color: #d8a552; }
+        .suit-slate .card-tag { background: rgba(91,122,153,0.18); color: #8fb0cc; }
+
+        .card-desc {
+            color: #9aa5b3;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0 0 22px;
+        }
+        .card-cta {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-weight: 700;
+            font-size: 13.5px;
+        }
+        .suit-brass .card-cta { color: #c8933f; }
+        .suit-slate .card-cta { color: #7fa3c4; }
+        .card-cta .arrow { transition: transform 0.2s; }
+        .game-card:hover .card-cta .arrow { transform: translateX(3px); }
+
+        .card-placeholder {
+            grid-column: 1 / -1;
+            border: 1px dashed #263140;
+            border-radius: 18px;
+            padding: 26px;
+            text-align: center;
+        }
+        .card-placeholder p {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            color: #45505e;
+            margin: 0;
+        }
+
+        /* ── Modal shell (auth + profile edit) ── */
+        .modal-backdrop {
+            position: fixed; inset: 0;
+            background: rgba(10,14,19,0.82);
+            backdrop-filter: blur(5px);
+            z-index: 50;
+            display: flex; align-items: center; justify-content: center;
+            padding: 1rem;
+        }
+        .modal-box {
+            background: #1a2530;
+            border: 1px solid #263140;
+            border-radius: 18px;
+            width: 100%; max-width: 380px;
+            padding: 30px;
+        }
+        .modal-box h2 {
+            font-family: 'Fraunces', serif;
+            font-weight: 700;
+        }
+
+        footer.site-footer {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 26px 24px 34px;
+            color: #45505e;
+            font-size: 12.5px;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.02em;
+        }
     </style>
 </head>
-<body class="min-h-screen text-slate-100">
+<body>
+
+    <div class="table-glow"></div>
 
     <!-- ── NAV ── -->
-    <nav class="flex items-center justify-between px-6 py-4 border-b border-slate-800/60">
-        <span class="font-display text-xl font-bold text-white">Game Hub</span>
+    <nav class="top-nav">
+        <div class="brand-mark">
+            <span class="brand-glyph">🃏</span>
+            <span class="brand-name">Game Hub</span>
+        </div>
         <div class="flex items-center gap-3">
-            <!-- Profile bar: small tile, signed-in state only -->
             <button id="profileBar" class="is-hidden">
                 <div id="profileBarAvatar" class="avatar-circle">?</div>
-                <span id="profileBarName" class="text-sm font-semibold text-slate-100 max-w-[110px] truncate"></span>
+                <span id="profileBarName" class="text-sm font-semibold text-[#e8e3d5] max-w-[110px] truncate"></span>
             </button>
-            <div id="authArea" class="flex items-center gap-3">
-                <!-- filled by JS -->
-            </div>
+            <div id="authArea" class="flex items-center gap-3"></div>
         </div>
     </nav>
 
     <!-- ── HERO ── -->
-    <header class="text-center py-16 px-4">
-        <h1 class="font-display text-5xl font-black text-white mb-3">Welcome Back</h1>
-        <p class="text-slate-400 text-lg">Pick something to do.</p>
+    <header class="hero">
+        <span class="hero-eyebrow">Pull up a chair</span>
+        <h1>Welcome back to<br><em>the table.</em></h1>
+        <p>Your games and your people, in one place. Pick something below to get started.</p>
     </header>
 
     <!-- ── TILES ── -->
-    <main class="max-w-3xl mx-auto px-4 pb-24 grid sm:grid-cols-2 gap-5">
-        <!-- Dutch Card Game -->
-        <a class="card-tile amber" href="dutch.html">
-            <div class="text-4xl mb-4">🃏</div>
-            <div class="flex items-center gap-2 mb-2">
-                <h2 class="font-display text-2xl font-bold text-white">Dutch</h2>
-                <span class="pill bg-amber-900/60 text-amber-300">Card Game</span>
-            </div>
-            <p class="text-slate-400 text-sm leading-relaxed">
-                The classic card game. Create a room, invite friends, and play Dutch together.
-            </p>
-            <div class="mt-5 flex items-center gap-2 text-amber-400 font-semibold text-sm">
-                Play now <span>→</span>
-            </div>
-        </a>
-        <!-- Standalone Chat (servers + DMs) -->
-        <a class="card-tile indigo" href="chat.html">
-            <div class="text-4xl mb-4">🗨️</div>
-            <div class="flex items-center gap-2 mb-2">
-                <h2 class="font-display text-2xl font-bold text-white">Chat</h2>
-                <span class="pill bg-indigo-900/60 text-indigo-300">Beta</span>
-            </div>
-            <p class="text-slate-400 text-sm leading-relaxed">
-                Servers and DMs, built right into the site. Join servers with friends or message any player directly.
-            </p>
-            <div class="mt-5 flex items-center gap-2 text-indigo-400 font-semibold text-sm">
-                Open chat <span>→</span>
-            </div>
+    <main class="tile-grid">
+        <a class="game-card suit-brass" href="dutch.html">
+            <span class="card-index">No. 01 · Cards</span>
+            <span class="card-glyph">🃏</span>
+            <h2 class="card-title">Dutch</h2>
+            <span class="card-tag">Card Game</span>
+            <p class="card-desc">The classic card game. Create a room, invite friends, and play Dutch together.</p>
+            <div class="card-cta">Play now <span class="arrow">→</span></div>
         </a>
 
-        <!-- Placeholder for future -->
-        <div class="card-tile sm:col-span-2 opacity-40 cursor-default" style="pointer-events:none;">
-            <p class="text-slate-500 text-sm text-center">More coming soon...</p>
+        <a class="game-card suit-slate" href="chat.html">
+            <span class="card-index">No. 02 · Lounge</span>
+            <span class="card-glyph">🗨️</span>
+            <h2 class="card-title">Chat</h2>
+            <span class="card-tag">Servers &amp; DMs</span>
+            <p class="card-desc">Servers and direct messages, built right into the site. Join a server with friends or message any player directly.</p>
+            <div class="card-cta">Open chat <span class="arrow">→</span></div>
+        </a>
+
+        <div class="card-placeholder">
+            <p>MORE ON THE WAY</p>
         </div>
-
     </main>
 
+    <footer class="site-footer">Game Hub — built for the table, not the timeline.</footer>
+
     <!-- ── AUTH MODAL ── -->
-    <!-- Starts hidden via is-hidden. We never use Tailwind's 'hidden' class here
-         because the CDN may not have generated it yet when the page first paints. -->
     <div id="authModal" class="modal-backdrop is-hidden">
         <div class="modal-box space-y-5">
-            <h2 class="font-display text-2xl font-bold text-white">Sign in to chat</h2>
-            <p class="text-slate-400 text-sm">You need an account to join party chats.</p>
+            <h2 class="text-2xl font-bold text-[#f5f1e8]">Sign in</h2>
+            <p class="text-[#9aa5b3] text-sm">You need an account to play and chat.</p>
 
             <div id="authError" class="is-hidden text-rose-400 text-sm bg-rose-900/30 border border-rose-800 rounded-lg px-3 py-2"></div>
 
@@ -498,108 +408,46 @@
             </div>
 
             <div class="flex gap-3">
-                <button id="signInBtn" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm">Sign In</button>
-                <button id="signUpBtn" class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl transition text-sm">Sign Up</button>
+                <button id="signInBtn" class="btn btn-brass flex-1">Sign In</button>
+                <button id="signUpBtn" class="btn btn-slate flex-1">Sign Up</button>
             </div>
 
-            <button id="googleBtn" class="w-full py-3 border border-slate-700 hover:border-slate-500 text-slate-300 font-semibold rounded-xl transition text-sm flex items-center justify-center gap-2">
+            <button id="googleBtn" class="btn btn-ghost w-full">
                 <svg width="16" height="16" viewBox="0 0 48 48">
                     <path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-21 0-1.4-.1-2.7-.5-4z"/>
                 </svg>
                 Continue with Google
             </button>
 
-            <!-- Cancel button: plain button element, no inline onclick — wired in JS -->
-            <button id="cancelAuthBtn" class="w-full py-2 text-slate-500 hover:text-slate-300 text-sm transition">Cancel</button>
+            <button id="cancelAuthBtn" class="w-full py-2 text-[#56606d] hover:text-[#9aa5b3] text-sm transition bg-transparent border-none cursor-pointer">Cancel</button>
         </div>
     </div>
-
-    <!-- ── CHAT MODAL (full-screen, Discord-style) ── -->
-    <div id="chatModal" class="is-hidden">
-    <div id="chatPanel">
-    <div id="chatMainCol">
-        <!-- Header -->
-        <div id="chatHeaderBar">
-            <div class="flex items-center gap-3" style="min-width:0;">
-                <span class="text-2xl">💬</span>
-                <div style="min-width:0;">
-                    <div class="font-display font-bold text-white text-lg leading-none" id="chatRoomLabel" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Party Chat</div>
-                    <div class="text-slate-500 text-xs mt-0.5">Real-time party chat</div>
-                </div>
-            </div>
-            <div class="flex items-center gap-2">
-                <!-- Back-to-parties button, hidden until inside a room -->
-                <button id="backToPartiesBtn" class="text-xs text-slate-400 hover:text-white font-semibold px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 transition is-hidden">← Parties</button>
-                <!-- Code copy button, hidden until in a room -->
-                <button id="copyCodeBtn" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold px-3 py-1.5 rounded-lg bg-indigo-900/30 border border-indigo-800/50 transition is-hidden"></button>
-                <!-- Member sidebar toggle, hidden until in a room -->
-                <button id="chatMembersToggleBtn" class="is-hidden is-active" title="Toggle member list">☰</button>
-                <button id="closeChatBtn" class="text-slate-400 hover:text-white text-xl font-bold w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-800 transition">✕</button>
-            </div>
-        </div>
-
-        <!-- Room picker (shown when no room joined) -->
-        <div id="chatLobby">
-            <!-- Saved parties the signed-in player has joined before -->
-            <div id="savedPartiesSection" class="is-hidden" style="width:100%;">
-                <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Your Parties</p>
-                <div id="savedPartiesList" class="space-y-2" style="width:100%;"></div>
-                <div style="border-top:1px solid #1e293b;margin:14px 0;"></div>
-            </div>
-
-            <p class="text-slate-400 text-sm text-center">Create a new party or join one with a code.</p>
-            <input type="text" id="newPartyNameInput" placeholder="Party name (optional)" maxlength="30" style="width:100%;" />
-            <button id="createRoomBtn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm">✨ Create Party</button>
-            <div class="flex gap-2 w-full">
-                <input type="text" id="joinCodeInput" placeholder="Enter room code" maxlength="6" style="text-transform:uppercase;letter-spacing:0.1em;flex:1;" />
-                <button id="joinRoomBtn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition text-sm">Join</button>
-            </div>
-        </div>
-
-        <!-- Messages area (hidden until in a room) -->
-        <div id="chatMessages" class="panel-hidden"></div>
-
-        <!-- Message input (hidden until in a room) -->
-        <div id="chatInputArea" class="panel-hidden">
-            <input type="text" id="msgInput" placeholder="Message the party..." style="flex:1;" />
-            <button id="sendMsgBtn" class="px-3 py-2 rounded-xl text-white font-bold text-sm transition">➤</button>
-        </div>
-    </div><!-- /chatMainCol -->
-
-    <!-- Member sidebar (hidden until in a room) -->
-    <div id="chatMembersCol" class="is-hidden">
-        <div class="chat-members-heading" id="chatMembersHeading">Members — 0</div>
-        <div id="chatMembersList"></div>
-    </div>
-    </div><!-- /chatPanel -->
-    </div><!-- /chatModal -->
-
 
     <!-- ── EDIT PROFILE MODAL ── -->
-    <!-- Reads/writes the same users/{uid} Firestore doc that Dutch (and any
-         future game) uses, so a nickname/avatar change here shows up there
-         too, and vice versa — kept live via onSnapshot. -->
+    <!-- Reads/writes the same users/{uid} Firestore doc that Dutch and Chat
+         use, so a nickname/avatar change here shows up there too, and
+         vice versa — kept live via onSnapshot. -->
     <div id="profileEditModal" class="modal-backdrop is-hidden">
         <div class="modal-box space-y-5" style="max-height:90vh;overflow-y:auto;">
             <div class="flex items-center justify-between">
-                <h2 class="font-display text-2xl font-bold text-white">Edit Profile</h2>
-                <button id="closeProfileEditBtn" class="text-slate-400 hover:text-white text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 transition">✕</button>
+                <h2 class="text-2xl font-bold text-[#f5f1e8]">Edit Profile</h2>
+                <button id="closeProfileEditBtn" class="text-[#56606d] hover:text-[#e8e3d5] text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#0d1319] transition bg-transparent border-none cursor-pointer">✕</button>
             </div>
-            <p class="text-slate-400 text-sm -mt-3">Your nickname and avatar are shared across every game in the hub.</p>
+            <p class="text-[#9aa5b3] text-sm -mt-3">Your nickname and avatar are shared across every game in the hub.</p>
 
             <div class="space-y-1.5">
-                <label class="block text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Display Name</label>
+                <label class="block text-left text-xs font-bold text-[#9aa5b3] uppercase tracking-wider">Display Name</label>
                 <input type="text" id="profileNameInput" placeholder="Enter display name..." maxlength="24" />
             </div>
 
             <div class="space-y-1.5">
-                <label class="block text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Avatar</label>
+                <label class="block text-left text-xs font-bold text-[#9aa5b3] uppercase tracking-wider">Avatar</label>
                 <div id="profileAvatarGrid" class="grid grid-cols-6 gap-2"></div>
-                <p class="text-left text-[11px] text-slate-500">Pick an icon, or clear it to use your Google photo instead.</p>
-                <button id="profileClearAvatarBtn" class="text-left text-[11px] text-indigo-400 hover:text-indigo-300 transition underline">Use Google photo instead</button>
+                <p class="text-left text-[11px] text-[#56606d]">Pick an icon, or clear it to use your Google photo instead.</p>
+                <button id="profileClearAvatarBtn" class="text-left text-[11px] text-[#c8933f] hover:text-[#d8a552] transition underline bg-transparent border-none cursor-pointer">Use Google photo instead</button>
             </div>
 
-            <button id="profileSaveBtn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm">Save Changes</button>
+            <button id="profileSaveBtn" class="btn btn-brass w-full">Save Changes</button>
             <p id="profileSavedHint" class="is-hidden text-center text-xs text-emerald-400">✓ Profile updated — synced everywhere</p>
         </div>
     </div>
@@ -608,18 +456,13 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import {
-            getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot,
-            collection, addDoc, query, orderBy, serverTimestamp,
-            getDocs, deleteDoc
+            getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import {
             getAuth, GoogleAuthProvider, signInWithPopup,
             signOut, onAuthStateChanged,
             createUserWithEmailAndPassword, signInWithEmailAndPassword
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import {
-            getDatabase, ref, set, onDisconnect, onValue, remove, serverTimestamp as rtdbServerTimestamp
-        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
         // ─────────────────────────────────────────────
         // Firebase init
@@ -634,28 +477,14 @@
             databaseURL: "https://dutch-card-game-60d1c-default-rtdb.europe-west1.firebasedatabase.app"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db  = getFirestore(app);
+        const app  = initializeApp(firebaseConfig);
+        const db   = getFirestore(app);
         const auth = getAuth(app);
         const googleProvider = new GoogleAuthProvider();
-        const rtdb = getDatabase(app);
 
-        let currentUser   = null;
-        let currentRoomId = null;
-        let msgUnsub      = null;
-        let chatMembersVisible = true;
-        let lastGroupSenderUid = null;
-        let lastGroupEl = null;
-        let partyPresenceUnsub = null;   // RTDB listener for who's online in this party
-        let partyRoomUnsub = null;       // Firestore listener for the members map
-        let latestPartyMembers = null;   // cached members map so presence updates can re-render
-        let latestPartyPresence = null;  // cached presence map so member updates can re-render
-
-        // Profile (users/{uid} doc) — same collection Dutch (and any future
-        // game) reads/writes, so a nickname/avatar change anywhere is
-        // visible everywhere. Kept live via onSnapshot.
-        let currentProfile  = null;
-        let profileUnsub     = null;
+        let currentUser    = null;
+        let currentProfile = null;
+        let profileUnsub   = null;
         let pendingAvatarChoice = undefined; // undefined = unchanged, null = cleared to Google photo, string = chosen emoji
 
         const AVATAR_PRESETS = ['🐱', '🐶', '🦊', '🐻', '🐼', '🦁', '🐸', '🐵', '🦉', '🐯', '🐧', '🦄', '🃏', '🎲', '👑', '🔥', '⭐', '🌙'];
@@ -667,22 +496,12 @@
         const authError    = document.getElementById('authError');
         const authEmail    = document.getElementById('authEmail');
         const authPassword = document.getElementById('authPassword');
-        const chatModal    = document.getElementById('chatModal');
-        const chatPanel    = document.getElementById('chatPanel');
-        const chatLobby    = document.getElementById('chatLobby');
-        const chatMessages = document.getElementById('chatMessages');
-        const chatInputArea = document.getElementById('chatInputArea');
-        const copyCodeBtn  = document.getElementById('copyCodeBtn');
-        const chatMembersCol = document.getElementById('chatMembersCol');
-        const chatMembersList = document.getElementById('chatMembersList');
-        const chatMembersHeading = document.getElementById('chatMembersHeading');
-        const chatMembersToggleBtn = document.getElementById('chatMembersToggleBtn');
 
-        const profileBar      = document.getElementById('profileBar');
+        const profileBar       = document.getElementById('profileBar');
         const profileEditModal = document.getElementById('profileEditModal');
         const profileNameInput = document.getElementById('profileNameInput');
         const profileAvatarGrid = document.getElementById('profileAvatarGrid');
-        const profileSavedHint = document.getElementById('profileSavedHint');
+        const profileSavedHint  = document.getElementById('profileSavedHint');
 
         // ─────────────────────────────────────────────
         // Visibility helpers (avoid Tailwind CDN race)
@@ -698,23 +517,13 @@
             authPassword.value = '';
             hide(authError);
             show(authModal);
-            // Focus email field for UX
             setTimeout(() => authEmail.focus(), 50);
         }
+        function closeAuthModal() { hide(authModal); }
 
-        function closeAuthModal() {
-            hide(authModal);
-        }
-
-        // Backdrop click closes modal
-        authModal.addEventListener('click', e => {
-            if (e.target === authModal) closeAuthModal();
-        });
-
-        // Cancel button
+        authModal.addEventListener('click', e => { if (e.target === authModal) closeAuthModal(); });
         document.getElementById('cancelAuthBtn').addEventListener('click', closeAuthModal);
 
-        // Sign In
         document.getElementById('signInBtn').addEventListener('click', async () => {
             const email = authEmail.value.trim();
             const pass  = authPassword.value;
@@ -722,11 +531,9 @@
             try {
                 await signInWithEmailAndPassword(auth, email, pass);
                 closeAuthModal();
-                openChat();
             } catch(e) { showAuthError(e.message); }
         });
 
-        // Sign Up
         document.getElementById('signUpBtn').addEventListener('click', async () => {
             const email = authEmail.value.trim();
             const pass  = authPassword.value;
@@ -734,16 +541,13 @@
             try {
                 await createUserWithEmailAndPassword(auth, email, pass);
                 closeAuthModal();
-                openChat();
             } catch(e) { showAuthError(e.message); }
         });
 
-        // Google Sign-In (popup — works same-origin; no redirect so no page reload)
         document.getElementById('googleBtn').addEventListener('click', async () => {
             try {
                 await signInWithPopup(auth, googleProvider);
                 closeAuthModal();
-                openChat();
             } catch(e) {
                 const code = (e.message || '').match(/auth\/[\w-]+/)?.[0];
                 if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
@@ -752,7 +556,6 @@
             }
         });
 
-        // Enter key on password field triggers sign-in
         authPassword.addEventListener('keydown', e => {
             if (e.key === 'Enter') document.getElementById('signInBtn').click();
         });
@@ -771,7 +574,7 @@
             };
             const code = (rawMsg || '').match(/auth\/[\w-]+/)?.[0] || '';
             const msg  = code in map ? map[code] : 'Something went wrong — please try again.';
-            if (msg === null) return; // user closed popup, stay silent
+            if (msg === null) return;
             authError.textContent = msg;
             show(authError);
         }
@@ -783,37 +586,30 @@
             currentUser = user;
             renderNavAuthArea(user);
             if (user) {
-                closeAuthModal(); // auto-close if signed in
+                closeAuthModal();
                 subscribeToProfile(user);
                 show(profileBar);
             } else {
                 if (profileUnsub) { profileUnsub(); profileUnsub = null; }
                 currentProfile = null;
                 hide(profileBar);
-                // Signing out mid-chat shouldn't leave a stale room open for
-                // whoever signs in next on this device.
-                backToPartyList();
             }
         });
 
         function renderNavAuthArea(user) {
             const area = document.getElementById('authArea');
             if (user) {
-                area.innerHTML = `
-                    <button id="signOutNavBtn" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition">Sign out</button>`;
+                area.innerHTML = `<button id="signOutNavBtn" class="btn btn-ghost">Sign out</button>`;
                 document.getElementById('signOutNavBtn').addEventListener('click', () => signOut(auth));
             } else {
-                area.innerHTML = `
-                    <button id="openModalNavBtn" class="px-4 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition">Sign in</button>`;
+                area.innerHTML = `<button id="openModalNavBtn" class="btn btn-slate">Sign in</button>`;
                 document.getElementById('openModalNavBtn').addEventListener('click', openAuthModal);
             }
         }
 
         // ─────────────────────────────────────────────
-        // Profile (shared users/{uid} doc — same one Dutch reads/writes)
+        // Profile (shared users/{uid} doc — same one Dutch and Chat use)
         // ─────────────────────────────────────────────
-        // Renders either a custom emoji avatar or a photo URL into a
-        // container div (not <img> — emoji can't be an img src).
         function renderAvatarInto(el, photoURL, avatarEmoji) {
             if (!el) return;
             if (avatarEmoji) {
@@ -833,8 +629,8 @@
         }
 
         // Subscribes live to users/{uid} so a nickname/avatar change made in
-        // Dutch (or any other game sharing this doc) reflects here instantly,
-        // and vice versa. Creates the doc on first sign-in if it doesn't exist.
+        // Dutch or Chat (or any other game sharing this doc) reflects here
+        // instantly, and vice versa. Creates the doc on first sign-in.
         async function subscribeToProfile(user) {
             if (profileUnsub) { profileUnsub(); profileUnsub = null; }
             const ref = doc(db, 'users', user.uid);
@@ -846,7 +642,7 @@
                     email: user.email || '',
                     photoURL: user.photoURL || '',
                     username: user.displayName || (user.email ? user.email.split('@')[0] : 'Player'),
-                    avatarEmoji: null, // null = use Google photo
+                    avatarEmoji: null,
                     stats: defaultStats()
                 });
             }
@@ -854,17 +650,12 @@
             profileUnsub = onSnapshot(ref, s => {
                 if (!s.exists()) return;
                 currentProfile = s.data();
-                renderProfileBar();
+                const name = currentProfile.username || currentUser.displayName || 'Player';
+                const avatarEmoji = currentProfile.avatarEmoji || null;
+                const photo = currentUser.photoURL || '';
+                renderAvatarInto(document.getElementById('profileBarAvatar'), photo, avatarEmoji);
+                document.getElementById('profileBarName').textContent = name;
             });
-        }
-
-        function renderProfileBar() {
-            if (!currentUser || !currentProfile) return;
-            const name = currentProfile.username || currentUser.displayName || 'Player';
-            const avatarEmoji = currentProfile.avatarEmoji || null;
-            const photo = currentUser.photoURL || '';
-            renderAvatarInto(document.getElementById('profileBarAvatar'), photo, avatarEmoji);
-            document.getElementById('profileBarName').textContent = name;
         }
 
         profileBar.addEventListener('click', openProfileEditModal);
@@ -877,15 +668,10 @@
             show(profileEditModal);
             setTimeout(() => profileNameInput.focus(), 50);
         }
-
-        function closeProfileEditModal() {
-            hide(profileEditModal);
-        }
+        function closeProfileEditModal() { hide(profileEditModal); }
 
         document.getElementById('closeProfileEditBtn').addEventListener('click', closeProfileEditModal);
-        profileEditModal.addEventListener('click', e => {
-            if (e.target === profileEditModal) closeProfileEditModal();
-        });
+        profileEditModal.addEventListener('click', e => { if (e.target === profileEditModal) closeProfileEditModal(); });
 
         function renderProfileAvatarGrid() {
             const currentChoice = pendingAvatarChoice !== undefined ? pendingAvatarChoice : (currentProfile?.avatarEmoji || null);
@@ -916,9 +702,6 @@
                 avatarEmoji: newAvatarEmoji
             });
 
-            // Keep the public leaderboard entry in sync too, same as Dutch's
-            // own Edit Profile flow — merge so it's safe even if this user
-            // has no leaderboard doc yet.
             try {
                 await setDoc(doc(db, 'leaderboard', currentUser.uid), {
                     displayName: newUsername,
@@ -934,405 +717,7 @@
                 hide(profileSavedHint);
                 closeProfileEditModal();
             }, 900);
-            // currentProfile/profileBar update automatically via the
-            // onSnapshot listener once this write lands.
         });
-
-        // ─────────────────────────────────────────────
-        // Party chat avatar helpers (Discord-style)
-        // ─────────────────────────────────────────────
-        function buildPartyAvatarStyle(name, avatarEmoji, photoURL) {
-            if (avatarEmoji) {
-                return { html: escHtml(avatarEmoji), bg: '' };
-            } else if (photoURL) {
-                return { html: '', bg: `background-image:url('${photoURL}');` };
-            }
-            const initial = (name || '?').trim().charAt(0).toUpperCase() || '?';
-            return { html: escHtml(initial), bg: '' };
-        }
-
-        chatMembersToggleBtn.addEventListener('click', () => {
-            chatMembersVisible = !chatMembersVisible;
-            chatMembersCol.classList.toggle('is-hidden', !chatMembersVisible);
-            chatMembersToggleBtn.classList.toggle('is-active', chatMembersVisible);
-        });
-
-        // Renders the member sidebar from the party doc's `members` map,
-        // marking who's currently online via RTDB presence.
-        function renderPartyMembers(membersMap, presentMap) {
-            const members = membersMap !== undefined ? membersMap : latestPartyMembers;
-            const present = presentMap !== undefined ? presentMap : latestPartyPresence;
-            latestPartyMembers = members;
-            latestPartyPresence = present;
-
-            const uids = Object.keys(members || {});
-            chatMembersHeading.textContent = `Members — ${uids.length}`;
-
-            // Online members first
-            const sorted = [...uids].sort((a, b) => {
-                const aOnline = !!(present && present[a]);
-                const bOnline = !!(present && present[b]);
-                if (aOnline === bOnline) return 0;
-                return aOnline ? -1 : 1;
-            });
-
-            chatMembersList.innerHTML = sorted.map(uid => {
-                const m = (members || {})[uid];
-                const isMe = currentUser && uid === currentUser.uid;
-                const isOnline = !!(present && present[uid]);
-                const avatar = buildPartyAvatarStyle(m?.name, m?.avatarEmoji, m?.photoURL);
-                return `
-                    <div class="chat-member-row${isOnline ? ' is-online' : ''}">
-                        <div class="chat-member-avatar-wrap">
-                            <div class="chat-member-avatar" style="${avatar.bg}${isOnline ? '' : 'filter:grayscale(60%);opacity:0.6;'}">${avatar.html}</div>
-                            <div class="chat-member-status${isOnline ? ' is-online' : ''}"></div>
-                        </div>
-                        <span class="chat-member-name">${escHtml(m?.name || 'Guest')}${isMe ? ' <span class="you-tag">(you)</span>' : ''}</span>
-                    </div>`;
-            }).join('');
-        }
-
-        // Registers this user's presence in the party's RTDB node, removing
-        // it automatically on disconnect (tab close, network loss, etc.).
-        function registerPartyPresence(code, uid) {
-            const presenceRef = ref(rtdb, `partyPresence/${code}/${uid}`);
-            set(presenceRef, { joinedAt: rtdbServerTimestamp() });
-            onDisconnect(presenceRef).remove();
-        }
-
-        function clearPartyPresence(code, uid) {
-            if (!code || !uid) return;
-            remove(ref(rtdb, `partyPresence/${code}/${uid}`)).catch(() => {});
-        }
-
-        function subscribePartyPresence(code) {
-            unsubscribePartyPresence();
-            const presenceListRef = ref(rtdb, `partyPresence/${code}`);
-            partyPresenceUnsub = onValue(presenceListRef, (snap) => {
-                renderPartyMembers(undefined, snap.val() || {});
-            });
-        }
-
-        function unsubscribePartyPresence() {
-            if (partyPresenceUnsub) { partyPresenceUnsub(); partyPresenceUnsub = null; }
-        }
-
-        window.addEventListener('pagehide', () => {
-            if (currentRoomId && currentUser) clearPartyPresence(currentRoomId, currentUser.uid);
-        });
-
-        // ─────────────────────────────────────────────
-        // Party Chat tile
-        // ─────────────────────────────────────────────
-        document.getElementById('chatTile').addEventListener('click', () => {
-            if (!currentUser) {
-                openAuthModal();
-            } else {
-                openChat();
-            }
-        });
-
-        function openChat() {
-            show(chatModal);
-            refreshSavedPartiesList();
-        }
-
-        function closeChat() {
-            hide(chatModal);
-        }
-
-        document.getElementById('closeChatBtn').addEventListener('click', closeChat);
-
-        // Click on the backdrop (outside the panel) closes chat
-        chatModal.addEventListener('click', e => {
-            if (e.target === chatModal) closeChat();
-        });
-
-        // ─────────────────────────────────────────────
-        // Room create / join
-        // ─────────────────────────────────────────────
-        // Parties are permanent Firestore documents (chatRooms/{code}). A
-        // player's membership is recorded under users/{uid}/parties/{code}
-        // so we can show them a "Your Parties" list to rejoin later,
-        // without needing to remember the code again.
-        document.getElementById('createRoomBtn').addEventListener('click', async () => {
-            if (!currentUser) { openAuthModal(); return; }
-            const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            const nameInput = document.getElementById('newPartyNameInput');
-            const partyName = nameInput.value.trim() || `Party ${code}`;
-            nameInput.value = '';
-            await setDoc(doc(db, 'chatRooms', code), {
-                createdBy: currentUser.uid,
-                createdAt: serverTimestamp(),
-                name: partyName
-            });
-            await recordPartyMembership(code, partyName);
-            await enterRoom(code);
-        });
-
-        document.getElementById('joinRoomBtn').addEventListener('click', async () => {
-            if (!currentUser) { openAuthModal(); return; }
-            const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
-            if (!code) return;
-            const snap = await getDoc(doc(db, 'chatRooms', code));
-            if (!snap.exists()) { alert('Room not found. Double-check the code.'); return; }
-            document.getElementById('joinCodeInput').value = '';
-            await recordPartyMembership(code, snap.data()?.name || `Party ${code}`);
-            await enterRoom(code);
-        });
-
-        document.getElementById('joinCodeInput').addEventListener('keydown', e => {
-            if (e.key === 'Enter') document.getElementById('joinRoomBtn').click();
-        });
-
-        // Records (or refreshes) that the current user is a member of this
-        // party, both on the party doc itself (so it's easy to see who's
-        // been in it) and under the user's own profile (so we can list
-        // "Your Parties" without a slow reverse lookup across all rooms).
-        async function recordPartyMembership(code, name) {
-            if (!currentUser) return;
-            await setDoc(doc(db, 'chatRooms', code), {
-                [`members.${currentUser.uid}`]: {
-                    name: currentProfile?.username || currentUser.displayName || currentUser.email?.split('@')[0] || 'Guest',
-                    avatarEmoji: currentProfile?.avatarEmoji || null,
-                    photoURL: currentProfile?.photoURL || currentUser.photoURL || null,
-                    joinedAt: serverTimestamp()
-                }
-            }, { merge: true });
-            await setDoc(doc(db, 'users', currentUser.uid, 'parties', code), {
-                code,
-                name,
-                lastJoined: serverTimestamp()
-            }, { merge: true });
-        }
-
-        async function enterRoom(code) {
-            currentRoomId = code;
-
-            // Swap lobby ↔ messages
-            chatLobby.classList.add('panel-hidden');
-            chatMessages.classList.remove('panel-hidden');
-            chatInputArea.classList.remove('panel-hidden');
-            lastGroupSenderUid = null;
-            lastGroupEl = null;
-
-            const roomSnap = await getDoc(doc(db, 'chatRooms', code));
-            const roomData = roomSnap.exists() ? roomSnap.data() : null;
-            const roomName = roomData?.name || `Party ${code}`;
-            document.getElementById('chatRoomLabel').textContent = roomName;
-            copyCodeBtn.textContent = code;
-            show(copyCodeBtn);
-            show(document.getElementById('backToPartiesBtn'));
-            show(chatMembersToggleBtn);
-            chatMembersVisible = true;
-            chatMembersCol.classList.remove('is-hidden');
-            chatMembersToggleBtn.classList.add('is-active');
-            renderPartyMembers(roomData?.members || {}, {});
-
-            // Keep the member sidebar live too, since members can join while we're in the room
-            if (partyRoomUnsub) { partyRoomUnsub(); partyRoomUnsub = null; }
-            partyRoomUnsub = onSnapshot(doc(db, 'chatRooms', code), snap => {
-                if (snap.exists()) renderPartyMembers(snap.data()?.members || {}, undefined);
-            });
-
-            // Live presence — who's actually online in this party right now
-            if (currentUser) {
-                registerPartyPresence(code, currentUser.uid);
-                subscribePartyPresence(code);
-            }
-
-            // Live message subscription
-            if (msgUnsub) msgUnsub();
-            const q = query(
-                collection(db, 'chatRooms', code, 'messages'),
-                orderBy('ts')
-            );
-            msgUnsub = onSnapshot(q, snap => {
-                chatMessages.innerHTML = '';
-                lastGroupSenderUid = null;
-                lastGroupEl = null;
-                snap.forEach(d => {
-                    const m = d.data();
-                    appendPartyMessage(m);
-                });
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            });
-        }
-
-        function formatPartyTime(ts) {
-            if (!ts) return '';
-            const d = ts.toDate ? ts.toDate() : new Date(ts);
-            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
-
-        // Renders one message, grouping consecutive messages from the same
-        // sender the way Discord does (avatar + name only on the first line).
-        function appendPartyMessage(m) {
-            const isMe = m.uid === currentUser?.uid;
-            const avatar = buildPartyAvatarStyle(m.name, m.avatarEmoji, m.photoURL);
-            const timeStr = formatPartyTime(m.ts);
-
-            if (lastGroupSenderUid === m.uid && lastGroupEl) {
-                const line = document.createElement('div');
-                line.className = 'msg-solo';
-                line.innerHTML = `
-                    <span class="msg-hover-time">${timeStr}</span>
-                    <span class="msg-line">${escHtml(m.text)}</span>`;
-                lastGroupEl.appendChild(line);
-            } else {
-                const group = document.createElement('div');
-                group.className = 'msg-group';
-                group.innerHTML = `
-                    <div class="msg-avatar" style="${avatar.bg}">${avatar.html}</div>
-                    <div class="msg-body">
-                        <div class="msg-headline">
-                            <span class="msg-sender${isMe ? ' is-me' : ''}">${isMe ? 'You' : escHtml(m.name)}</span>
-                            <span class="msg-time">${timeStr}</span>
-                        </div>
-                        <div class="msg-line">${escHtml(m.text)}</div>
-                    </div>`;
-                chatMessages.appendChild(group);
-                lastGroupEl = group;
-                lastGroupSenderUid = m.uid;
-            }
-        }
-
-        // Leaves the current room's message view and returns to the party
-        // list — this does NOT remove the player's membership, it's just
-        // navigation, so the party stays in "Your Parties" for next time.
-        function backToPartyList() {
-            if (msgUnsub) { msgUnsub(); msgUnsub = null; }
-            if (partyRoomUnsub) { partyRoomUnsub(); partyRoomUnsub = null; }
-            unsubscribePartyPresence();
-            if (currentRoomId && currentUser) clearPartyPresence(currentRoomId, currentUser.uid);
-            latestPartyMembers = null;
-            latestPartyPresence = null;
-            currentRoomId = null;
-            chatMessages.innerHTML = '';
-            chatMessages.classList.add('panel-hidden');
-            chatInputArea.classList.add('panel-hidden');
-            chatLobby.classList.remove('panel-hidden');
-            hide(copyCodeBtn);
-            hide(document.getElementById('backToPartiesBtn'));
-            hide(chatMembersToggleBtn);
-            chatMembersCol.classList.add('is-hidden');
-            chatMembersList.innerHTML = '';
-            chatMembersHeading.textContent = 'Members — 0';
-            lastGroupSenderUid = null;
-            lastGroupEl = null;
-            document.getElementById('chatRoomLabel').textContent = 'Party Chat';
-            refreshSavedPartiesList();
-        }
-
-        document.getElementById('backToPartiesBtn').addEventListener('click', backToPartyList);
-
-        // ─────────────────────────────────────────────
-        // Saved parties list ("Your Parties" — rejoin without a code)
-        // ─────────────────────────────────────────────
-        async function refreshSavedPartiesList() {
-            const section = document.getElementById('savedPartiesSection');
-            const list = document.getElementById('savedPartiesList');
-            if (!currentUser) { hide(section); list.innerHTML = ''; return; }
-
-            const q = query(collection(db, 'users', currentUser.uid, 'parties'), orderBy('lastJoined', 'desc'));
-            let snap;
-            try {
-                snap = await getDocs(q);
-            } catch (e) {
-                hide(section);
-                return;
-            }
-            if (snap.empty) { hide(section); list.innerHTML = ''; return; }
-
-            show(section);
-            list.innerHTML = '';
-            snap.forEach(d => {
-                const p = d.data();
-                const row = document.createElement('div');
-                row.style.cssText = 'display:flex;align-items:center;gap:8px;width:100%;';
-                row.innerHTML = `
-                    <button class="rejoin-party-btn party-row-btn" data-code="${p.code}">
-                        <span class="party-row-avatar">${escHtml((p.name || p.code || '?').trim().charAt(0).toUpperCase())}</span>
-                        <span style="flex:1;min-width:0;">
-                            ${escHtml(p.name || p.code)}
-                            <span style="display:block;color:#64748b;font-weight:500;font-size:11px;margin-top:2px;letter-spacing:0.05em;">${p.code}</span>
-                        </span>
-                    </button>
-                    <button class="forget-party-btn" data-code="${p.code}" title="Remove from your list (doesn't delete the party)" style="background:transparent;border:none;color:#64748b;font-size:16px;cursor:pointer;padding:6px;">✕</button>
-                `;
-                list.appendChild(row);
-            });
-
-            list.querySelectorAll('.rejoin-party-btn').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const code = btn.dataset.code;
-                    const snap = await getDoc(doc(db, 'chatRooms', code));
-                    if (!snap.exists()) {
-                        alert("This party no longer exists.");
-                        await deleteDoc(doc(db, 'users', currentUser.uid, 'parties', code));
-                        refreshSavedPartiesList();
-                        return;
-                    }
-                    await recordPartyMembership(code, snap.data()?.name || `Party ${code}`);
-                    await enterRoom(code);
-                });
-            });
-
-            list.querySelectorAll('.forget-party-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const code = btn.dataset.code;
-                    await deleteDoc(doc(db, 'users', currentUser.uid, 'parties', code));
-                    refreshSavedPartiesList();
-                });
-            });
-        }
-
-        // ─────────────────────────────────────────────
-        // Send message
-        // ─────────────────────────────────────────────
-        async function sendMsg() {
-            const input = document.getElementById('msgInput');
-            const text  = input.value.trim();
-            if (!text || !currentRoomId || !currentUser) return;
-            input.value = '';
-            await addDoc(collection(db, 'chatRooms', currentRoomId, 'messages'), {
-                uid:  currentUser.uid,
-                name: currentProfile?.username || currentUser.displayName || currentUser.email?.split('@')[0] || 'Guest',
-                avatarEmoji: currentProfile?.avatarEmoji || null,
-                photoURL: currentProfile?.photoURL || currentUser.photoURL || null,
-                text,
-                ts:   serverTimestamp()
-            });
-        }
-
-        document.getElementById('sendMsgBtn').addEventListener('click', sendMsg);
-        document.getElementById('msgInput').addEventListener('keydown', e => {
-            if (e.key === 'Enter') sendMsg();
-        });
-
-        // ─────────────────────────────────────────────
-        // Copy room code
-        // ─────────────────────────────────────────────
-        copyCodeBtn.addEventListener('click', () => {
-            if (!currentRoomId) return;
-            navigator.clipboard.writeText(currentRoomId).then(() => {
-                const orig = copyCodeBtn.textContent;
-                copyCodeBtn.textContent = 'Copied!';
-                setTimeout(() => { copyCodeBtn.textContent = orig; }, 1500);
-            });
-        });
-
-        // ─────────────────────────────────────────────
-        // Utility
-        // ─────────────────────────────────────────────
-        function escHtml(s) {
-            return String(s)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-        }
-
     </script>
 </body>
 </html>

@@ -8,7 +8,7 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; margin: 0; background: #020617; }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: #020617; min-height: 100vh; }
 
         #gateScreen {
             min-height: 100vh;
@@ -22,26 +22,17 @@
         }
         #gateScreen.is-hidden { display: none !important; }
 
-        #widgetWrap {
-            height: 100vh;
+        #pageContent {
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow: visible;
-        }
-        #widgetWrap.is-hidden { display: none !important; }
-
-        #widgetWrap > widgetbot {
-            flex: 1;
-            min-height: 480px;
-        }
-
-        #widgetHeader {
-            display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid #1e293b;
+            justify-content: center;
+            gap: 1rem;
+            padding: 2rem;
+            text-align: center;
         }
+        #pageContent.is-hidden { display: none !important; }
 
         .btn {
             display: inline-block;
@@ -83,20 +74,14 @@
         </div>
     </div>
 
-    <!-- ── Shown once signed-in confirmed ── -->
-    <div id="widgetWrap" class="is-hidden">
-        <div id="widgetHeader">
-            <span class="font-bold text-white">Discord Chat</span>
-            <a class="btn btn-ghost" href="index.html">&larr; Back to Game Hub</a>
-        </div>
-        <!-- WidgetBot html-embed — fills the available space below the header -->
-        <widgetbot
-            server="1271950362659520723"
-            channel="1523379765367537739"
-            width="100%"
-            height="100%"
-        ></widgetbot>
-        <script src="https://cdn.jsdelivr.net/npm/@widgetbot/html-embed"></script>
+    <!-- ── Shown once signed-in confirmed — Crate mounts its own corner bubble, no container needed ── -->
+    <div id="pageContent" class="is-hidden">
+        <div class="text-5xl mb-2">🎮</div>
+        <h1 class="text-2xl font-bold text-white mb-2">Discord Chat</h1>
+        <p class="text-slate-400 text-sm mb-6 max-w-sm">
+            Click the Discord bubble in the bottom-right corner to open chat.
+        </p>
+        <a class="btn btn-ghost" href="index.html">&larr; Back to Game Hub</a>
     </div>
 
     <!-- ── Auth check ── -->
@@ -118,20 +103,38 @@
         const app  = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
-        const gateScreen   = document.getElementById('gateScreen');
-        const gateLoading  = document.getElementById('gateLoading');
+        const gateScreen    = document.getElementById('gateScreen');
+        const gateLoading   = document.getElementById('gateLoading');
         const gateLoggedOut = document.getElementById('gateLoggedOut');
-        const widgetWrap   = document.getElementById('widgetWrap');
+        const pageContent   = document.getElementById('pageContent');
+
+        let crateLoaded = false;
 
         onAuthStateChanged(auth, user => {
             gateLoading.classList.add('is-hidden');
             if (user) {
                 gateScreen.classList.add('is-hidden');
-                widgetWrap.classList.remove('is-hidden');
+                pageContent.classList.remove('is-hidden');
+                if (!crateLoaded) {
+                    crateLoaded = true;
+                    // Load the Crate script only once, only after confirming sign-in —
+                    // this mounts the default floating corner bubble automatically.
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/@widgetbot/crate@3';
+                    script.async = true;
+                    script.defer = true;
+                    script.onload = () => {
+                        new Crate({
+                            server: '1271950362659520723',
+                            channel: '1523379765367537739'
+                        });
+                    };
+                    document.head.appendChild(script);
+                }
             } else {
                 gateScreen.classList.remove('is-hidden');
                 gateLoggedOut.classList.remove('is-hidden');
-                widgetWrap.classList.add('is-hidden');
+                pageContent.classList.add('is-hidden');
             }
         });
     </script>

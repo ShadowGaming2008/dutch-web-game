@@ -356,14 +356,29 @@ html, body {
 #chatEmptyState .big-icon { font-size: 48px; opacity: 0.6; }
 
 #inputRow {
-    display: flex; align-items: center; gap: 8px;
-    margin: 0 16px 16px; padding: 0 12px; height: 44px;
+    display: flex; align-items: flex-end; gap: 8px;
+    margin: 0 16px 16px; padding: 8px 12px;
     background: #383a40; border-radius: 8px; flex-shrink: 0;
+    min-height: 44px; max-height: 160px;
 }
-#msgInput { flex: 1; background: transparent; border: none; padding: 0; font-size: 14px; color: var(--dc-text-normal); outline: none; min-width: 0; font-family: 'Inter', sans-serif; }
+#msgInput {
+    flex: 1; background: transparent; border: none; padding: 0;
+    font-size: 14px; color: var(--dc-text-normal); outline: none;
+    min-width: 0; font-family: 'Inter', sans-serif;
+    resize: none; overflow-y: auto; line-height: 1.5;
+    max-height: 120px; min-height: 22px;
+    scrollbar-width: thin; scrollbar-color: #232428 transparent;
+}
+#msgInput::-webkit-scrollbar { width: 4px; }
+#msgInput::-webkit-scrollbar-thumb { background: #232428; border-radius: 2px; }
 #msgInput::placeholder { color: var(--dc-text-muted); }
-#sendBtn { background: transparent; border: none; color: var(--dc-text-muted); font-size: 15px; padding: 0 2px; cursor: pointer; transition: color 0.15s; flex-shrink: 0; display: flex; align-items: center; }
-#sendBtn:hover { color: var(--dc-blurple); }
+#sendBtn {
+    background: transparent; border: none; color: var(--dc-text-muted);
+    font-size: 18px; padding: 0 2px; cursor: pointer; transition: color 0.15s;
+    flex-shrink: 0; display: flex; align-items: center; margin-bottom: 1px;
+}
+#sendBtn:not([disabled]):hover { color: var(--dc-blurple); }
+#sendBtn[disabled] { opacity: 0.35; cursor: not-allowed; }
 
 /* ============ MEMBER SIDEBAR ============ */
 #memberCol {
@@ -386,8 +401,9 @@ html, body {
 }
 .member-status { position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2.5px solid var(--dc-bg-secondary); background: #80848e; }
 .member-status.is-online { background: var(--dc-green); }
-.member-name { font-size: 13px; font-weight: 500; color: var(--dc-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.member-row.is-online .member-name { color: var(--dc-text-normal); }
+.member-name { font-size: 13px; font-weight: 500; color: var(--dc-text-normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.member-row.is-offline .member-name { color: var(--dc-text-muted); }
+.member-row.is-online .member-name { color: var(--dc-text-header); }
 .member-name .you-tag { color: #949ba4; font-weight: 400; font-size: 11px; }
 .member-crown { font-size: 10px; margin-left: 2px; }
 
@@ -477,6 +493,26 @@ html, body {
 }
 #jumpToBottomBtn.is-visible { display: flex; }
 
+/* Server settings cog in header */
+#secondColHeader .small-action-btn { font-size: 15px; }
+
+/* Improved input area hint text */
+#inputHint {
+    font-size: 10px; color: var(--dc-text-muted); padding: 0 20px 4px;
+    flex-shrink: 0; opacity: 0; transition: opacity 0.2s;
+}
+#inputHint.is-visible { opacity: 1; }
+
+/* Scrollbar hide for member col */
+#memberCol::-webkit-scrollbar { width: 4px; }
+#memberCol::-webkit-scrollbar-thumb { background: #232428; border-radius: 2px; }
+
+/* Better second col header: wrap server name + settings in consistent row */
+#secondColHeader { cursor: default; }
+
+/* Active toggle state for member btn */
+#mainMembersToggleBtn.is-active { background: rgba(255,255,255,0.1); color: var(--dc-text-header); }
+
 @media (max-width: 900px) {
     #memberCol { display: none !important; }
 }
@@ -539,7 +575,7 @@ html, body {
                 </div>
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
-                <button class="small-action-btn" id="mainMembersToggleBtn" title="Toggle member list" style="display:none;">☰</button>
+                <button class="small-action-btn" id="mainMembersToggleBtn" title="Toggle member list" style="display:none;font-size:16px;">👥</button>
                 <button class="home-nav-btn" id="homeNavBtn" title="Back to Game Hub">
                     <span class="home-nav-icon">🏠</span><span>Home</span>
                 </button>
@@ -561,10 +597,11 @@ html, body {
             <button id="replyBarClose" title="Cancel reply">✕</button>
         </div>
         <div id="inputRow" style="display:none;">
-            <input type="text" id="msgInput" placeholder="Message..." maxlength="500" autocomplete="off" />
+            <textarea id="msgInput" placeholder="Message..." maxlength="500" autocomplete="off" rows="1"></textarea>
             <span id="charCounter"></span>
             <button id="sendBtn" title="Send (Enter)" disabled>➤</button>
         </div>
+        <div id="inputHint">Shift + Enter for new line</div>
     </div>
 
     <!-- ── MEMBER SIDEBAR ── -->
@@ -636,6 +673,52 @@ html, body {
         </div>
         <div class="dc-modal-footer">
             <button class="dc-btn dc-btn-ghost" id="inviteModalCloseBtn">Done</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── SERVER SETTINGS MODAL ── -->
+<div class="dc-modal-backdrop is-hidden" id="serverSettingsBackdrop">
+    <div class="dc-modal" style="max-width:480px;">
+        <div class="dc-modal-header" style="display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;">
+            <div>
+                <h2 id="serverSettingsTitle">Server Settings</h2>
+                <p id="serverSettingsSub">Manage your server</p>
+            </div>
+            <button class="small-action-btn" id="serverSettingsCloseBtn" style="font-size:18px;width:32px;height:32px;">✕</button>
+        </div>
+        <div class="dc-tab-row">
+            <div class="dc-tab is-active" data-stab="overview">Overview</div>
+            <div class="dc-tab" data-stab="danger">Danger Zone</div>
+        </div>
+        <div class="dc-modal-body" id="sSettingsOverviewPane">
+            <div>
+                <label class="dc-label">Server Name</label>
+                <input type="text" class="dc-input" id="sSettingsNameInput" placeholder="Server name" maxlength="40" />
+            </div>
+            <div style="padding:10px 12px;background:var(--dc-bg-tertiary);border-radius:6px;display:flex;align-items:center;justify-content:space-between;">
+                <div>
+                    <div style="font-size:13px;font-weight:600;color:var(--dc-text-header);">Invite Code</div>
+                    <div id="sSettingsInviteCode" style="font-size:13px;color:var(--dc-text-muted);letter-spacing:0.1em;margin-top:2px;"></div>
+                </div>
+                <div style="display:flex;gap:6px;">
+                    <button class="dc-btn" id="sSettingsCopyInviteBtn" style="background:rgba(88,101,242,0.15);color:var(--dc-blurple);font-size:12px;padding:6px 12px;">Copy</button>
+                    <button class="dc-btn" id="sSettingsRegenInviteBtn" style="background:rgba(255,255,255,0.06);color:var(--dc-text-muted);font-size:12px;padding:6px 12px;" title="Generate new invite code">↻ New</button>
+                </div>
+            </div>
+        </div>
+        <div class="dc-modal-body is-hidden" id="sSettingsDangerPane">
+            <div style="background:rgba(242,63,67,0.08);border:1px solid rgba(242,63,67,0.2);border-radius:8px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:var(--dc-text-header);">Delete this server</div>
+                    <div style="font-size:12px;color:var(--dc-text-muted);margin-top:2px;">Permanently deletes all channels and messages. This cannot be undone.</div>
+                </div>
+                <button class="dc-btn" id="sSettingsDeleteServerBtn" style="background:var(--dc-red);color:white;font-size:12px;padding:7px 14px;flex-shrink:0;">Delete</button>
+            </div>
+        </div>
+        <div class="dc-modal-footer">
+            <button class="dc-btn dc-btn-ghost" id="serverSettingsCancelBtn">Cancel</button>
+            <button class="dc-btn dc-btn-primary" id="serverSettingsSaveBtn">Save Changes</button>
         </div>
     </div>
 </div>
@@ -1296,6 +1379,12 @@ async function openServer(serverId) {
 
     secondColHeaderText.textContent = serverName;
     startDmBtn.style.display = 'none';
+    // Show settings cog if owner
+    const isOwner = serverData?.ownerId === currentUser.uid;
+    startDmBtn.textContent = isOwner ? '⚙' : '';
+    startDmBtn.title = isOwner ? 'Server Settings' : '';
+    startDmBtn.style.display = isOwner ? '' : 'none';
+    startDmBtn.onclick = isOwner ? () => openServerSettings(serverId, serverData) : null;
 
     mainMembersToggleBtn.style.display = 'flex';
     memberCol.classList.remove('is-hidden');
@@ -1365,24 +1454,22 @@ function renderChannelList(serverId, serverData) {
     const ids = Object.keys(myChannels);
     const isOwner = serverData?.ownerId === currentUser.uid;
     secondColBody.innerHTML = `
-        <div class="second-col-section-label">Text Channels</div>
+        <div class="second-col-section-label" style="display:flex;align-items:center;justify-content:space-between;padding-right:4px;">
+            <span>Text Channels</span>
+            ${isOwner ? `<button class="small-action-btn" id="addChannelBtn" title="Add channel" style="font-size:13px;font-weight:800;">+</button>` : ''}
+        </div>
         ${ids.map(id => {
             const ch = myChannels[id];
             const isActive = activeContext?.channelId === id;
             return `
                 <div class="channel-row${isActive ? ' is-active' : ''}" data-channel-id="${id}">
-                    <span class="channel-hash">#</span><span>${escHtml(ch.name)}</span>
-                    ${isOwner && ids.length > 1 ? `<button class="channel-delete-btn" data-delete-channel-id="${id}" title="Delete channel">🗑</button>` : ''}
+                    <span class="channel-hash">#</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;">${escHtml(ch.name)}</span>
+                    ${isOwner && ids.length > 1 ? `<button class="channel-delete-btn" data-delete-channel-id="${id}" title="Delete channel">✕</button>` : ''}
                 </div>`;
         }).join('')}
-        ${isOwner ? `<div class="add-channel-btn" id="addChannelBtn">+ Add Channel</div>` : ''}
-        <div class="second-col-section-label" style="margin-top:18px;">
-            <button class="dc-btn dc-btn-ghost" id="showInviteBtn" style="padding:2px 0;font-size:11px;">📋 Invite people</button>
+        <div style="margin-top:16px;padding:0 8px;display:flex;flex-direction:column;gap:4px;">
+            <button class="dc-btn" id="showInviteBtn" style="background:rgba(88,101,242,0.15);color:var(--dc-blurple);font-size:12px;padding:7px 12px;text-align:left;border-radius:6px;">📋 Invite People</button>
         </div>
-        ${isOwner ? `
-        <div class="second-col-section-label" style="margin-top:6px;">
-            <button class="dc-btn dc-btn-ghost" id="deleteServerBtn" style="padding:2px 0;font-size:11px;color:var(--dc-red);">🗑 Delete Server</button>
-        </div>` : ''}
     `;
 
     secondColBody.querySelectorAll('[data-channel-id]').forEach(el => {
@@ -1405,7 +1492,6 @@ function renderChannelList(serverId, serverData) {
         inviteCodeDisplay.value = serverData?.inviteCode || '';
         inviteModalBackdrop.classList.remove('is-hidden');
     });
-    document.getElementById('deleteServerBtn')?.addEventListener('click', () => deleteServer(serverId, serverData));
 }
 
 // Deletes an entire server: only the creator (ownerId) can do this. Removes
@@ -1514,26 +1600,36 @@ function subscribeServerMeta(serverId) {
 function renderMemberList() {
     const members = window.__currentServerMembers || {};
     const uids = Object.keys(members);
+    const onlineList = uids.filter(uid => !!onlineUids[uid]);
+    const offlineList = uids.filter(uid => !onlineUids[uid]);
+
     memberHeading.textContent = `Members — ${uids.length}`;
-    const sorted = [...uids].sort((a, b) => {
-        const aOn = !!onlineUids[a], bOn = !!onlineUids[b];
-        if (aOn === bOn) return 0;
-        return aOn ? -1 : 1;
-    });
-    memberList.innerHTML = sorted.map(uid => {
+
+    function memberRowHtml(uid) {
         const m = members[uid];
         const isMe = uid === currentUser.uid;
         const isOnline = !!onlineUids[uid];
         const avatar = buildAvatarStyle(m?.name, m?.avatarEmoji, m?.photoURL);
         return `
-            <div class="member-row${isOnline ? ' is-online' : ''}">
+            <div class="member-row${isOnline ? ' is-online' : ' is-offline'}">
                 <div class="member-avatar-wrap">
-                    <div class="member-avatar" style="${avatar.bg}${isOnline ? '' : 'filter:grayscale(60%);opacity:0.6;'}">${avatar.html}</div>
+                    <div class="member-avatar" style="${avatar.bg}${isOnline ? '' : 'opacity:0.5;'}">${avatar.html}</div>
                     <div class="member-status${isOnline ? ' is-online' : ''}"></div>
                 </div>
                 <span class="member-name">${escHtml(m?.name || 'Player')}${isMe ? ' <span class="you-tag">(you)</span>' : ''}</span>
             </div>`;
-    }).join('');
+    }
+
+    let html = '';
+    if (onlineList.length > 0) {
+        html += `<div class="member-heading">Online — ${onlineList.length}</div>`;
+        html += onlineList.map(memberRowHtml).join('');
+    }
+    if (offlineList.length > 0) {
+        html += `<div class="member-heading" style="margin-top:${onlineList.length > 0 ? '12px' : '4px'};">Offline — ${offlineList.length}</div>`;
+        html += offlineList.map(memberRowHtml).join('');
+    }
+    memberList.innerHTML = html;
 }
 
 mainMembersToggleBtn.addEventListener('click', () => {
@@ -1555,11 +1651,14 @@ inviteModalCloseBtn.addEventListener('click', () => inviteModalBackdrop.classLis
 // ────────────────────────────────────────
 // Shared conversation UI (messages) — works for both servers/{id} and dms/{id}
 // ─────────────────────────────────────────────
+const inputHint = document.getElementById('inputHint');
+
 function showEmptyState(title, sub) {
     chatEmptyState.style.display = 'flex';
     messagesArea.style.display = 'none';
     inputRow.style.display = 'none';
     typingIndicator.style.display = 'none';
+    inputHint.classList.remove('is-visible');
     jumpToBottomBtn.classList.remove('is-visible');
     chatEmptyState.querySelector('div:nth-child(2)').textContent = title;
     chatEmptyState.querySelector('div:nth-child(3)').textContent = sub;
@@ -1570,6 +1669,7 @@ function showConversationUI() {
     messagesArea.style.display = 'block';
     inputRow.style.display = 'flex';
     typingIndicator.style.display = 'block';
+    inputHint.classList.add('is-visible');
     updateInputPlaceholder();
 }
 
@@ -1960,6 +2060,7 @@ async function sendMessage() {
 
     const pendingReply = replyingTo;
     msgInput.value = '';
+    msgInput.style.height = 'auto';
     updateSendBtnState();
     updateCharCounter();
     cancelReply();
@@ -2022,10 +2123,16 @@ function updateCharCounter() {
     }
 }
 
+function autoResizeInput() {
+    msgInput.style.height = 'auto';
+    msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+}
+
 msgInput.addEventListener('input', () => {
     updateSendBtnState();
     updateCharCounter();
     startTyping();
+    autoResizeInput();
 });
 updateSendBtnState();
 
@@ -2033,6 +2140,106 @@ sendBtn.addEventListener('click', sendMessage);
 msgInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
     if (e.key === 'Escape') { cancelReply(); }
+});
+
+// ── Server Settings Modal ──────────────────────────────────────────────────
+let serverSettingsServerId = null;
+let serverSettingsData = null;
+
+const serverSettingsBackdrop = document.getElementById('serverSettingsBackdrop');
+const sSettingsNameInput = document.getElementById('sSettingsNameInput');
+const sSettingsInviteCode = document.getElementById('sSettingsInviteCode');
+const sSettingsCopyInviteBtn = document.getElementById('sSettingsCopyInviteBtn');
+const sSettingsRegenInviteBtn = document.getElementById('sSettingsRegenInviteBtn');
+const sSettingsDeleteServerBtn = document.getElementById('sSettingsDeleteServerBtn');
+const serverSettingsSaveBtn = document.getElementById('serverSettingsSaveBtn');
+const serverSettingsCancelBtn = document.getElementById('serverSettingsCancelBtn');
+const serverSettingsCloseBtn = document.getElementById('serverSettingsCloseBtn');
+const sSettingsOverviewPane = document.getElementById('sSettingsOverviewPane');
+const sSettingsDangerPane = document.getElementById('sSettingsDangerPane');
+
+function openServerSettings(serverId, serverData) {
+    serverSettingsServerId = serverId;
+    serverSettingsData = serverData;
+    document.getElementById('serverSettingsTitle').textContent = serverData?.name || 'Server Settings';
+    sSettingsNameInput.value = serverData?.name || '';
+    sSettingsInviteCode.textContent = serverData?.inviteCode || '—';
+    // Reset to overview tab
+    setServerSettingsTab('overview');
+    serverSettingsBackdrop.classList.remove('is-hidden');
+    sSettingsNameInput.focus();
+}
+
+function setServerSettingsTab(tab) {
+    serverSettingsBackdrop.querySelectorAll('[data-stab]').forEach(t => t.classList.toggle('is-active', t.dataset.stab === tab));
+    sSettingsOverviewPane.classList.toggle('is-hidden', tab !== 'overview');
+    sSettingsDangerPane.classList.toggle('is-hidden', tab !== 'danger');
+    document.getElementById('serverSettingsSaveBtn').style.display = tab === 'danger' ? 'none' : '';
+}
+
+serverSettingsBackdrop.querySelectorAll('[data-stab]').forEach(tab => {
+    tab.addEventListener('click', () => setServerSettingsTab(tab.dataset.stab));
+});
+
+function closeServerSettings() {
+    serverSettingsBackdrop.classList.add('is-hidden');
+    serverSettingsServerId = null;
+    serverSettingsData = null;
+}
+serverSettingsCancelBtn.addEventListener('click', closeServerSettings);
+serverSettingsCloseBtn.addEventListener('click', closeServerSettings);
+serverSettingsBackdrop.addEventListener('click', (e) => { if (e.target === serverSettingsBackdrop) closeServerSettings(); });
+
+serverSettingsSaveBtn.addEventListener('click', async () => {
+    const newName = sSettingsNameInput.value.trim();
+    if (!newName) { showToast('Give the server a name.'); return; }
+    if (!serverSettingsServerId) return;
+    try {
+        await updateDoc(doc(db, 'servers', serverSettingsServerId), { name: newName });
+        // Update user's server pointer
+        await setDoc(doc(db, 'users', currentUser.uid, 'servers', serverSettingsServerId), { name: newName }, { merge: true });
+        document.getElementById('serverSettingsTitle').textContent = newName;
+        secondColHeaderText.textContent = newName;
+        showToast('Server name updated!');
+    } catch (err) {
+        showToast('Could not save — try again.');
+    }
+});
+
+sSettingsCopyInviteBtn.addEventListener('click', async () => {
+    const code = serverSettingsData?.inviteCode || '';
+    if (!code) return;
+    try {
+        await navigator.clipboard.writeText(code);
+        showToast('Invite code copied!');
+    } catch {
+        showToast('Code: ' + code);
+    }
+});
+
+sSettingsRegenInviteBtn.addEventListener('click', async () => {
+    if (!serverSettingsServerId) return;
+    if (!confirm('Generate a new invite code? The old one will stop working.')) return;
+    try {
+        // Remove old invite index
+        if (serverSettingsData?.inviteCode) {
+            await deleteDoc(doc(db, 'serverInvites', serverSettingsData.inviteCode)).catch(() => {});
+        }
+        const newCode = genCode(6);
+        await updateDoc(doc(db, 'servers', serverSettingsServerId), { inviteCode: newCode });
+        await setDoc(doc(db, 'serverInvites', newCode), { serverId: serverSettingsServerId });
+        serverSettingsData = { ...serverSettingsData, inviteCode: newCode };
+        sSettingsInviteCode.textContent = newCode;
+        showToast('New invite code generated!');
+    } catch (err) {
+        showToast('Could not regenerate code — try again.');
+    }
+});
+
+sSettingsDeleteServerBtn.addEventListener('click', () => {
+    if (!serverSettingsServerId || !serverSettingsData) return;
+    closeServerSettings();
+    deleteServer(serverSettingsServerId, serverSettingsData);
 });
 
 homeNavBtn.addEventListener('click', () => {

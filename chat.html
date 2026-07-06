@@ -359,6 +359,21 @@ html, body {
     border-left: 3px solid var(--dc-blurple);
 }
 
+.day-divider {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px; margin: 18px 0 10px; color: var(--dc-text-muted);
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em;
+}
+.day-divider::before, .day-divider::after { content: ''; flex: 1; height: 1px; background: var(--dc-divider); }
+
+#jumpToBottomBtn {
+    position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%);
+    background: #2b2d31; color: var(--dc-text-header); border: 1px solid var(--dc-divider);
+    border-radius: 16px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; align-items: center; gap: 6px; z-index: 10;
+}
+#jumpToBottomBtn.is-visible { display: flex; }
+
 @media (max-width: 900px) {
     #memberCol { display: none !important; }
 }
@@ -432,10 +447,11 @@ html, body {
             <div style="font-size:13px;">Choose a server or DM on the left, or start a new one.</div>
         </div>
 
-        <div id="messagesArea" style="display:none;"></div>
+        <div id="messagesArea" style="display:none;position:relative;"></div>
+        <button id="jumpToBottomBtn">↓ Jump to latest</button>
         <div id="inputRow" style="display:none;">
             <input type="text" id="msgInput" placeholder="Message..." maxlength="500" autocomplete="off" />
-            <button id="sendBtn" title="Send">➤</button>
+            <button id="sendBtn" title="Send" disabled>➤</button>
         </div>
     </div>
 
@@ -555,9 +571,13 @@ let activeMetaUnsub = null;      // listens to the server/dm doc itself (members
 let activePresenceUnsub = null;
 let lastGroupSenderId = null;
 let lastGroupEl = null;
+let lastGroupTs = 0;
+let lastDayKey = null;
 
 let globalPresenceUnsub = null;  // presence/{uid} -> online for DM status dots
 let onlineUids = {};
+
+const GROUP_WINDOW_MS = 5 * 60 * 1000; // messages from the same sender within 5 min are visually grouped
 
 // ─────────────────────────────────────────────
 // DOM refs
@@ -584,6 +604,7 @@ const messagesArea = document.getElementById('messagesArea');
 const inputRow = document.getElementById('inputRow');
 const msgInput = document.getElementById('msgInput');
 const sendBtn = document.getElementById('sendBtn');
+const jumpToBottomBtn = document.getElementById('jumpToBottomBtn');
 
 const memberCol = document.getElementById('memberCol');
 const memberList = document.getElementById('memberList');
@@ -648,6 +669,26 @@ function formatTime(ts) {
     if (!ts) return '';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDayKey(ts) {
+    if (!ts) return null;
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toDateString();
+}
+
+function formatDayLabel(ts) {
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return 'Today';
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function isNearBottom() {
+    return messagesArea.scrollHeight - messagesArea.scrollTop - messagesArea.clientHeight < 120;
 }
 
 // ─────────────────────────────────────────────
@@ -1105,6 +1146,7 @@ function showEmptyState(title, sub) {
     chatEmptyState.style.display = 'flex';
     messagesArea.style.display = 'none';
     inputRow.style.display = 'none';
+    jumpToBottomBtn.classList.remove('is-visible');
     chatEmptyState.querySelector('div:nth-child(2)').textContent = title;
     chatEmptyState.querySelector('div:nth-child(3)').textContent = sub;
 }
@@ -1121,6 +1163,8 @@ function teardownActiveConversation() {
     messagesArea.innerHTML = '';
     lastGroupSenderId = null;
     lastGroupEl = null;
+    lastGroupTs = 0;
+    lastDayKey = null;
 }
 
 function subscribeMessages(collectionRoot, contextId) {
@@ -1128,6 +1172,8 @@ function subscribeMessages(collectionRoot, contextId) {
     messagesArea.innerHTML = '';
     lastGroupSenderId = null;
     lastGroupEl = null;
+    lastGroupTs = 0;
+    lastDayKey = null;
 
     const q = query(
         collection(db, collectionRoot, contextId, 'messages'),
@@ -1135,26 +1181,63 @@ function subscribeMessages(collectionRoot, contextId) {
         limit(100)
     );
     activeMessagesUnsub = onSnapshot(q, (snap) => {
+        const wasNearBottom = isNearBottom();
         messagesArea.innerHTML = '';
         lastGroupSenderId = null;
         lastGroupEl = null;
+        lastGroupTs = 0;
+        lastDayKey = null;
         snap.forEach(d => appendMessage(d.data()));
-        messagesArea.scrollTop = messagesArea.scrollHeight;
+        // Only yank the scroll position to the bottom if the user was already
+        // down there — otherwise leave them where they are reading history.
+        if (wasNearBottom) {
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+            jumpToBottomBtn.classList.remove('is-visible');
+        } else {
+            jumpToBottomBtn.classList.add('is-visible');
+        }
     });
 }
+
+messagesArea.addEventListener('scroll', () => {
+    if (isNearBottom()) jumpToBottomBtn.classList.remove('is-visible');
+});
+jumpToBottomBtn.addEventListener('click', () => {
+    messagesArea.scrollTop = messagesArea.scrollHeight;
+    jumpToBottomBtn.classList.remove('is-visible');
+});
 
 function appendMessage(m) {
     const isMe = m.senderId === currentUser.uid;
     const avatar = buildAvatarStyle(m.senderName, m.senderAvatarEmoji, m.senderPhotoURL);
     const timeStr = formatTime(m.ts);
+    const msgMs = m.ts?.toDate ? m.ts.toDate().getTime() : (m.ts ? new Date(m.ts).getTime() : Date.now());
 
-    if (lastGroupSenderId === m.senderId && lastGroupEl) {
+    // Insert a day divider whenever the calendar day changes
+    const dayKey = m.ts ? formatDayKey(m.ts) : lastDayKey;
+    if (dayKey && dayKey !== lastDayKey) {
+        const divider = document.createElement('div');
+        divider.className = 'day-divider';
+        divider.textContent = formatDayLabel(m.ts);
+        messagesArea.appendChild(divider);
+        lastDayKey = dayKey;
+        // A day change always starts a fresh group, even for the same sender
+        lastGroupSenderId = null;
+        lastGroupEl = null;
+    }
+
+    const withinGroupWindow = (msgMs - lastGroupTs) < GROUP_WINDOW_MS;
+
+    if (lastGroupSenderId === m.senderId && lastGroupEl && withinGroupWindow) {
         const line = document.createElement('div');
         line.className = 'msg-solo';
         line.innerHTML = `
             <span class="msg-hover-time">${timeStr}</span>
             <span class="msg-line">${escHtml(m.text)}</span>`;
-        lastGroupEl.appendChild(line);
+        // Append as a sibling in the message list (not inside the flex-row
+        // group), so it stacks below the previous line instead of sitting
+        // next to the avatar/body row.
+        messagesArea.appendChild(line);
     } else {
         const group = document.createElement('div');
         group.className = 'msg-group';
@@ -1171,12 +1254,14 @@ function appendMessage(m) {
         lastGroupEl = group;
         lastGroupSenderId = m.senderId;
     }
+    lastGroupTs = msgMs;
 }
 
 async function sendMessage() {
     const text = msgInput.value.trim();
     if (!text || !activeContext || (activeContext.type !== 'server' && activeContext.type !== 'dm')) return;
     msgInput.value = '';
+    updateSendBtnState();
     msgInput.focus();
 
     const collectionRoot = activeContext.type === 'server' ? 'servers' : 'dms';
@@ -1203,6 +1288,12 @@ async function sendMessage() {
         showToast('Could not send — check your connection.');
     }
 }
+
+function updateSendBtnState() {
+    sendBtn.disabled = msgInput.value.trim().length === 0;
+}
+msgInput.addEventListener('input', updateSendBtnState);
+updateSendBtnState();
 
 sendBtn.addEventListener('click', sendMessage);
 msgInput.addEventListener('keydown', (e) => {

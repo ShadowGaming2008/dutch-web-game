@@ -996,31 +996,44 @@ async function createServer(name) {
     const serverRef = doc(collection(db, 'servers'));
     const serverId = serverRef.id;
 
-    await setDoc(serverRef, {
-        name,
-        inviteCode: code,
-        ownerId: currentUser.uid,
-        members: {
-            [currentUser.uid]: {
-                name: currentProfile.username || 'Player',
-                avatarEmoji: currentProfile.avatarEmoji || null,
-                photoURL: currentProfile.photoURL || null,
-                joinedAt: serverTimestamp()
-            }
-        },
-        createdAt: serverTimestamp()
-    });
+    try {
+        await setDoc(serverRef, {
+            name,
+            inviteCode: code,
+            ownerId: currentUser.uid,
+            members: {
+                [currentUser.uid]: {
+                    name: currentProfile.username || 'Player',
+                    avatarEmoji: currentProfile.avatarEmoji || null,
+                    photoURL: currentProfile.photoURL || null,
+                    joinedAt: serverTimestamp()
+                }
+            },
+            createdAt: serverTimestamp()
+        });
 
-    // Also index by invite code so joins can look it up
-    await setDoc(doc(db, 'serverInvites', code), { serverId });
+        // Also index by invite code so joins can look it up.
+        // NOTE: this write is required for the "Join" flow to ever work.
+        // If your Firestore rules don't allow writes to a top-level
+        // `serverInvites` collection, this line throws and everything
+        // after it (including the "Server created!" toast) is skipped.
+        await setDoc(doc(db, 'serverInvites', code), { serverId });
 
-    await setDoc(doc(db, 'users', currentUser.uid, 'servers', serverId), {
-        name, joinedAt: serverTimestamp()
-    });
+        await setDoc(doc(db, 'users', currentUser.uid, 'servers', serverId), {
+            name, joinedAt: serverTimestamp()
+        });
 
-    serverModalBackdrop.classList.add('is-hidden');
-    openServer(serverId);
-    showToast(`Server created! Invite code: ${code}`);
+        serverModalBackdrop.classList.add('is-hidden');
+        openServer(serverId);
+        showToast(`Server created! Invite code: ${code}`);
+    } catch (err) {
+        console.error('Create server failed:', err.code || err, err.message || '');
+        if (err.code === 'permission-denied') {
+            showToast('Server not created — permission denied by Firestore rules.');
+        } else {
+            showToast('Could not create server — try again.');
+        }
+    }
 }
 
 async function joinServerByCode(code) {
@@ -1049,8 +1062,14 @@ async function joinServerByCode(code) {
         openServer(serverId);
         showToast(`Joined ${serverData.name}!`);
     } catch (err) {
-        console.warn('Join server failed:', err);
-        showToast('Could not join — check the code and try again.');
+        // Log the real Firebase error code so it's easy to tell a missing
+        // document apart from a Firestore rules rejection while debugging.
+        console.error('Join server failed:', err.code || err, err.message || '');
+        if (err.code === 'permission-denied') {
+            showToast('Could not join — permission denied by Firestore rules.');
+        } else {
+            showToast('Could not join — check the code and try again.');
+        }
     }
 }
 

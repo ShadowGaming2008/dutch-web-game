@@ -139,6 +139,18 @@ html, body {
 .channel-row:hover { background: rgba(255,255,255,0.04); color: var(--dc-text-normal); }
 .channel-row.is-active { background: rgba(255,255,255,0.08); color: var(--dc-text-header); }
 .channel-hash { font-size: 16px; color: inherit; opacity: 0.7; }
+.channel-row .channel-delete-btn {
+    margin-left: auto; opacity: 0; background: none; border: none; color: var(--dc-text-muted);
+    cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px;
+}
+.channel-row:hover .channel-delete-btn { opacity: 1; }
+.channel-row .channel-delete-btn:hover { color: var(--dc-red); background: rgba(242,63,67,0.1); }
+.add-channel-btn {
+    display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+    color: var(--dc-text-muted); font-size: 13px; font-weight: 600; cursor: pointer;
+    border-radius: 6px; margin-top: 2px;
+}
+.add-channel-btn:hover { background: rgba(255,255,255,0.04); color: var(--dc-text-normal); }
 
 .dm-row {
     display: flex;
@@ -298,6 +310,16 @@ html, body {
 .member-name .you-tag { color: #949ba4; font-weight: 400; font-size: 11px; }
 .member-crown { font-size: 10px; margin-left: 2px; }
 
+.home-nav-btn {
+    display: flex; align-items: center; gap: 6px;
+    height: 30px; padding: 0 12px; border-radius: 6px;
+    background: transparent; border: 1px solid var(--dc-divider);
+    color: var(--dc-text-muted); font-size: 12px; font-weight: 600;
+    text-decoration: none; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.home-nav-btn:hover { background: rgba(255,255,255,0.06); color: var(--dc-text-header); border-color: rgba(255,255,255,0.12); }
+.home-nav-btn .home-nav-icon { font-size: 14px; }
+
 /* ============ MODALS ============ */
 .dc-modal-backdrop {
     position: fixed; inset: 0; background: rgba(2,6,23,0.7);
@@ -437,7 +459,9 @@ html, body {
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
                 <button class="small-action-btn" id="mainMembersToggleBtn" title="Toggle member list" style="display:none;">☰</button>
-                <a href="index.html" class="small-action-btn" title="Back to Game Hub" style="text-decoration:none;display:flex;">←</a>
+                <button class="home-nav-btn" id="homeNavBtn" title="Back to Game Hub">
+                    <span class="home-nav-icon">🏠</span><span>Home</span>
+                </button>
             </div>
         </div>
 
@@ -528,6 +552,26 @@ html, body {
     </div>
 </div>
 
+<!-- ── NEW CHANNEL MODAL ── -->
+<div class="dc-modal-backdrop is-hidden" id="channelModalBackdrop">
+    <div class="dc-modal">
+        <div class="dc-modal-header">
+            <h2>Create Text Channel</h2>
+            <p>Channels are where your server members chat.</p>
+        </div>
+        <div class="dc-modal-body">
+            <div>
+                <label class="dc-label">Channel name</label>
+                <input type="text" class="dc-input" id="newChannelNameInput" placeholder="e.g. general, off-topic" maxlength="40" />
+            </div>
+        </div>
+        <div class="dc-modal-footer">
+            <button class="dc-btn dc-btn-ghost" id="channelModalCancelBtn">Cancel</button>
+            <button class="dc-btn dc-btn-primary" id="channelModalSubmitBtn">Create Channel</button>
+        </div>
+    </div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
@@ -565,9 +609,11 @@ let myServers = {};              // serverId -> { name, icon }
 let myDmsUnsub = null;           // listens to users/{uid}/dms to populate DM list
 let myDms = {};                   // dmId -> { otherUid, otherName, otherAvatarEmoji, otherPhotoURL }
 
-let activeContext = null;        // { type: 'server'|'dm', id: string }
+let activeContext = null;        // { type: 'server'|'dm', id: string, channelId?: string }
 let activeMessagesUnsub = null;
 let activeMetaUnsub = null;      // listens to the server/dm doc itself (members map)
+let activeChannelsUnsub = null;  // listens to servers/{id}/channels
+let myChannels = {};             // channelId -> { name, createdAt }
 let activePresenceUnsub = null;
 let lastGroupSenderId = null;
 let lastGroupEl = null;
@@ -629,6 +675,13 @@ const inviteModalBackdrop = document.getElementById('inviteModalBackdrop');
 const inviteCodeDisplay = document.getElementById('inviteCodeDisplay');
 const copyInviteBtn = document.getElementById('copyInviteBtn');
 const inviteModalCloseBtn = document.getElementById('inviteModalCloseBtn');
+
+const homeNavBtn = document.getElementById('homeNavBtn');
+
+const channelModalBackdrop = document.getElementById('channelModalBackdrop');
+const newChannelNameInput = document.getElementById('newChannelNameInput');
+const channelModalCancelBtn = document.getElementById('channelModalCancelBtn');
+const channelModalSubmitBtn = document.getElementById('channelModalSubmitBtn');
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -846,6 +899,7 @@ function renderDmList() {
 
 async function openDm(dmId) {
     activeContext = { type: 'dm', id: dmId };
+    if (activeChannelsUnsub) { activeChannelsUnsub(); activeChannelsUnsub = null; }
     renderDmList();
     renderServerRail();
 
@@ -1074,7 +1128,7 @@ async function joinServerByCode(code) {
 }
 
 async function openServer(serverId) {
-    activeContext = { type: 'server', id: serverId };
+    activeContext = { type: 'server', id: serverId, channelId: null };
     renderServerRail();
 
     const serverSnap = await getDoc(doc(db, 'servers', serverId));
@@ -1083,28 +1137,142 @@ async function openServer(serverId) {
 
     secondColHeaderText.textContent = serverName;
     startDmBtn.style.display = 'none';
+
+    mainMembersToggleBtn.style.display = 'flex';
+    memberCol.classList.remove('is-hidden');
+
+    // Ensure this server has at least one channel (migrates older servers
+    // that were created before multi-channel support existed).
+    await ensureDefaultChannel(serverId);
+    subscribeChannels(serverId, serverData);
+    subscribeServerMeta(serverId);
+}
+
+async function ensureDefaultChannel(serverId) {
+    const channelsSnap = await getDocs(collection(db, 'servers', serverId, 'channels'));
+    if (!channelsSnap.empty) return;
+    await addDoc(collection(db, 'servers', serverId, 'channels'), {
+        name: 'general',
+        createdAt: serverTimestamp()
+    });
+}
+
+function subscribeChannels(serverId, serverData) {
+    if (activeChannelsUnsub) { activeChannelsUnsub(); activeChannelsUnsub = null; }
+    activeChannelsUnsub = onSnapshot(
+        query(collection(db, 'servers', serverId, 'channels'), orderBy('createdAt', 'asc')),
+        (snap) => {
+            myChannels = {};
+            snap.forEach(d => { myChannels[d.id] = d.data(); });
+
+            // If nothing is selected yet (first load), or the previously
+            // selected channel just got deleted, fall back to the first one.
+            const ids = Object.keys(myChannels);
+            if (!activeContext.channelId || !myChannels[activeContext.channelId]) {
+                activeContext.channelId = ids[0] || null;
+            }
+
+            renderChannelList(serverId, serverData);
+            if (activeContext.channelId) {
+                switchChannel(serverId, activeContext.channelId, myChannels[activeContext.channelId]?.name);
+            } else {
+                showEmptyState('No channels yet', 'Create a channel to start chatting.');
+            }
+        }
+    );
+}
+
+function renderChannelList(serverId, serverData) {
+    const ids = Object.keys(myChannels);
+    const isOwner = serverData?.ownerId === currentUser.uid;
     secondColBody.innerHTML = `
         <div class="second-col-section-label">Text Channels</div>
-        <div class="channel-row is-active" data-channel="general">
-            <span class="channel-hash">#</span><span>general</span>
-        </div>
+        ${ids.map(id => {
+            const ch = myChannels[id];
+            const isActive = activeContext?.channelId === id;
+            return `
+                <div class="channel-row${isActive ? ' is-active' : ''}" data-channel-id="${id}">
+                    <span class="channel-hash">#</span><span>${escHtml(ch.name)}</span>
+                    ${isOwner && ids.length > 1 ? `<button class="channel-delete-btn" data-delete-channel-id="${id}" title="Delete channel">🗑</button>` : ''}
+                </div>`;
+        }).join('')}
+        ${isOwner ? `<div class="add-channel-btn" id="addChannelBtn">+ Add Channel</div>` : ''}
         <div class="second-col-section-label" style="margin-top:18px;">
             <button class="dc-btn dc-btn-ghost" id="showInviteBtn" style="padding:2px 0;font-size:11px;">📋 Invite people</button>
         </div>
     `;
+
+    secondColBody.querySelectorAll('[data-channel-id]').forEach(el => {
+        el.addEventListener('click', (e) => {
+            if (e.target.closest('[data-delete-channel-id]')) return;
+            const chId = el.dataset.channelId;
+            activeContext.channelId = chId;
+            switchChannel(serverId, chId, myChannels[chId]?.name);
+            renderChannelList(serverId, serverData);
+        });
+    });
+    secondColBody.querySelectorAll('[data-delete-channel-id]').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteChannel(serverId, el.dataset.deleteChannelId);
+        });
+    });
+    document.getElementById('addChannelBtn')?.addEventListener('click', () => openChannelModal(serverId));
     document.getElementById('showInviteBtn')?.addEventListener('click', () => {
         inviteCodeDisplay.value = serverData?.inviteCode || '';
         inviteModalBackdrop.classList.remove('is-hidden');
     });
+}
 
+function switchChannel(serverId, channelId, channelName) {
     mainHeaderIcon.textContent = '#';
-    mainHeaderTitle.textContent = 'general';
-    mainMembersToggleBtn.style.display = 'flex';
-    memberCol.classList.remove('is-hidden');
-
+    mainHeaderTitle.textContent = channelName || 'channel';
     showConversationUI();
-    subscribeMessages('servers', serverId);
-    subscribeServerMeta(serverId);
+    subscribeMessages('servers', serverId, channelId);
+}
+
+let channelModalServerId = null;
+function openChannelModal(serverId) {
+    channelModalServerId = serverId;
+    newChannelNameInput.value = '';
+    channelModalBackdrop.classList.remove('is-hidden');
+    newChannelNameInput.focus();
+}
+channelModalCancelBtn.addEventListener('click', () => channelModalBackdrop.classList.add('is-hidden'));
+channelModalSubmitBtn.addEventListener('click', async () => {
+    const raw = newChannelNameInput.value.trim();
+    if (!raw) { showToast('Give the channel a name first.'); return; }
+    // Discord-style slugify: lowercase, spaces to hyphens, strip anything unsafe
+    const name = raw.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-_]/g, '').slice(0, 40) || 'new-channel';
+    try {
+        await addDoc(collection(db, 'servers', channelModalServerId, 'channels'), {
+            name,
+            createdAt: serverTimestamp()
+        });
+        channelModalBackdrop.classList.add('is-hidden');
+    } catch (err) {
+        console.error('Create channel failed:', err.code || err, err.message || '');
+        showToast(err.code === 'permission-denied'
+            ? 'Could not create channel — permission denied by Firestore rules.'
+            : 'Could not create channel — try again.');
+    }
+});
+
+async function deleteChannel(serverId, channelId) {
+    if (Object.keys(myChannels).length <= 1) {
+        showToast('A server needs at least one channel.');
+        return;
+    }
+    if (!confirm(`Delete #${myChannels[channelId]?.name || 'channel'}? This cannot be undone.`)) return;
+    try {
+        await deleteDoc(doc(db, 'servers', serverId, 'channels', channelId));
+        showToast('Channel deleted.');
+    } catch (err) {
+        console.error('Delete channel failed:', err.code || err, err.message || '');
+        showToast(err.code === 'permission-denied'
+            ? 'Could not delete channel — permission denied by Firestore rules.'
+            : 'Could not delete channel — try again.');
+    }
 }
 
 function subscribeServerMeta(serverId) {
@@ -1179,6 +1347,7 @@ function showConversationUI() {
 function teardownActiveConversation() {
     if (activeMessagesUnsub) { activeMessagesUnsub(); activeMessagesUnsub = null; }
     if (activeMetaUnsub) { activeMetaUnsub(); activeMetaUnsub = null; }
+    if (activeChannelsUnsub) { activeChannelsUnsub(); activeChannelsUnsub = null; }
     messagesArea.innerHTML = '';
     lastGroupSenderId = null;
     lastGroupEl = null;
@@ -1186,7 +1355,7 @@ function teardownActiveConversation() {
     lastDayKey = null;
 }
 
-function subscribeMessages(collectionRoot, contextId) {
+function subscribeMessages(collectionRoot, contextId, channelId) {
     if (activeMessagesUnsub) { activeMessagesUnsub(); activeMessagesUnsub = null; }
     messagesArea.innerHTML = '';
     lastGroupSenderId = null;
@@ -1194,11 +1363,11 @@ function subscribeMessages(collectionRoot, contextId) {
     lastGroupTs = 0;
     lastDayKey = null;
 
-    const q = query(
-        collection(db, collectionRoot, contextId, 'messages'),
-        orderBy('ts', 'asc'),
-        limit(100)
-    );
+    const messagesRef = channelId
+        ? collection(db, collectionRoot, contextId, 'channels', channelId, 'messages')
+        : collection(db, collectionRoot, contextId, 'messages');
+
+    const q = query(messagesRef, orderBy('ts', 'asc'), limit(100));
     activeMessagesUnsub = onSnapshot(q, (snap) => {
         const wasNearBottom = isNearBottom();
         messagesArea.innerHTML = '';
@@ -1279,13 +1448,17 @@ function appendMessage(m) {
 async function sendMessage() {
     const text = msgInput.value.trim();
     if (!text || !activeContext || (activeContext.type !== 'server' && activeContext.type !== 'dm')) return;
+    if (activeContext.type === 'server' && !activeContext.channelId) return;
     msgInput.value = '';
     updateSendBtnState();
     msgInput.focus();
 
-    const collectionRoot = activeContext.type === 'server' ? 'servers' : 'dms';
+    const messagesRef = activeContext.type === 'server'
+        ? collection(db, 'servers', activeContext.id, 'channels', activeContext.channelId, 'messages')
+        : collection(db, 'dms', activeContext.id, 'messages');
+
     try {
-        await addDoc(collection(db, collectionRoot, activeContext.id, 'messages'), {
+        await addDoc(messagesRef, {
             senderId: currentUser.uid,
             senderName: currentProfile.username || 'Player',
             senderAvatarEmoji: currentProfile.avatarEmoji || null,
@@ -1317,6 +1490,13 @@ updateSendBtnState();
 sendBtn.addEventListener('click', sendMessage);
 msgInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); sendMessage(); }
+});
+
+homeNavBtn.addEventListener('click', () => {
+    if (msgInput.value.trim().length > 0) {
+        if (!confirm('You have an unsent message. Leave chat anyway?')) return;
+    }
+    window.location.href = 'index.html';
 });
 
 // Default view on load

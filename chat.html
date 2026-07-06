@@ -244,9 +244,18 @@ html, body {
 #messagesArea::-webkit-scrollbar { width: 8px; }
 #messagesArea::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
 
-.msg-group { display: flex; gap: 12px; padding: 3px 20px; margin-top: 14px; }
+.msg-group { display: flex; gap: 12px; padding: 3px 20px; margin-top: 14px; position: relative; }
 .msg-group:first-child { margin-top: 4px; }
 .msg-group:hover { background: rgba(4,4,5,0.07); }
+.msg-group:hover .msg-delete-btn, .msg-solo:hover .msg-delete-btn { opacity: 1; }
+.msg-delete-btn {
+    position: absolute; top: -6px; right: 16px; opacity: 0;
+    width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--dc-divider);
+    background: var(--dc-bg-primary); color: var(--dc-text-muted); font-size: 12px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+}
+.msg-delete-btn:hover { color: var(--dc-red); border-color: var(--dc-red); }
 .msg-avatar {
     width: 38px; height: 38px; border-radius: 50%;
     background: var(--dc-blurple);
@@ -261,6 +270,7 @@ html, body {
 .msg-time { font-size: 11px; color: var(--dc-text-muted); font-weight: 500; }
 .msg-line { font-size: 15px; line-height: 1.375; color: var(--dc-text-normal); word-break: break-word; }
 .msg-solo { display: flex; padding: 1px 20px 1px 70px; position: relative; }
+.msg-solo .msg-delete-btn { top: -2px; right: 16px; }
 .msg-solo:hover { background: rgba(4,4,5,0.07); }
 .msg-solo:hover .msg-hover-time { visibility: visible; }
 .msg-hover-time {
@@ -768,7 +778,62 @@ onAuthStateChanged(auth, async (user) => {
     subscribeGlobalPresence();
     subscribeMyServers();
     subscribeMyDms();
+    subscribeOwnProfile();
 });
+
+// Live-subscribes to this user's own users/{uid} doc so a nickname/avatar
+// change made anywhere else on the site (Game Hub profile editor, Dutch,
+// etc.) is picked up here without a reload, and propagates this user's
+// name/avatar into every server they're a member of and every DM they're
+// part of, keeping everything in sync from one shared profile source.
+function subscribeOwnProfile() {
+    onSnapshot(doc(db, 'users', currentUser.uid), async (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const changed = data.username !== currentProfile?.username
+            || data.avatarEmoji !== currentProfile?.avatarEmoji
+            || data.photoURL !== currentProfile?.photoURL;
+        currentProfile = data;
+
+        userBarName.textContent = currentProfile.username || 'Player';
+        const av = buildAvatarStyle(currentProfile.username, currentProfile.avatarEmoji, currentProfile.photoURL);
+        userBarAvatar.innerHTML = av.html;
+        userBarAvatar.style.cssText = userBarAvatar.style.cssText.replace(/background-image:[^;]+;?/g, '') + av.bg;
+
+        if (!changed) return;
+
+        // Re-render the currently visible lists so the change shows up
+        // immediately without switching views.
+        if (activeContext?.type === 'dm' || activeContext?.type === 'dm-home' || !activeContext) renderDmList();
+        if (activeContext?.type === 'server') renderMemberList();
+
+        // Push the fresh name/avatar into every server this user belongs to,
+        // and every open DM's pointer doc, so other people see the update
+        // in their member/DM lists too — not just this client.
+        try {
+            const serverIds = Object.keys(myServers);
+            await Promise.all(serverIds.map(id => updateDoc(doc(db, 'servers', id), {
+                [`members.${currentUser.uid}.name`]: currentProfile.username || 'Player',
+                [`members.${currentUser.uid}.avatarEmoji`]: currentProfile.avatarEmoji || null,
+                [`members.${currentUser.uid}.photoURL`]: currentProfile.photoURL || null
+            }).catch(() => {})));
+
+            const dmIds = Object.keys(myDms);
+            await Promise.all(dmIds.map(id => {
+                const d = myDms[id];
+                if (!d?.otherUid) return null;
+                return setDoc(doc(db, 'users', d.otherUid, 'dms', id), {
+                    otherUid: currentUser.uid,
+                    otherName: currentProfile.username || 'Player',
+                    otherAvatarEmoji: currentProfile.avatarEmoji || null,
+                    otherPhotoURL: currentProfile.photoURL || null
+                }, { merge: true }).catch(() => {});
+            }));
+        } catch (err) {
+            console.warn('Could not propagate profile update:', err);
+        }
+    });
+}
 
 async function loadOrCreateProfile() {
     const ref = doc(db, 'users', currentUser.uid);
@@ -1220,6 +1285,10 @@ function renderChannelList(serverId, serverData) {
         <div class="second-col-section-label" style="margin-top:18px;">
             <button class="dc-btn dc-btn-ghost" id="showInviteBtn" style="padding:2px 0;font-size:11px;">📋 Invite people</button>
         </div>
+        ${isOwner ? `
+        <div class="second-col-section-label" style="margin-top:6px;">
+            <button class="dc-btn dc-btn-ghost" id="deleteServerBtn" style="padding:2px 0;font-size:11px;color:var(--dc-red);">🗑 Delete Server</button>
+        </div>` : ''}
     `;
 
     secondColBody.querySelectorAll('[data-channel-id]').forEach(el => {
@@ -1242,6 +1311,47 @@ function renderChannelList(serverId, serverData) {
         inviteCodeDisplay.value = serverData?.inviteCode || '';
         inviteModalBackdrop.classList.remove('is-hidden');
     });
+    document.getElementById('deleteServerBtn')?.addEventListener('click', () => deleteServer(serverId, serverData));
+}
+
+// Deletes an entire server: only the creator (ownerId) can do this. Removes
+// all channels, all messages within each channel, the server doc itself,
+// the invite-code index doc, and every member's "my servers" pointer doc —
+// otherwise members would still see a dead server in their rail forever.
+async function deleteServer(serverId, serverData) {
+    if (serverData?.ownerId !== currentUser.uid) {
+        showToast('Only the server creator can delete this server.');
+        return;
+    }
+    if (!confirm(`Delete "${serverData?.name || 'this server'}" for everyone? This cannot be undone.`)) return;
+
+    try {
+        const channelsSnap = await getDocs(collection(db, 'servers', serverId, 'channels'));
+        for (const chDoc of channelsSnap.docs) {
+            const msgsSnap = await getDocs(collection(db, 'servers', serverId, 'channels', chDoc.id, 'messages'));
+            await Promise.all(msgsSnap.docs.map(m => deleteDoc(m.ref)));
+            await deleteDoc(chDoc.ref);
+        }
+
+        const memberUids = Object.keys(serverData?.members || {});
+        await Promise.all(memberUids.map(uid =>
+            deleteDoc(doc(db, 'users', uid, 'servers', serverId)).catch(() => {})
+        ));
+
+        if (serverData?.inviteCode) {
+            await deleteDoc(doc(db, 'serverInvites', serverData.inviteCode)).catch(() => {});
+        }
+
+        await deleteDoc(doc(db, 'servers', serverId));
+
+        showToast('Server deleted.');
+        openDmHome();
+    } catch (err) {
+        console.error('Delete server failed:', err.code || err, err.message || '');
+        showToast(err.code === 'permission-denied'
+            ? 'Could not delete server — permission denied by Firestore rules.'
+            : 'Could not delete server — try again.');
+    }
 }
 
 function switchChannel(serverId, channelId, channelName) {
@@ -1400,7 +1510,7 @@ function subscribeMessages(collectionRoot, contextId, channelId) {
         lastGroupEl = null;
         lastGroupTs = 0;
         lastDayKey = null;
-        snap.forEach(d => appendMessage(d.data()));
+        snap.forEach(d => appendMessage(d.data(), d.ref));
         // Only yank the scroll position to the bottom if the user was already
         // down there — otherwise leave them where they are reading history.
         if (wasNearBottom) {
@@ -1420,11 +1530,14 @@ jumpToBottomBtn.addEventListener('click', () => {
     jumpToBottomBtn.classList.remove('is-visible');
 });
 
-function appendMessage(m) {
+function appendMessage(m, msgRef) {
     const isMe = m.senderId === currentUser.uid;
     const avatar = buildAvatarStyle(m.senderName, m.senderAvatarEmoji, m.senderPhotoURL);
     const timeStr = formatTime(m.ts);
     const msgMs = m.ts?.toDate ? m.ts.toDate().getTime() : (m.ts ? new Date(m.ts).getTime() : Date.now());
+    const deleteBtnHtml = (isMe && msgRef)
+        ? `<button class="msg-delete-btn" title="Delete message">🗑</button>`
+        : '';
 
     // Insert a day divider whenever the calendar day changes
     const dayKey = m.ts ? formatDayKey(m.ts) : lastDayKey;
@@ -1446,11 +1559,13 @@ function appendMessage(m) {
         line.className = 'msg-solo';
         line.innerHTML = `
             <span class="msg-hover-time">${timeStr}</span>
-            <span class="msg-line">${escHtml(m.text)}</span>`;
+            <span class="msg-line">${escHtml(m.text)}</span>
+            ${deleteBtnHtml}`;
         // Append as a sibling in the message list (not inside the flex-row
         // group), so it stacks below the previous line instead of sitting
         // next to the avatar/body row.
         messagesArea.appendChild(line);
+        wireMessageDelete(line, msgRef);
     } else {
         const group = document.createElement('div');
         group.className = 'msg-group';
@@ -1462,12 +1577,34 @@ function appendMessage(m) {
                     <span class="msg-time">${timeStr}</span>
                 </div>
                 <div class="msg-line">${escHtml(m.text)}</div>
-            </div>`;
+            </div>
+            ${deleteBtnHtml}`;
         messagesArea.appendChild(group);
+        wireMessageDelete(group, msgRef);
         lastGroupEl = group;
         lastGroupSenderId = m.senderId;
     }
     lastGroupTs = msgMs;
+}
+
+// Wires the delete button inside a rendered message element, if present.
+// Only messages sent by the current user get a delete button in the first
+// place (see appendMessage), so no extra ownership check is needed here.
+function wireMessageDelete(el, msgRef) {
+    const btn = el.querySelector('.msg-delete-btn');
+    if (!btn || !msgRef) return;
+    btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm('Delete this message?')) return;
+        try {
+            await deleteDoc(msgRef);
+        } catch (err) {
+            console.error('Delete message failed:', err.code || err, err.message || '');
+            showToast(err.code === 'permission-denied'
+                ? 'Could not delete — permission denied by Firestore rules.'
+                : 'Could not delete message — try again.');
+        }
+    });
 }
 
 async function sendMessage() {

@@ -1208,6 +1208,7 @@
         }
         #callDutchBtn:hover:not(:disabled) { background: #e11d48; }
         #callDutchBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+        #createRoomBtn:disabled, #joinRoomBtn:disabled { opacity: 0.4; cursor: not-allowed; }
 
         .btn-sm {
             padding: 5px 8px;
@@ -1396,7 +1397,7 @@
                         <input type="text" id="usernameInput" placeholder="Enter display name..." class="hub-input px-4 py-3">
                         <p id="usernameSaveHint" class="hidden text-left text-[11px] text-emerald-400">✓ Saved to your account</p>
                     </div>
-                    <button id="createRoomBtn" class="hub-btn hub-btn-brass w-full py-3.5 text-sm tracking-wide uppercase" style="box-shadow:0 8px 20px rgba(124,106,245,0.2);">👑 Create Party</button>
+                    <button id="createRoomBtn" class="hub-btn hub-btn-brass w-full py-3.5 text-sm tracking-wide uppercase" style="box-shadow:0 8px 20px rgba(124,106,245,0.2);" disabled>👑 Create Party</button>
                     <div class="relative flex py-1 items-center">
                         <div class="flex-grow border-t" style="border-color:var(--hub-border);"></div>
                         <span class="flex-shrink mx-4 text-xs uppercase tracking-widest" style="color:var(--hub-faint);">or join</span>
@@ -1404,7 +1405,7 @@
                     </div>
                     <div class="flex gap-2">
                         <input type="text" id="roomCodeInput" placeholder="ROOM CODE" class="hub-input flex-1 px-4 py-3 text-center tracking-widest font-mono uppercase text-sm">
-                        <button id="joinRoomBtn" class="hub-btn hub-btn-slate px-6">Join</button>
+                        <button id="joinRoomBtn" class="hub-btn hub-btn-slate px-6" disabled>Join</button>
                     </div>
                 </div>
             </div>

@@ -155,6 +155,16 @@ let profileUnsub = null;       // live listener on users/{uid}, so a nickname/av
                                 // change made on the Game Hub home page (or any other
                                 // game sharing this doc) reflects here instantly too.
 let statsWrittenForRound = null; // roundSeenKey already written to stats, to avoid double-counting on re-render
+// True once the first onAuthStateChanged callback has fired, i.e. once we
+// actually know whether the visitor is signed in or not. Firebase's session
+// restore is asynchronous, so there's a brief window right after page load
+// where currentUser/localPlayerId haven't been reconciled with the real
+// signed-in account yet. Creating or joining a room during that window would
+// permanently lock the game to a throwaway guest ID (rooms never re-link an
+// identity mid-game), silently breaking stats tracking and presence writes
+// for the rest of that session. Gating room creation/joining on this flag
+// closes that race.
+let authReady = false;
 
 // ==========================================
 // Vote-to-kick configuration
@@ -458,6 +468,14 @@ onAuthStateChanged(auth, async (user) => {
         currentProfile = null;
         if (!roomCode) localPlayerId = guestPlayerId;
         applySignedOutUI();
+    }
+
+    if (!authReady) {
+        authReady = true;
+        const createBtn = document.getElementById("createRoomBtn");
+        const joinBtn = document.getElementById("joinRoomBtn");
+        if (createBtn) createBtn.disabled = false;
+        if (joinBtn) joinBtn.disabled = false;
     }
 });
 
@@ -1475,6 +1493,7 @@ const roundEndScreen = document.getElementById("screen-roundend");
 // Lobby / Room setup
 // ==========================================
 document.getElementById("createRoomBtn").addEventListener("click", async () => {
+    if (!authReady) { showToast("Still checking your sign-in status — one moment…", 'info'); return; }
     const name = document.getElementById("usernameInput").value.trim() || "Player";
     roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
     gameState = {
@@ -1491,6 +1510,7 @@ document.getElementById("createRoomBtn").addEventListener("click", async () => {
 });
 
 document.getElementById("joinRoomBtn").addEventListener("click", async () => {
+    if (!authReady) { showToast("Still checking your sign-in status — one moment…", 'info'); return; }
     const name = document.getElementById("usernameInput").value.trim() || "Player";
     const enteredCode = document.getElementById("roomCodeInput").value.trim().toUpperCase();
     if (!enteredCode) { showToast("Enter a valid room code.", 'warning'); return; }

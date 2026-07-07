@@ -33,13 +33,13 @@
             transform: translateX(-50%);
             width: 1100px;
             height: 560px;
-            background: radial-gradient(ellipse at center, rgba(91,122,153,0.16) 0%, rgba(200,147,63,0.08) 45%, transparent 72%);
+            background: radial-gradient(ellipse at center, rgba(91,122,153,0.16) 0%, rgba(124,106,245,0.08) 45%, transparent 72%);
             pointer-events: none;
             z-index: 0;
         }
 
         :focus-visible {
-            outline: 2px solid #c8933f;
+            outline: 2px solid #7c6af5;
             outline-offset: 2px;
         }
 
@@ -55,7 +55,7 @@
             transition: border-color 0.15s;
         }
         input::placeholder { color: #56606d; }
-        input:focus { outline: none; border-color: #c8933f; }
+        input:focus { outline: none; border-color: #7c6af5; }
 
         button { font-family: 'Inter', sans-serif; }
 
@@ -77,10 +77,10 @@
         .brand-glyph {
             width: 34px; height: 34px;
             border-radius: 9px;
-            background: linear-gradient(145deg, #c8933f, #9c6f2a);
+            background: linear-gradient(145deg, #7c6af5, #5b41d4);
             display: flex; align-items: center; justify-content: center;
             font-size: 16px;
-            box-shadow: 0 4px 14px rgba(200,147,63,0.25);
+            box-shadow: 0 4px 14px rgba(124,106,245,0.25);
             flex-shrink: 0;
         }
         .brand-name {
@@ -130,7 +130,7 @@
             transition: border-color 0.15s, background 0.15s;
         }
         .avatar-pick-btn:hover { border-color: #56606d; }
-        .avatar-pick-btn.selected { border-color: #c8933f; background: rgba(200,147,63,0.12); }
+        .avatar-pick-btn.selected { border-color: #7c6af5; background: rgba(124,106,245,0.12); }
 
         .btn {
             display: inline-flex;
@@ -146,8 +146,8 @@
             transition: background 0.15s, border-color 0.15s, transform 0.1s;
         }
         .btn:active { transform: scale(0.98); }
-        .btn-brass { background: #c8933f; color: #14100a; }
-        .btn-brass:hover { background: #d8a552; }
+        .btn-brass { background: #7c6af5; color: #0d0a2e; }
+        .btn-brass:hover { background: #9585f8; }
         .btn-slate { background: #263140; color: #e8e3d5; border: 1px solid #3a4859; }
         .btn-slate:hover { background: #2d3a4a; }
         .btn-ghost { background: transparent; color: #9aa5b3; border: 1px solid #263140; }
@@ -167,7 +167,7 @@
             font-size: 12px;
             letter-spacing: 0.18em;
             text-transform: uppercase;
-            color: #c8933f;
+            color: #7c6af5;
             margin-bottom: 18px;
             display: inline-flex;
             align-items: center;
@@ -176,7 +176,7 @@
         .hero-eyebrow::before, .hero-eyebrow::after {
             content: '';
             width: 24px; height: 1px;
-            background: rgba(200,147,63,0.5);
+            background: rgba(124,106,245,0.5);
         }
         .hero h1 {
             font-family: 'Fraunces', serif;
@@ -190,7 +190,7 @@
         .hero h1 em {
             font-style: italic;
             font-weight: 500;
-            color: #c8933f;
+            color: #7c6af5;
         }
         .hero p {
             color: #9aa5b3;
@@ -238,7 +238,7 @@
             transform: translateY(-5px);
             box-shadow: 0 24px 48px rgba(0,0,0,0.35);
         }
-        .game-card.suit-brass:hover { border-color: #c8933f; box-shadow: 0 24px 48px rgba(200,147,63,0.14); }
+        .game-card.suit-brass:hover { border-color: #7c6af5; box-shadow: 0 24px 48px rgba(124,106,245,0.14); }
         .game-card.suit-slate:hover { border-color: #5b7a99; box-shadow: 0 24px 48px rgba(91,122,153,0.16); }
 
         .card-index {
@@ -250,7 +250,7 @@
             text-transform: uppercase;
             opacity: 0.55;
         }
-        .suit-brass .card-index { color: #c8933f; }
+        .suit-brass .card-index { color: #7c6af5; }
         .suit-slate .card-index { color: #5b7a99; }
 
         .card-glyph { font-size: 2.1rem; margin-bottom: 18px; display: block; }
@@ -272,7 +272,7 @@
             display: inline-block;
             margin-bottom: 14px;
         }
-        .suit-brass .card-tag { background: rgba(200,147,63,0.15); color: #d8a552; }
+        .suit-brass .card-tag { background: rgba(124,106,245,0.15); color: #9585f8; }
         .suit-slate .card-tag { background: rgba(91,122,153,0.18); color: #8fb0cc; }
 
         .card-desc {
@@ -288,7 +288,7 @@
             font-weight: 700;
             font-size: 13.5px;
         }
-        .suit-brass .card-cta { color: #c8933f; }
+        .suit-brass .card-cta { color: #7c6af5; }
         .suit-slate .card-cta { color: #7fa3c4; }
         .card-cta .arrow { transition: transform 0.2s; }
         .game-card:hover .card-cta .arrow { transform: translateX(3px); }
@@ -444,7 +444,7 @@
                 <label class="block text-left text-xs font-bold text-[#9aa5b3] uppercase tracking-wider">Avatar</label>
                 <div id="profileAvatarGrid" class="grid grid-cols-6 gap-2"></div>
                 <p class="text-left text-[11px] text-[#56606d]">Pick an icon, or clear it to use your Google photo instead.</p>
-                <button id="profileClearAvatarBtn" class="text-left text-[11px] text-[#c8933f] hover:text-[#d8a552] transition underline bg-transparent border-none cursor-pointer">Use Google photo instead</button>
+                <button id="profileClearAvatarBtn" class="text-left text-[11px] text-[#7c6af5] hover:text-[#9585f8] transition underline bg-transparent border-none cursor-pointer">Use Google photo instead</button>
             </div>
 
             <button id="profileSaveBtn" class="btn btn-brass w-full">Save Changes</button>

@@ -278,7 +278,7 @@ html, body {
 .msg-sender { font-size: 15px; font-weight: 600; color: var(--dc-text-header); white-space: nowrap; }
 .msg-sender.is-me { color: #86efac; }
 .msg-time { font-size: 11px; color: var(--dc-text-muted); font-weight: 500; }
-.msg-line { font-size: 15px; line-height: 1.375; color: var(--dc-text-normal); word-break: break-word; }
+.msg-line { font-size: 15px; line-height: 1.375; color: var(--dc-text-normal); word-break: break-word; white-space: pre-wrap; }
 
 /* Reply quote shown inside messages that are replies */
 .msg-reply-quote {
@@ -539,8 +539,6 @@ html, body {
 <div id="appRoot" style="display:none;">
     <!-- ── SERVER RAIL ── -->
     <div id="serverRail">
-        <!-- Hub brand mark — links back to index, matches index.html nav glyph -->
-        <a href="index.html" title="Back to Game Hub" style="display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:16px;background:linear-gradient(145deg,#7c6af5,#5b41d4);font-size:20px;text-decoration:none;box-shadow:0 4px 14px rgba(124,106,245,0.35);flex-shrink:0;margin-bottom:4px;transition:border-radius 0.15s,opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">🃏</a>
         <a href="index.html" id="homeNavBtn" title="Back to Game Hub" style="display:flex;align-items:center;justify-content:center;width:48px;padding:4px 0;font-size:10px;font-weight:700;letter-spacing:0.02em;color:#9aa5b3;text-decoration:none;flex-shrink:0;transition:color 0.15s;" onmouseover="this.style.color='#d4ccff'" onmouseout="this.style.color='#9aa5b3'">Home</a>
         <div class="rail-divider" style="margin:4px 0;"></div>
         <div class="rail-icon-wrap is-active" id="dmRailIcon" title="Direct Messages">
@@ -604,7 +602,6 @@ html, body {
             <span id="charCounter"></span>
             <button id="sendBtn" title="Send (Enter)" disabled>➤</button>
         </div>
-        <div id="inputHint">Shift + Enter for new line</div>
     </div>
 
     <!-- ── MEMBER SIDEBAR ── -->
@@ -814,6 +811,7 @@ const authGate = document.getElementById('authGate');
 const appRoot = document.getElementById('appRoot');
 const serverIconList = document.getElementById('serverIconList');
 const dmRailIcon = document.getElementById('dmRailIcon');
+const homeNavBtn = document.getElementById('homeNavBtn');
 const addServerRailIcon = document.getElementById('addServerRailIcon');
 
 const secondColHeaderText = document.getElementById('secondColHeaderText');
@@ -864,7 +862,6 @@ const inviteCodeDisplay = document.getElementById('inviteCodeDisplay');
 const copyInviteBtn = document.getElementById('copyInviteBtn');
 const inviteModalCloseBtn = document.getElementById('inviteModalCloseBtn');
 
-const homeNavBtn = document.getElementById('homeNavBtn');
 
 const channelModalBackdrop = document.getElementById('channelModalBackdrop');
 const newChannelNameInput = document.getElementById('newChannelNameInput');
@@ -1036,7 +1033,9 @@ async function loadOrCreateProfile() {
 // ─────────────────────────────────────────────
 function registerGlobalPresence() {
     const presenceRef = ref(rtdb, `chatPresence/${currentUser.uid}`);
-    set(presenceRef, { since: rtdbServerTimestamp() });
+    set(presenceRef, { since: rtdbServerTimestamp() }).catch((err) => {
+        console.error('Failed to register presence (check RTDB rules):', err);
+    });
     onDisconnect(presenceRef).remove();
 }
 
@@ -1045,7 +1044,7 @@ function subscribeGlobalPresence() {
     globalPresenceUnsub = onValue(ref(rtdb, 'chatPresence'), (snap) => {
         onlineUids = snap.val() || {};
         // Re-render whichever list is visible so status dots stay live
-        if (activeContext?.type === 'dm' || !activeContext) renderDmList();
+        if (activeContext?.type === 'dm' || activeContext?.type === 'dm-home' || !activeContext) renderDmList();
         if (activeContext?.type === 'server') renderMemberList();
     });
 }
@@ -1624,7 +1623,7 @@ function renderMemberList() {
     const onlineList = uids.filter(uid => !!onlineUids[uid]);
     const offlineList = uids.filter(uid => !onlineUids[uid]);
 
-    memberHeading.textContent = `Members — ${uids.length}`;
+    memberHeading.textContent = `Online — ${onlineList.length}`;
 
     function memberRowHtml(uid) {
         const m = members[uid];
@@ -1643,11 +1642,12 @@ function renderMemberList() {
 
     let html = '';
     if (onlineList.length > 0) {
-        html += `<div class="member-heading">Online — ${onlineList.length}</div>`;
         html += onlineList.map(memberRowHtml).join('');
+    } else {
+        html += `<div style="padding:10px 8px;color:#6b7078;font-size:12px;">No one else is online right now.</div>`;
     }
     if (offlineList.length > 0) {
-        html += `<div class="member-heading" style="margin-top:${onlineList.length > 0 ? '12px' : '4px'};">Offline — ${offlineList.length}</div>`;
+        html += `<div class="member-heading" style="margin-top:12px;">Offline — ${offlineList.length}</div>`;
         html += offlineList.map(memberRowHtml).join('');
     }
     memberList.innerHTML = html;

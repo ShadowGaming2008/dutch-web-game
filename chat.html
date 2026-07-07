@@ -661,20 +661,13 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
     position: absolute; right: 2px; bottom: 2px; width: 18px; height: 18px; border-radius: 50%;
     background: #23a55a; border: 3px solid var(--dc-bg-primary); box-sizing: border-box;
 }
-.vp-body { padding: 46px 20px 16px; background: var(--dc-bg-secondary); }
+.vp-body { padding: 46px 20px 16px; background: transparent; max-height: min(70vh, 560px); overflow-y: auto; }
 .vp-username-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
 .vp-username { font-size: 18px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.4); margin: 0; }
 .vp-level-badge {
     font-size: 11px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.35); border-radius: 20px;
     padding: 2px 9px; display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
 }
-.vp-tab-row { display: flex; gap: 4px; margin: 12px 0 12px; background: rgba(0,0,0,0.22); border-radius: 8px; padding: 3px; }
-.vp-tab {
-    flex: 1; text-align: center; padding: 6px 8px; border-radius: 6px; font-size: 12px; font-weight: 700;
-    color: rgba(255,255,255,0.65); cursor: pointer; transition: background 0.15s, color 0.15s; user-select: none;
-}
-.vp-tab:hover { color: rgba(255,255,255,0.9); }
-.vp-tab.is-active { background: rgba(0,0,0,0.4); color: #fff; }
 .vp-pane.is-hidden { display: none; }
 .vp-info-panel { background: rgba(0,0,0,0.32); backdrop-filter: blur(2px); border-radius: 10px; padding: 12px 14px; }
 .vp-info-panel + .vp-info-panel { margin-top: 10px; }
@@ -1040,7 +1033,7 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
 
 <!-- ── VIEW PROFILE MODAL ── -->
 <div class="dc-modal-backdrop is-hidden" id="viewProfileBackdrop">
-    <div class="dc-modal" id="vpCard" style="max-width:360px;">
+    <div class="dc-modal" id="vpCard" style="max-width:400px;">
         <div class="vp-banner" id="vpBanner">
             <div class="vp-avatar-wrap">
                 <div class="vp-avatar" id="vpAvatar"></div>
@@ -1054,13 +1047,7 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
             </div>
             <span class="vp-level-badge is-hidden" id="vpLevelBadge">🏆 Level 1</span>
 
-            <div class="vp-tab-row">
-                <div class="vp-tab is-active" data-vptab="about">About</div>
-                <div class="vp-tab" data-vptab="stats">Dutch Stats</div>
-            </div>
-
-            <!-- About pane -->
-            <div class="vp-pane" id="vpPaneAbout">
+            <div class="vp-pane" id="vpPaneAbout" style="margin-top:12px;">
                 <div class="vp-info-panel">
                     <p class="vp-bio-label">Bio</p>
                     <p class="vp-bio" id="vpBio">—</p>
@@ -1069,12 +1056,11 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
                     <p class="vp-section-label">Member Since</p>
                     <p class="vp-member-since" id="vpMemberSince">—</p>
                 </div>
-            </div>
 
-            <!-- Dutch Stats pane -->
-            <div class="vp-pane is-hidden" id="vpPaneStats">
+                <!-- Game Stats summary -->
                 <div class="vp-info-panel" id="vpStatsLevelPanel">
-                    <div class="vp-level-row">
+                    <p class="vp-section-label">Game Stats</p>
+                    <div class="vp-level-row" style="margin-top:6px;">
                         <div class="vp-level-ring">
                             <div class="num" id="vpStatsLevelNum">1</div>
                             <div class="lvl-label">LVL</div>
@@ -1085,9 +1071,9 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
                             <div class="vp-xp-track"><div class="vp-xp-fill" id="vpStatsXpFill" style="width:0%;"></div></div>
                         </div>
                     </div>
+                    <div class="vp-stats-grid" id="vpStatsGrid" style="margin-top:10px;"></div>
+                    <p class="vp-no-stats is-hidden" id="vpNoStats">Hasn't played Dutch yet.</p>
                 </div>
-                <div class="vp-stats-grid" id="vpStatsGrid" style="margin-top:10px;"></div>
-                <p class="vp-no-stats is-hidden" id="vpNoStats">Hasn't played Dutch yet.</p>
             </div>
         </div>
         <div class="dc-modal-footer" id="vpActions">
@@ -3187,27 +3173,15 @@ function renderViewProfile(data) {
     renderVpStats(data.stats);
 }
 
-// Tab switching inside the profile card (About / Dutch Stats)
-document.querySelectorAll('#viewProfileBackdrop .vp-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-        document.querySelectorAll('#viewProfileBackdrop .vp-tab').forEach(t => t.classList.remove('is-active'));
-        tab.classList.add('is-active');
-        const target = tab.dataset.vptab;
-        document.getElementById('vpPaneAbout').classList.toggle('is-hidden', target !== 'about');
-        document.getElementById('vpPaneStats').classList.toggle('is-hidden', target !== 'stats');
-    });
-});
-
 function openViewProfile(uid, fallback) {
     if (!uid) return;
     viewProfileTargetUid = uid;
     viewProfileTargetName = fallback?.name || 'Player';
     const isMe = uid === currentUser.uid;
 
-    // Reset to the About tab each time the card is opened.
-    document.querySelectorAll('#viewProfileBackdrop .vp-tab').forEach(t => t.classList.toggle('is-active', t.dataset.vptab === 'about'));
-    document.getElementById('vpPaneAbout').classList.remove('is-hidden');
-    document.getElementById('vpPaneStats').classList.add('is-hidden');
+    // Scroll back to the top each time the card is opened.
+    const vpBodyEl = document.querySelector('#viewProfileBackdrop .vp-body');
+    if (vpBodyEl) vpBodyEl.scrollTop = 0;
 
     renderViewProfile({
         name: fallback?.name || (isMe ? currentProfile?.username : 'Player'),

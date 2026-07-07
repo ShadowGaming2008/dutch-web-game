@@ -76,6 +76,15 @@ html[data-accent] {
     --dc-blurple-hover: color-mix(in srgb, var(--dc-custom-accent, #7c6af5) 82%, black);
 }
 
+/* ── Custom background theme — an optional per-user "wallpaper" applied
+   behind the server rail, DM/channel list, and main chat column. Solid
+   or gradient, set via --dc-custom-bg (a full CSS background value). ── */
+html[data-custom-bg] #mainCol,
+html[data-custom-bg] #secondCol,
+html[data-custom-bg] #serverRail {
+    background: var(--dc-custom-bg, var(--dc-bg-primary));
+}
+
 #appRoot {
     display: flex;
     width: 100%;
@@ -211,7 +220,7 @@ html[data-accent] {
 }
 .dm-row:hover { background: rgba(255,255,255,0.04); }
 .dm-row.is-active { background: rgba(255,255,255,0.08); }
-.dm-avatar-wrap { position: relative; width: 32px; height: 32px; flex-shrink: 0; }
+.dm-avatar-wrap { position: relative; width: 32px; height: 32px; flex-shrink: 0; cursor: pointer; }
 .dm-avatar {
     width: 32px; height: 32px; border-radius: 50%;
     background: var(--dc-blurple);
@@ -320,10 +329,12 @@ html[data-accent] {
     display: flex; align-items: center; justify-content: center;
     font-size: 16px; color: white; font-weight: 700; flex-shrink: 0; margin-top: 1px;
     background-size: cover; background-position: center; overflow: hidden;
+    cursor: pointer;
 }
 .msg-body { min-width: 0; flex: 1; }
 .msg-headline { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
-.msg-sender { font-size: 15px; font-weight: 600; color: var(--dc-text-header); white-space: nowrap; }
+.msg-sender { font-size: 15px; font-weight: 600; color: var(--dc-text-header); white-space: nowrap; cursor: pointer; }
+.msg-sender:hover { text-decoration: underline; }
 .msg-sender.is-me { color: #86efac; }
 .msg-time { font-size: 11px; color: var(--dc-text-muted); font-weight: 500; }
 .msg-line { font-size: 15px; line-height: 1.375; color: var(--dc-text-normal); word-break: break-word; white-space: pre-wrap; }
@@ -439,7 +450,7 @@ html[data-accent] {
 #memberCol::-webkit-scrollbar-thumb { background: #232428; border-radius: 2px; }
 #memberCol.is-hidden { display: none; }
 .member-heading { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: var(--dc-text-muted); padding: 4px 8px 8px; }
-.member-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; }
+.member-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
 .member-row:hover { background: rgba(255,255,255,0.04); }
 .member-avatar-wrap { position: relative; width: 28px; height: 28px; flex-shrink: 0; }
 .member-avatar {
@@ -524,6 +535,56 @@ html[data-accent] {
 }
 .avatar-preset-btn:hover { border-color: var(--dc-divider); }
 .avatar-preset-btn.is-active { border-color: var(--dc-blurple); }
+
+/* Solid/Gradient mode toggle (used by both Profile Color and Custom Theme) */
+.mode-toggle-row { display: flex; gap: 8px; }
+.mode-toggle-btn {
+    padding: 7px 14px; border-radius: 6px; border: 2px solid transparent; background: var(--dc-bg-tertiary);
+    color: var(--dc-text-normal); font-size: 12px; font-weight: 600; cursor: pointer; transition: border-color 0.15s;
+}
+.mode-toggle-btn:hover { border-color: var(--dc-divider); }
+.mode-toggle-btn.is-active { border-color: var(--dc-blurple); color: var(--dc-text-header); }
+.color-input-swatch {
+    width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--dc-divider); cursor: pointer;
+    padding: 0; overflow: hidden; position: relative; flex-shrink: 0;
+}
+.color-input-swatch.is-hidden { display: none; }
+.color-input-swatch input[type="color"] { opacity: 0; width: 100%; height: 100%; position: absolute; inset: 0; cursor: pointer; }
+.gradient-angle-row { display: flex; align-items: center; gap: 10px; }
+.gradient-angle-row.is-hidden { display: none; }
+.gradient-angle-row input[type="range"] { flex: 1; accent-color: var(--dc-blurple); }
+.color-preview-strip {
+    width: 100%; height: 36px; border-radius: 8px; border: 1px solid var(--dc-divider);
+}
+.custom-theme-toggle-row { display: flex; align-items: center; justify-content: space-between; }
+.toggle-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-switch-track {
+    position: absolute; inset: 0; background: var(--dc-bg-tertiary); border-radius: 22px; cursor: pointer;
+    transition: background 0.15s; border: 1px solid var(--dc-divider);
+}
+.toggle-switch-track::before {
+    content: ""; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: white;
+    border-radius: 50%; transition: transform 0.15s;
+}
+.toggle-switch input:checked + .toggle-switch-track { background: var(--dc-blurple); }
+.toggle-switch input:checked + .toggle-switch-track::before { transform: translateX(16px); }
+
+/* ── View Profile modal ── */
+.vp-banner { height: 80px; width: 100%; background: var(--dc-blurple); position: relative; }
+.vp-avatar-wrap {
+    width: 76px; height: 76px; border-radius: 50%; background: var(--dc-bg-primary); padding: 5px;
+    position: absolute; left: 20px; top: 46px;
+}
+.vp-avatar {
+    width: 100%; height: 100%; border-radius: 50%; background: var(--dc-blurple); background-size: cover; background-position: center;
+    display: flex; align-items: center; justify-content: center; font-size: 30px; color: white; font-weight: 700; overflow: hidden;
+}
+.vp-body { padding: 46px 20px 20px; }
+.vp-username { font-size: 18px; font-weight: 800; color: var(--dc-text-header); margin: 0 0 10px; }
+.vp-bio-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--dc-text-muted); margin: 0 0 4px; }
+.vp-bio { font-size: 14px; color: var(--dc-text-normal); white-space: pre-wrap; word-break: break-word; margin: 0; line-height: 1.4; }
+.vp-bio.is-empty { color: var(--dc-text-muted); font-style: italic; }
 
 .search-result-row {
     display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; cursor: pointer;
@@ -776,6 +837,27 @@ html[data-accent] {
                 <textarea class="dc-input" id="uSettingsBioInput" placeholder="Say a little about yourself..." maxlength="190" rows="3" style="resize:none;font-family:inherit;"></textarea>
                 <div id="uSettingsBioCounter" style="text-align:right;font-size:11px;color:var(--dc-text-muted);margin-top:2px;">0/190</div>
             </div>
+            <div>
+                <label class="dc-label">Profile color</label>
+                <div class="mode-toggle-row" style="margin-bottom:10px;">
+                    <button type="button" class="mode-toggle-btn" data-pc-mode="solid">Solid</button>
+                    <button type="button" class="mode-toggle-btn" data-pc-mode="gradient">Gradient</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <label class="color-input-swatch" id="uSettingsPColor1Wrap" title="Color 1">
+                        <input type="color" id="uSettingsPColor1" value="#7c6af5" />
+                    </label>
+                    <label class="color-input-swatch is-hidden" id="uSettingsPColor2Wrap" title="Color 2">
+                        <input type="color" id="uSettingsPColor2" value="#eb459e" />
+                    </label>
+                    <div id="uSettingsPColorPreview" class="color-preview-strip" style="flex:1;"></div>
+                </div>
+                <div class="gradient-angle-row is-hidden" id="uSettingsPAngleRow" style="margin-top:10px;">
+                    <span style="font-size:11px;color:var(--dc-text-muted);">Angle</span>
+                    <input type="range" id="uSettingsPAngle" min="0" max="360" value="135" />
+                </div>
+                <p style="font-size:11px;color:var(--dc-text-muted);margin:8px 0 0;">Shows on your avatar and your profile card, visible to others.</p>
+            </div>
         </div>
 
         <!-- Appearance pane -->
@@ -803,11 +885,61 @@ html[data-accent] {
                 </div>
                 <p style="font-size:11px;color:var(--dc-text-muted);margin:8px 0 0;">Changes the highlight color used across buttons, links, and active states.</p>
             </div>
+            <div>
+                <div class="custom-theme-toggle-row" style="margin-bottom:10px;">
+                    <label class="dc-label" style="margin-bottom:0;">Custom background theme</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="uSettingsCustomBgEnabled" />
+                        <span class="toggle-switch-track"></span>
+                    </label>
+                </div>
+                <div id="uSettingsCustomBgControls" style="display:flex;flex-direction:column;gap:10px;">
+                    <div class="mode-toggle-row">
+                        <button type="button" class="mode-toggle-btn" data-cbg-mode="solid">Solid</button>
+                        <button type="button" class="mode-toggle-btn" data-cbg-mode="gradient">Gradient</button>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <label class="color-input-swatch" id="uSettingsCbgColor1Wrap" title="Color 1">
+                            <input type="color" id="uSettingsCbgColor1" value="#1e1b2e" />
+                        </label>
+                        <label class="color-input-swatch is-hidden" id="uSettingsCbgColor2Wrap" title="Color 2">
+                            <input type="color" id="uSettingsCbgColor2" value="#2b1b3a" />
+                        </label>
+                        <div id="uSettingsCbgPreview" class="color-preview-strip" style="flex:1;"></div>
+                    </div>
+                    <div class="gradient-angle-row is-hidden" id="uSettingsCbgAngleRow">
+                        <span style="font-size:11px;color:var(--dc-text-muted);">Angle</span>
+                        <input type="range" id="uSettingsCbgAngle" min="0" max="360" value="135" />
+                    </div>
+                </div>
+                <p style="font-size:11px;color:var(--dc-text-muted);margin:8px 0 0;">Applies a custom wallpaper (solid or gradient) behind the sidebar and chat.</p>
+            </div>
         </div>
 
         <div class="dc-modal-footer">
             <button class="dc-btn dc-btn-ghost" id="userSettingsCancelBtn">Cancel</button>
             <button class="dc-btn dc-btn-primary" id="userSettingsSaveBtn">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── VIEW PROFILE MODAL ── -->
+<div class="dc-modal-backdrop is-hidden" id="viewProfileBackdrop">
+    <div class="dc-modal" style="max-width:360px;">
+        <div class="vp-banner" id="vpBanner">
+            <div class="vp-avatar-wrap">
+                <div class="vp-avatar" id="vpAvatar"></div>
+            </div>
+            <button class="small-action-btn" id="viewProfileCloseBtn" style="position:absolute;top:10px;right:10px;font-size:14px;width:28px;height:28px;background:rgba(0,0,0,0.35);color:white;">✕</button>
+        </div>
+        <div class="vp-body">
+            <h3 class="vp-username" id="vpUsername">Player</h3>
+            <p class="vp-bio-label">Bio</p>
+            <p class="vp-bio" id="vpBio">—</p>
+        </div>
+        <div class="dc-modal-footer" id="vpActions">
+            <button class="dc-btn dc-btn-ghost" id="viewProfileCloseBtn2">Close</button>
+            <button class="dc-btn dc-btn-primary" id="viewProfileMessageBtn">Message</button>
         </div>
     </div>
 </div>
@@ -1012,11 +1144,25 @@ function escHtml(s) {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function buildAvatarStyle(name, avatarEmoji, photoURL) {
-    if (avatarEmoji) return { html: escHtml(avatarEmoji), bg: '' };
+// Turns a stored profileColor ({type:'solid'|'gradient', c1, c2, angle}) into
+// a CSS background value. Returns null if there's no custom color set, in
+// which case callers fall back to the default --dc-blurple background.
+function profileColorCss(profileColor) {
+    if (!profileColor || !profileColor.c1) return null;
+    if (profileColor.type === 'gradient' && profileColor.c2) {
+        const angle = Number.isFinite(profileColor.angle) ? profileColor.angle : 135;
+        return `linear-gradient(${angle}deg, ${profileColor.c1}, ${profileColor.c2})`;
+    }
+    return profileColor.c1;
+}
+
+function buildAvatarStyle(name, avatarEmoji, photoURL, profileColor) {
+    const customBg = profileColorCss(profileColor);
+    const customBgCss = customBg ? `background:${customBg};` : '';
+    if (avatarEmoji) return { html: escHtml(avatarEmoji), bg: customBgCss };
     if (photoURL) return { html: '', bg: `background-image:url('${photoURL}');` };
     const initial = (name || '?').trim().charAt(0).toUpperCase() || '?';
-    return { html: escHtml(initial), bg: '' };
+    return { html: escHtml(initial), bg: customBgCss };
 }
 
 function showToast(text) {
@@ -1080,7 +1226,7 @@ onAuthStateChanged(auth, async (user) => {
 
     await loadOrCreateProfile();
     userBarName.textContent = currentProfile.username || 'Player';
-    const av = buildAvatarStyle(currentProfile.username, currentProfile.avatarEmoji, currentProfile.photoURL);
+    const av = buildAvatarStyle(currentProfile.username, currentProfile.avatarEmoji, currentProfile.photoURL, currentProfile.profileColor);
     userBarAvatar.innerHTML = av.html;
     userBarAvatar.style.cssText += av.bg;
     applyProfileAppearance();
@@ -1103,15 +1249,17 @@ function subscribeOwnProfile() {
         const data = snap.data();
         const changed = data.username !== currentProfile?.username
             || data.avatarEmoji !== currentProfile?.avatarEmoji
-            || data.photoURL !== currentProfile?.photoURL;
+            || data.photoURL !== currentProfile?.photoURL
+            || JSON.stringify(data.profileColor || null) !== JSON.stringify(currentProfile?.profileColor || null);
         const appearanceChanged = data.theme !== currentProfile?.theme
-            || data.accentColor !== currentProfile?.accentColor;
+            || data.accentColor !== currentProfile?.accentColor
+            || JSON.stringify(data.customTheme || null) !== JSON.stringify(currentProfile?.customTheme || null);
         currentProfile = data;
 
         userBarName.textContent = currentProfile.username || 'Player';
-        const av = buildAvatarStyle(currentProfile.username, currentProfile.avatarEmoji, currentProfile.photoURL);
+        const av = buildAvatarStyle(currentProfile.username, currentProfile.avatarEmoji, currentProfile.photoURL, currentProfile.profileColor);
         userBarAvatar.innerHTML = av.html;
-        userBarAvatar.style.cssText = userBarAvatar.style.cssText.replace(/background-image:[^;]+;?/g, '') + av.bg;
+        userBarAvatar.style.cssText = userBarAvatar.style.cssText.replace(/background-image:[^;]+;?/g, '').replace(/background:[^;]+;?/g, '') + av.bg;
 
         if (appearanceChanged) applyProfileAppearance();
 
@@ -1122,15 +1270,16 @@ function subscribeOwnProfile() {
         if (activeContext?.type === 'dm' || activeContext?.type === 'dm-home' || !activeContext) renderDmList();
         if (activeContext?.type === 'server') renderMemberList();
 
-        // Push the fresh name/avatar into every server this user belongs to,
-        // and every open DM's pointer doc, so other people see the update
-        // in their member/DM lists too — not just this client.
+        // Push the fresh name/avatar/profile color into every server this user
+        // belongs to, and every open DM's pointer doc, so other people see the
+        // update in their member/DM lists too — not just this client.
         try {
             const serverIds = Object.keys(myServers);
             await Promise.all(serverIds.map(id => updateDoc(doc(db, 'servers', id), {
                 [`members.${currentUser.uid}.name`]: currentProfile.username || 'Player',
                 [`members.${currentUser.uid}.avatarEmoji`]: currentProfile.avatarEmoji || null,
-                [`members.${currentUser.uid}.photoURL`]: currentProfile.photoURL || null
+                [`members.${currentUser.uid}.photoURL`]: currentProfile.photoURL || null,
+                [`members.${currentUser.uid}.profileColor`]: currentProfile.profileColor || null
             }).catch(() => {})));
 
             const dmIds = Object.keys(myDms);
@@ -1141,7 +1290,8 @@ function subscribeOwnProfile() {
                     otherUid: currentUser.uid,
                     otherName: currentProfile.username || 'Player',
                     otherAvatarEmoji: currentProfile.avatarEmoji || null,
-                    otherPhotoURL: currentProfile.photoURL || null
+                    otherPhotoURL: currentProfile.photoURL || null,
+                    otherProfileColor: currentProfile.profileColor || null
                 }, { merge: true }).catch(() => {});
             }));
         } catch (err) {
@@ -1267,10 +1417,10 @@ function renderDmList() {
         const d = myDms[id];
         const isActive = activeContext?.type === 'dm' && activeContext.id === id;
         const isOnline = !!onlineUids[d.otherUid];
-        const avatar = buildAvatarStyle(d.otherName, d.otherAvatarEmoji, d.otherPhotoURL);
+        const avatar = buildAvatarStyle(d.otherName, d.otherAvatarEmoji, d.otherPhotoURL, d.otherProfileColor);
         return `
             <div class="dm-row${isActive ? ' is-active' : ''}" data-dm-id="${id}">
-                <div class="dm-avatar-wrap">
+                <div class="dm-avatar-wrap" data-uid="${d.otherUid}">
                     <div class="dm-avatar" style="${avatar.bg}">${avatar.html}</div>
                     <div class="dm-status-dot${isOnline ? ' is-online' : ''}"></div>
                 </div>
@@ -1280,6 +1430,13 @@ function renderDmList() {
 
     secondColBody.querySelectorAll('[data-dm-id]').forEach(el => {
         el.addEventListener('click', () => openDm(el.dataset.dmId));
+    });
+    secondColBody.querySelectorAll('.dm-avatar-wrap[data-uid]').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const d = myDms[el.closest('[data-dm-id]')?.dataset.dmId];
+            openViewProfile(el.dataset.uid, { name: d?.otherName, avatarEmoji: d?.otherAvatarEmoji, photoURL: d?.otherPhotoURL, profileColor: d?.otherProfileColor });
+        });
     });
 }
 
@@ -1354,7 +1511,7 @@ async function runUserSearch(term) {
             return;
         }
         dmSearchResults.innerHTML = results.map(r => {
-            const avatar = buildAvatarStyle(r.username, r.avatarEmoji, r.photoURL);
+            const avatar = buildAvatarStyle(r.username, r.avatarEmoji, r.photoURL, r.profileColor);
             return `
                 <div class="search-result-row" data-uid="${r.uid}" data-name="${escHtml(r.username || 'Player')}">
                     <div class="search-result-avatar" style="${avatar.bg}">${avatar.html}</div>
@@ -1374,12 +1531,13 @@ async function startDmWith(otherUid, otherName) {
     const dmId = dmIdFor(currentUser.uid, otherUid);
 
     // Fetch the other user's current avatar fields fresh
-    let otherAvatarEmoji = null, otherPhotoURL = null;
+    let otherAvatarEmoji = null, otherPhotoURL = null, otherProfileColor = null;
     try {
         const otherSnap = await getDoc(doc(db, 'users', otherUid));
         if (otherSnap.exists()) {
             otherAvatarEmoji = otherSnap.data().avatarEmoji || null;
             otherPhotoURL = otherSnap.data().photoURL || null;
+            otherProfileColor = otherSnap.data().profileColor || null;
         }
     } catch {}
 
@@ -1395,7 +1553,7 @@ async function startDmWith(otherUid, otherName) {
     // Pointer in my own DM list, pointing at the other person's info
     await setDoc(doc(db, 'users', currentUser.uid, 'dms', dmId), {
         otherUid, otherName,
-        otherAvatarEmoji, otherPhotoURL,
+        otherAvatarEmoji, otherPhotoURL, otherProfileColor,
         lastActive: serverTimestamp()
     }, { merge: true });
 
@@ -1405,6 +1563,7 @@ async function startDmWith(otherUid, otherName) {
         otherName: currentProfile.username || 'Player',
         otherAvatarEmoji: currentProfile.avatarEmoji || null,
         otherPhotoURL: currentProfile.photoURL || null,
+        otherProfileColor: currentProfile.profileColor || null,
         lastActive: serverTimestamp()
     }, { merge: true });
 
@@ -1461,6 +1620,7 @@ async function createServer(name) {
                     name: currentProfile.username || 'Player',
                     avatarEmoji: currentProfile.avatarEmoji || null,
                     photoURL: currentProfile.photoURL || null,
+                    profileColor: currentProfile.profileColor || null,
                     joinedAt: serverTimestamp()
                 }
             },
@@ -1506,6 +1666,7 @@ async function joinServerByCode(code) {
                 name: currentProfile.username || 'Player',
                 avatarEmoji: currentProfile.avatarEmoji || null,
                 photoURL: currentProfile.photoURL || null,
+                profileColor: currentProfile.profileColor || null,
                 joinedAt: serverTimestamp()
             }
         });
@@ -1769,9 +1930,9 @@ function renderMemberList() {
         const m = members[uid];
         const isMe = uid === currentUser.uid;
         const isOnline = !!onlineUids[uid];
-        const avatar = buildAvatarStyle(m?.name, m?.avatarEmoji, m?.photoURL);
+        const avatar = buildAvatarStyle(m?.name, m?.avatarEmoji, m?.photoURL, m?.profileColor);
         return `
-            <div class="member-row${isOnline ? ' is-online' : ' is-offline'}">
+            <div class="member-row${isOnline ? ' is-online' : ' is-offline'}" data-uid="${uid}">
                 <div class="member-avatar-wrap">
                     <div class="member-avatar" style="${avatar.bg}${isOnline ? '' : 'opacity:0.5;'}">${avatar.html}</div>
                     <div class="member-status${isOnline ? ' is-online' : ''}"></div>
@@ -1791,6 +1952,13 @@ function renderMemberList() {
         html += offlineList.map(memberRowHtml).join('');
     }
     memberList.innerHTML = html;
+
+    memberList.querySelectorAll('[data-uid]').forEach(el => {
+        el.addEventListener('click', () => {
+            const m = members[el.dataset.uid];
+            openViewProfile(el.dataset.uid, { name: m?.name, avatarEmoji: m?.avatarEmoji, photoURL: m?.photoURL, profileColor: m?.profileColor });
+        });
+    });
 }
 
 mainMembersToggleBtn.addEventListener('click', () => {
@@ -1892,7 +2060,7 @@ jumpToBottomBtn.addEventListener('click', () => {
 
 function appendMessage(m, msgRef) {
     const isMe = m.senderId === currentUser.uid;
-    const avatar = buildAvatarStyle(m.senderName, m.senderAvatarEmoji, m.senderPhotoURL);
+    const avatar = buildAvatarStyle(m.senderName, m.senderAvatarEmoji, m.senderPhotoURL, m.senderProfileColor);
     const timeStr = formatTime(m.ts);
     const msgMs = m.ts?.toDate ? m.ts.toDate().getTime() : (m.ts ? new Date(m.ts).getTime() : Date.now());
     const msgId = msgRef?.id || null;
@@ -1949,11 +2117,11 @@ function appendMessage(m, msgRef) {
         el.className = 'msg-group';
         if (msgId) el.dataset.msgId = msgId;
         el.innerHTML = `
-            <div class="msg-avatar" style="${avatar.bg}">${avatar.html}</div>
+            <div class="msg-avatar" data-uid="${escHtml(m.senderId)}" style="${avatar.bg}">${avatar.html}</div>
             <div class="msg-body">
                 ${replyHtml}
                 <div class="msg-headline">
-                    <span class="msg-sender${isMe ? ' is-me' : ''}">${isMe ? 'You' : escHtml(m.senderName)}</span>
+                    <span class="msg-sender${isMe ? ' is-me' : ''}" data-uid="${escHtml(m.senderId)}">${isMe ? 'You' : escHtml(m.senderName)}</span>
                     <span class="msg-time">${timeStr}</span>
                 </div>
                 <div class="msg-line">${escHtml(m.text)}</div>
@@ -1963,6 +2131,13 @@ function appendMessage(m, msgRef) {
         messagesArea.appendChild(el);
         lastGroupEl = el;
         lastGroupSenderId = m.senderId;
+
+        el.querySelectorAll('[data-uid]').forEach(avEl => {
+            avEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openViewProfile(m.senderId, { name: m.senderName, avatarEmoji: m.senderAvatarEmoji, photoURL: m.senderPhotoURL, profileColor: m.senderProfileColor });
+            });
+        });
     }
     lastGroupTs = msgMs;
     wireMessageActions(el, m, msgRef);
@@ -2234,6 +2409,7 @@ async function sendMessage() {
         senderName: currentProfile.username || 'Player',
         senderAvatarEmoji: currentProfile.avatarEmoji || null,
         senderPhotoURL: currentProfile.photoURL || null,
+        senderProfileColor: currentProfile.profileColor || null,
         text,
         ts: serverTimestamp()
     };
@@ -2430,11 +2606,26 @@ function applyAccent(color) {
     }
 }
 
+// Applies a saved customTheme ({enabled, type, c1, c2, angle}) as a solid
+// or gradient "wallpaper" behind the sidebar/chat, using the same
+// profileColorCss() helper that builds avatar colors.
+function applyCustomBg(customTheme) {
+    const css = customTheme?.enabled ? profileColorCss(customTheme) : null;
+    if (css) {
+        document.documentElement.setAttribute('data-custom-bg', '1');
+        document.documentElement.style.setProperty('--dc-custom-bg', css);
+    } else {
+        document.documentElement.removeAttribute('data-custom-bg');
+        document.documentElement.style.removeProperty('--dc-custom-bg');
+    }
+}
+
 // Applies the signed-in user's saved appearance prefs (called once the
 // profile loads, so their choice follows them across devices/browsers).
 function applyProfileAppearance() {
     applyTheme(currentProfile?.theme === 'light' ? 'light' : 'dark');
     applyAccent(currentProfile?.accentColor || null);
+    applyCustomBg(currentProfile?.customTheme || null);
 }
 
 // ── User Settings Modal (Profile + Appearance) ───────────────────
@@ -2452,9 +2643,29 @@ const uSettingsBioCounter = document.getElementById('uSettingsBioCounter');
 const uSettingsAccentGrid = document.getElementById('uSettingsAccentGrid');
 const uSettingsCustomAccentInput = document.getElementById('uSettingsCustomAccentInput');
 
+// Profile color controls
+const uSettingsPColor1 = document.getElementById('uSettingsPColor1');
+const uSettingsPColor2 = document.getElementById('uSettingsPColor2');
+const uSettingsPColor2Wrap = document.getElementById('uSettingsPColor2Wrap');
+const uSettingsPColorPreview = document.getElementById('uSettingsPColorPreview');
+const uSettingsPAngleRow = document.getElementById('uSettingsPAngleRow');
+const uSettingsPAngle = document.getElementById('uSettingsPAngle');
+
+// Custom background theme controls
+const uSettingsCustomBgEnabled = document.getElementById('uSettingsCustomBgEnabled');
+const uSettingsCustomBgControls = document.getElementById('uSettingsCustomBgControls');
+const uSettingsCbgColor1 = document.getElementById('uSettingsCbgColor1');
+const uSettingsCbgColor2 = document.getElementById('uSettingsCbgColor2');
+const uSettingsCbgColor2Wrap = document.getElementById('uSettingsCbgColor2Wrap');
+const uSettingsCbgPreview = document.getElementById('uSettingsCbgPreview');
+const uSettingsCbgAngleRow = document.getElementById('uSettingsCbgAngleRow');
+const uSettingsCbgAngle = document.getElementById('uSettingsCbgAngle');
+
 let uSettingsSelectedAvatar = null;
 let uSettingsSelectedTheme = 'dark';
 let uSettingsSelectedAccent = null;
+let uSettingsPMode = 'solid';   // profile color mode: 'solid' | 'gradient'
+let uSettingsCbgMode = 'solid'; // custom background mode: 'solid' | 'gradient'
 
 function setUserSettingsTab(tab) {
     userSettingsBackdrop.querySelectorAll('[data-utab]').forEach(t => t.classList.toggle('is-active', t.dataset.utab === tab));
@@ -2465,10 +2676,14 @@ userSettingsBackdrop.querySelectorAll('[data-utab]').forEach(tab => {
     tab.addEventListener('click', () => setUserSettingsTab(tab.dataset.utab));
 });
 
+function currentProfileColorDraft() {
+    return { type: uSettingsPMode, c1: uSettingsPColor1.value, c2: uSettingsPColor2.value, angle: Number(uSettingsPAngle.value) };
+}
+
 function renderAvatarPreview() {
-    const av = buildAvatarStyle(uSettingsUsernameInput.value || currentProfile?.username, uSettingsSelectedAvatar, currentProfile?.photoURL);
+    const av = buildAvatarStyle(uSettingsUsernameInput.value || currentProfile?.username, uSettingsSelectedAvatar, currentProfile?.photoURL, currentProfileColorDraft());
     uSettingsAvatarPreview.innerHTML = av.html;
-    uSettingsAvatarPreview.style.cssText = uSettingsAvatarPreview.style.cssText.replace(/background-image:[^;]+;?/g, '') + av.bg;
+    uSettingsAvatarPreview.style.cssText = uSettingsAvatarPreview.style.cssText.replace(/background-image:[^;]+;?/g, '').replace(/background:[^;]+;?/g, '') + av.bg;
 }
 
 function buildAvatarGrid() {
@@ -2521,6 +2736,68 @@ uSettingsBioInput.addEventListener('input', () => {
 });
 uSettingsUsernameInput.addEventListener('input', renderAvatarPreview);
 
+// ── Profile color (solid / gradient) ──────────────────────────────
+function setPModeButtonsActive() {
+    userSettingsBackdrop.querySelectorAll('[data-pc-mode]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.pcMode === uSettingsPMode);
+    });
+    uSettingsPColor2Wrap.classList.toggle('is-hidden', uSettingsPMode !== 'gradient');
+    uSettingsPAngleRow.classList.toggle('is-hidden', uSettingsPMode !== 'gradient');
+}
+function updatePColorPreview() {
+    uSettingsPColorPreview.style.background = profileColorCss(currentProfileColorDraft()) || '';
+}
+userSettingsBackdrop.querySelectorAll('[data-pc-mode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        uSettingsPMode = btn.dataset.pcMode;
+        setPModeButtonsActive();
+        updatePColorPreview();
+        renderAvatarPreview();
+    });
+});
+[uSettingsPColor1, uSettingsPColor2, uSettingsPAngle].forEach(input => {
+    input.addEventListener('input', () => {
+        updatePColorPreview();
+        renderAvatarPreview();
+    });
+});
+
+// ── Custom background theme (solid / gradient) ────────────────────
+function setCbgModeButtonsActive() {
+    userSettingsBackdrop.querySelectorAll('[data-cbg-mode]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.cbgMode === uSettingsCbgMode);
+    });
+    uSettingsCbgColor2Wrap.classList.toggle('is-hidden', uSettingsCbgMode !== 'gradient');
+    uSettingsCbgAngleRow.classList.toggle('is-hidden', uSettingsCbgMode !== 'gradient');
+}
+function currentCustomBgDraft() {
+    return {
+        enabled: uSettingsCustomBgEnabled.checked,
+        type: uSettingsCbgMode,
+        c1: uSettingsCbgColor1.value,
+        c2: uSettingsCbgColor2.value,
+        angle: Number(uSettingsCbgAngle.value)
+    };
+}
+function updateCbgPreviewAndApply() {
+    const draft = currentCustomBgDraft();
+    uSettingsCbgPreview.style.background = profileColorCss(draft) || 'var(--dc-bg-tertiary)';
+    uSettingsCustomBgControls.style.opacity = draft.enabled ? '1' : '0.5';
+    uSettingsCustomBgControls.style.pointerEvents = draft.enabled ? 'auto' : 'none';
+    applyCustomBg(draft);
+}
+userSettingsBackdrop.querySelectorAll('[data-cbg-mode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        uSettingsCbgMode = btn.dataset.cbgMode;
+        setCbgModeButtonsActive();
+        updateCbgPreviewAndApply();
+    });
+});
+[uSettingsCbgColor1, uSettingsCbgColor2, uSettingsCbgAngle].forEach(input => {
+    input.addEventListener('input', updateCbgPreviewAndApply);
+});
+uSettingsCustomBgEnabled.addEventListener('change', updateCbgPreviewAndApply);
+
 function openUserSettings() {
     uSettingsSelectedAvatar = currentProfile?.avatarEmoji || null;
     uSettingsSelectedTheme = currentProfile?.theme === 'light' ? 'light' : 'dark';
@@ -2531,10 +2808,27 @@ function openUserSettings() {
     uSettingsBioCounter.textContent = `${uSettingsBioInput.value.length}/190`;
     uSettingsCustomAccentInput.value = uSettingsSelectedAccent || '#7c6af5';
 
+    const pc = currentProfile?.profileColor || {};
+    uSettingsPMode = pc.type === 'gradient' ? 'gradient' : 'solid';
+    uSettingsPColor1.value = pc.c1 || '#7c6af5';
+    uSettingsPColor2.value = pc.c2 || '#eb459e';
+    uSettingsPAngle.value = Number.isFinite(pc.angle) ? pc.angle : 135;
+
+    const cbg = currentProfile?.customTheme || {};
+    uSettingsCbgMode = cbg.type === 'gradient' ? 'gradient' : 'solid';
+    uSettingsCbgColor1.value = cbg.c1 || '#1e1b2e';
+    uSettingsCbgColor2.value = cbg.c2 || '#2b1b3a';
+    uSettingsCbgAngle.value = Number.isFinite(cbg.angle) ? cbg.angle : 135;
+    uSettingsCustomBgEnabled.checked = !!cbg.enabled;
+
     buildAvatarGrid();
     buildAccentGrid();
     renderAvatarPreview();
     setThemeButtonsActive(uSettingsSelectedTheme);
+    setPModeButtonsActive();
+    updatePColorPreview();
+    setCbgModeButtonsActive();
+    updateCbgPreviewAndApply();
     setUserSettingsTab('profile');
     userSettingsBackdrop.classList.remove('is-hidden');
 }
@@ -2560,7 +2854,9 @@ userSettingsSaveBtn.addEventListener('click', async () => {
         avatarEmoji: uSettingsSelectedAvatar,
         bio: uSettingsBioInput.value.trim(),
         theme: uSettingsSelectedTheme,
-        accentColor: uSettingsSelectedAccent || null
+        accentColor: uSettingsSelectedAccent || null,
+        profileColor: currentProfileColorDraft(),
+        customTheme: currentCustomBgDraft()
     };
 
     try {
@@ -2573,6 +2869,80 @@ userSettingsSaveBtn.addEventListener('click', async () => {
         console.warn('Could not save settings:', err);
         showToast('Could not save — check your connection.');
     }
+});
+
+// ── View Profile modal ─────────────────────────────────────────────
+// Lets people click any avatar/name (member list, DM list, messages) to
+// see someone else's username, avatar, and bio. Shows cached data first
+// (no flash of blank), then refreshes with a live fetch of their bio.
+const viewProfileBackdrop = document.getElementById('viewProfileBackdrop');
+const viewProfileCloseBtn = document.getElementById('viewProfileCloseBtn');
+const viewProfileCloseBtn2 = document.getElementById('viewProfileCloseBtn2');
+const viewProfileMessageBtn = document.getElementById('viewProfileMessageBtn');
+const vpBanner = document.getElementById('vpBanner');
+const vpAvatar = document.getElementById('vpAvatar');
+const vpUsername = document.getElementById('vpUsername');
+const vpBio = document.getElementById('vpBio');
+
+let viewProfileTargetUid = null;
+let viewProfileTargetName = '';
+
+function renderViewProfile(data) {
+    const av = buildAvatarStyle(data.name, data.avatarEmoji, data.photoURL, data.profileColor);
+    vpAvatar.innerHTML = av.html;
+    vpAvatar.style.cssText = vpAvatar.style.cssText.replace(/background-image:[^;]+;?/g, '').replace(/background:[^;]+;?/g, '') + av.bg;
+    vpBanner.style.background = profileColorCss(data.profileColor) || 'var(--dc-blurple)';
+    vpUsername.textContent = data.name || 'Player';
+    const bio = (data.bio || '').trim();
+    vpBio.textContent = bio || 'No bio yet.';
+    vpBio.classList.toggle('is-empty', !bio);
+}
+
+function openViewProfile(uid, fallback) {
+    if (!uid) return;
+    viewProfileTargetUid = uid;
+    viewProfileTargetName = fallback?.name || 'Player';
+    const isMe = uid === currentUser.uid;
+
+    renderViewProfile({
+        name: fallback?.name || (isMe ? currentProfile?.username : 'Player'),
+        avatarEmoji: fallback?.avatarEmoji ?? (isMe ? currentProfile?.avatarEmoji : null),
+        photoURL: fallback?.photoURL ?? (isMe ? currentProfile?.photoURL : null),
+        profileColor: fallback?.profileColor ?? (isMe ? currentProfile?.profileColor : null),
+        bio: isMe ? currentProfile?.bio : ''
+    });
+    viewProfileMessageBtn.style.display = isMe ? 'none' : '';
+    viewProfileMessageBtn.textContent = 'Message';
+    viewProfileBackdrop.classList.remove('is-hidden');
+
+    if (isMe) return; // We already have the freshest copy of our own profile.
+
+    // Refresh with the latest bio/profile color, in case the cached copy
+    // (from a member/DM list) is stale.
+    getDoc(doc(db, 'users', uid)).then(snap => {
+        if (viewProfileTargetUid !== uid || !snap.exists()) return;
+        const data = snap.data();
+        viewProfileTargetName = data.username || viewProfileTargetName;
+        renderViewProfile({
+            name: data.username, avatarEmoji: data.avatarEmoji, photoURL: data.photoURL,
+            profileColor: data.profileColor, bio: data.bio
+        });
+    }).catch(() => {});
+}
+
+function closeViewProfile() {
+    viewProfileBackdrop.classList.add('is-hidden');
+    viewProfileTargetUid = null;
+}
+viewProfileCloseBtn.addEventListener('click', closeViewProfile);
+viewProfileCloseBtn2.addEventListener('click', closeViewProfile);
+viewProfileBackdrop.addEventListener('click', (e) => { if (e.target === viewProfileBackdrop) closeViewProfile(); });
+
+viewProfileMessageBtn.addEventListener('click', () => {
+    if (!viewProfileTargetUid || viewProfileTargetUid === currentUser.uid) return;
+    const uid = viewProfileTargetUid, name = viewProfileTargetName;
+    closeViewProfile();
+    startDmWith(uid, name);
 });
 
 // Default view on load

@@ -664,10 +664,6 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
 .vp-body { padding: 46px 20px 16px; background: transparent; max-height: min(70vh, 560px); overflow-y: auto; }
 .vp-username-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
 .vp-username { font-size: 18px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.4); margin: 0; }
-.vp-level-badge {
-    font-size: 11px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.35); border-radius: 20px;
-    padding: 2px 9px; display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
-}
 .vp-pane.is-hidden { display: none; }
 .vp-info-panel { background: rgba(0,0,0,0.32); backdrop-filter: blur(2px); border-radius: 10px; padding: 12px 14px; }
 .vp-info-panel + .vp-info-panel { margin-top: 10px; }
@@ -675,22 +671,13 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
 .vp-bio { font-size: 14px; color: rgba(255,255,255,0.95); white-space: pre-wrap; word-break: break-word; margin: 0; line-height: 1.4; }
 .vp-bio.is-empty { color: rgba(255,255,255,0.6); font-style: italic; }
 .vp-member-since { font-size: 12px; color: rgba(255,255,255,0.85); display: flex; align-items: center; gap: 6px; }
-.vp-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.vp-stat-box { background: rgba(0,0,0,0.32); border-radius: 10px; padding: 10px 12px; text-align: center; }
-.vp-stat-value { font-size: 19px; font-weight: 800; color: #fff; line-height: 1.1; }
-.vp-stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: rgba(255,255,255,0.65); margin-top: 3px; }
-.vp-level-row { display: flex; align-items: center; gap: 10px; }
-.vp-level-ring {
-    width: 44px; height: 44px; border-radius: 12px; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; flex-shrink: 0; background: rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.5);
-}
-.vp-level-ring .num { font-size: 16px; font-weight: 900; color: #fff; line-height: 1; }
-.vp-level-ring .lvl-label { font-size: 7px; font-weight: 700; color: rgba(255,255,255,0.75); letter-spacing: 0.05em; margin-top: 1px; }
-.vp-level-name { color: #fff; font-weight: 700; font-size: 13px; margin-bottom: 1px; }
-.vp-xp-sub { color: rgba(255,255,255,0.65); font-size: 11px; margin-bottom: 5px; }
-.vp-xp-track { background: rgba(255,255,255,0.15); border-radius: 4px; height: 6px; overflow: hidden; }
-.vp-xp-fill { height: 100%; background: linear-gradient(90deg,#fff,rgba(255,255,255,0.7)); border-radius: 4px; }
-.vp-no-stats { font-size: 13px; color: rgba(255,255,255,0.7); text-align: center; padding: 10px 4px; font-style: italic; }
+.vp-dutch-panel { padding: 10px 14px; }
+.vp-dutch-summary { display: flex; align-items: stretch; gap: 4px; margin-top: 4px; }
+.vp-dutch-stat { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 2px 2px; }
+.vp-dutch-stat + .vp-dutch-stat { border-left: 1px solid rgba(255,255,255,0.15); }
+.vp-dutch-val { font-size: 15px; font-weight: 800; color: #fff; line-height: 1.15; }
+.vp-dutch-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: rgba(255,255,255,0.6); margin-top: 2px; }
+.vp-no-stats { font-size: 13px; color: rgba(255,255,255,0.7); text-align: center; padding: 6px 4px 2px; font-style: italic; }
 #viewProfileBackdrop .dc-modal-footer { background: rgba(0,0,0,0.18); }
 #viewProfileBackdrop .dc-btn-ghost { color: #fff; }
 
@@ -1045,7 +1032,6 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
             <div class="vp-username-row">
                 <h3 class="vp-username" id="vpUsername">Player</h3>
             </div>
-            <span class="vp-level-badge is-hidden" id="vpLevelBadge">🏆 Level 1</span>
 
             <div class="vp-pane" id="vpPaneAbout" style="margin-top:12px;">
                 <div class="vp-info-panel">
@@ -1057,21 +1043,15 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
                     <p class="vp-member-since" id="vpMemberSince">—</p>
                 </div>
 
-                <!-- Game Stats summary -->
-                <div class="vp-info-panel" id="vpStatsLevelPanel">
-                    <p class="vp-section-label">Game Stats</p>
-                    <div class="vp-level-row" style="margin-top:6px;">
-                        <div class="vp-level-ring">
-                            <div class="num" id="vpStatsLevelNum">1</div>
-                            <div class="lvl-label">LVL</div>
-                        </div>
-                        <div style="flex:1;min-width:0;">
-                            <div class="vp-level-name" id="vpStatsLevelName">Fresh Dealer</div>
-                            <div class="vp-xp-sub" id="vpStatsXpSub">0 XP total</div>
-                            <div class="vp-xp-track"><div class="vp-xp-fill" id="vpStatsXpFill" style="width:0%;"></div></div>
-                        </div>
+                <!-- Dutch stats summary -->
+                <div class="vp-info-panel vp-dutch-panel" id="vpStatsLevelPanel">
+                    <p class="vp-section-label">Dutch</p>
+                    <div class="vp-dutch-summary">
+                        <div class="vp-dutch-stat"><span class="vp-dutch-val" id="vpStatsLevelNum">1</span><span class="vp-dutch-lbl">Level</span></div>
+                        <div class="vp-dutch-stat"><span class="vp-dutch-val" id="vpStatsGamesVal">0</span><span class="vp-dutch-lbl">Played</span></div>
+                        <div class="vp-dutch-stat"><span class="vp-dutch-val" id="vpStatsWinRateVal">0%</span><span class="vp-dutch-lbl">Win Rate</span></div>
+                        <div class="vp-dutch-stat"><span class="vp-dutch-val" id="vpStatsBestVal">—</span><span class="vp-dutch-lbl">Best Score</span></div>
                     </div>
-                    <div class="vp-stats-grid" id="vpStatsGrid" style="margin-top:10px;"></div>
                     <p class="vp-no-stats is-hidden" id="vpNoStats">Hasn't played Dutch yet.</p>
                 </div>
             </div>
@@ -3072,15 +3052,14 @@ const vpCard = document.getElementById('vpCard');
 const vpAvatar = document.getElementById('vpAvatar');
 const vpUsername = document.getElementById('vpUsername');
 const vpBio = document.getElementById('vpBio');
-const vpLevelBadge = document.getElementById('vpLevelBadge');
 const vpMemberSince = document.getElementById('vpMemberSince');
-const vpStatsGrid = document.getElementById('vpStatsGrid');
 const vpNoStats = document.getElementById('vpNoStats');
 const vpStatsLevelPanel = document.getElementById('vpStatsLevelPanel');
 const vpStatsLevelNum = document.getElementById('vpStatsLevelNum');
-const vpStatsLevelName = document.getElementById('vpStatsLevelName');
-const vpStatsXpSub = document.getElementById('vpStatsXpSub');
-const vpStatsXpFill = document.getElementById('vpStatsXpFill');
+const vpStatsGamesVal = document.getElementById('vpStatsGamesVal');
+const vpStatsWinRateVal = document.getElementById('vpStatsWinRateVal');
+const vpStatsBestVal = document.getElementById('vpStatsBestVal');
+const vpDutchSummary = document.querySelector('#viewProfileBackdrop .vp-dutch-summary');
 
 let viewProfileTargetUid = null;
 let viewProfileTargetName = '';
@@ -3120,41 +3099,25 @@ function formatMemberSince(ts) {
 function renderVpStats(stats) {
     const hasPlayed = stats && (stats.gamesPlayed || 0) > 0;
     if (!hasPlayed) {
-        vpStatsLevelPanel.classList.add('is-hidden');
-        vpStatsGrid.classList.add('is-hidden');
+        vpDutchSummary.classList.add('is-hidden');
         vpNoStats.classList.remove('is-hidden');
-        vpLevelBadge.classList.add('is-hidden');
         return;
     }
-    vpStatsLevelPanel.classList.remove('is-hidden');
-    vpStatsGrid.classList.remove('is-hidden');
+    vpDutchSummary.classList.remove('is-hidden');
     vpNoStats.classList.add('is-hidden');
 
     const xp = stats.xp || 0;
     const level = vpLevelFromXP(xp);
-    const curLevelXP = xp - vpXpForLevel(level);
-    const nextXP = level >= 50 ? 0 : (vpXpForLevel(level + 1) - vpXpForLevel(level));
-    const progressPct = level >= 50 ? 100 : Math.round((curLevelXP / nextXP) * 100);
-
     vpStatsLevelNum.textContent = level;
-    vpStatsLevelName.textContent = VP_LEVEL_NAMES[level] || 'Legend';
-    vpStatsXpSub.textContent = `${xp.toLocaleString()} XP total`;
-    vpStatsXpFill.style.width = `${progressPct}%`;
-
-    vpLevelBadge.textContent = `🏆 Level ${level}`;
-    vpLevelBadge.classList.remove('is-hidden');
 
     const gamesPlayed = stats.gamesPlayed || 0;
     const gamesWon = stats.gamesWon || 0;
     const winRate = gamesPlayed > 0 ? Math.round((gamesWon / gamesPlayed) * 100) : 0;
     const bestScore = stats.bestScore ?? '—';
 
-    vpStatsGrid.innerHTML = `
-        <div class="vp-stat-box"><div class="vp-stat-value">${gamesPlayed}</div><div class="vp-stat-label">Games Played</div></div>
-        <div class="vp-stat-box"><div class="vp-stat-value">${gamesWon}</div><div class="vp-stat-label">Games Won</div></div>
-        <div class="vp-stat-box"><div class="vp-stat-value">${winRate}%</div><div class="vp-stat-label">Win Rate</div></div>
-        <div class="vp-stat-box"><div class="vp-stat-value">${bestScore}</div><div class="vp-stat-label">Best Score</div></div>
-    `;
+    vpStatsGamesVal.textContent = gamesPlayed;
+    vpStatsWinRateVal.textContent = `${winRate}%`;
+    vpStatsBestVal.textContent = bestScore;
 }
 
 function renderViewProfile(data) {

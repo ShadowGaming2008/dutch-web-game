@@ -498,13 +498,6 @@ html, body {
 /* Server settings cog in header */
 #secondColHeader .small-action-btn { font-size: 15px; }
 
-/* Improved input area hint text */
-#inputHint {
-    font-size: 10px; color: var(--dc-text-muted); padding: 0 20px 4px;
-    flex-shrink: 0; opacity: 0; transition: opacity 0.2s;
-}
-#inputHint.is-visible { opacity: 1; }
-
 /* Scrollbar hide for member col */
 #memberCol::-webkit-scrollbar { width: 4px; }
 #memberCol::-webkit-scrollbar-thumb { background: #232428; border-radius: 2px; }
@@ -1672,14 +1665,12 @@ inviteModalCloseBtn.addEventListener('click', () => inviteModalBackdrop.classLis
 // ────────────────────────────────────────
 // Shared conversation UI (messages) — works for both servers/{id} and dms/{id}
 // ─────────────────────────────────────────────
-const inputHint = document.getElementById('inputHint');
 
 function showEmptyState(title, sub) {
     chatEmptyState.style.display = 'flex';
     messagesArea.style.display = 'none';
     inputRow.style.display = 'none';
     typingIndicator.style.display = 'none';
-    inputHint.classList.remove('is-visible');
     jumpToBottomBtn.classList.remove('is-visible');
     chatEmptyState.querySelector('div:nth-child(2)').textContent = title;
     chatEmptyState.querySelector('div:nth-child(3)').textContent = sub;
@@ -1690,7 +1681,6 @@ function showConversationUI() {
     messagesArea.style.display = 'block';
     inputRow.style.display = 'flex';
     typingIndicator.style.display = 'block';
-    inputHint.classList.add('is-visible');
     updateInputPlaceholder();
 }
 

@@ -79,10 +79,20 @@ html[data-accent] {
 /* ── Custom background theme — an optional per-user "wallpaper" applied
    behind the server rail, DM/channel list, and main chat column. Solid
    or gradient, set via --dc-custom-bg (a full CSS background value). ── */
-html[data-custom-bg] #mainCol,
-html[data-custom-bg] #secondCol,
-html[data-custom-bg] #serverRail {
+/* ── Custom background theme — an optional per-user "wallpaper" applied
+   behind the server rail, DM/channel list, and main chat column. The user
+   only picks one (or two, for a gradient) base color(s); the rail and
+   sidebar are automatically shaded darker from that same base color so
+   the three areas stay visually distinct, mirroring how the built-in
+   theme uses three different bg tones. ── */
+html[data-custom-bg] #mainCol {
     background: var(--dc-custom-bg, var(--dc-bg-primary));
+}
+html[data-custom-bg] #secondCol {
+    background: color-mix(in srgb, var(--dc-custom-c1, #313338) 100%, black 16%);
+}
+html[data-custom-bg] #serverRail {
+    background: color-mix(in srgb, var(--dc-custom-c1, #313338) 100%, black 34%);
 }
 
 #appRoot {
@@ -571,7 +581,7 @@ html[data-custom-bg] #serverRail {
 .toggle-switch input:checked + .toggle-switch-track::before { transform: translateX(16px); }
 
 /* ── View Profile modal ── */
-.vp-banner { height: 80px; width: 100%; background: var(--dc-blurple); position: relative; }
+.vp-banner { height: 80px; width: 100%; position: relative; background: transparent; }
 .vp-avatar-wrap {
     width: 76px; height: 76px; border-radius: 50%; background: var(--dc-bg-primary); padding: 5px;
     position: absolute; left: 20px; top: 46px;
@@ -581,10 +591,13 @@ html[data-custom-bg] #serverRail {
     display: flex; align-items: center; justify-content: center; font-size: 30px; color: white; font-weight: 700; overflow: hidden;
 }
 .vp-body { padding: 46px 20px 20px; }
-.vp-username { font-size: 18px; font-weight: 800; color: var(--dc-text-header); margin: 0 0 10px; }
-.vp-bio-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--dc-text-muted); margin: 0 0 4px; }
-.vp-bio { font-size: 14px; color: var(--dc-text-normal); white-space: pre-wrap; word-break: break-word; margin: 0; line-height: 1.4; }
-.vp-bio.is-empty { color: var(--dc-text-muted); font-style: italic; }
+.vp-username { font-size: 18px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.4); margin: 0 0 10px; }
+.vp-info-panel { background: rgba(0,0,0,0.32); backdrop-filter: blur(2px); border-radius: 10px; padding: 12px 14px; }
+.vp-bio-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: rgba(255,255,255,0.7); margin: 0 0 4px; }
+.vp-bio { font-size: 14px; color: rgba(255,255,255,0.95); white-space: pre-wrap; word-break: break-word; margin: 0; line-height: 1.4; }
+.vp-bio.is-empty { color: rgba(255,255,255,0.6); font-style: italic; }
+#viewProfileBackdrop .dc-modal-footer { background: rgba(0,0,0,0.18); }
+#viewProfileBackdrop .dc-btn-ghost { color: #fff; }
 
 .search-result-row {
     display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; cursor: pointer;
@@ -925,7 +938,7 @@ html[data-custom-bg] #serverRail {
 
 <!-- ── VIEW PROFILE MODAL ── -->
 <div class="dc-modal-backdrop is-hidden" id="viewProfileBackdrop">
-    <div class="dc-modal" style="max-width:360px;">
+    <div class="dc-modal" id="vpCard" style="max-width:360px;">
         <div class="vp-banner" id="vpBanner">
             <div class="vp-avatar-wrap">
                 <div class="vp-avatar" id="vpAvatar"></div>
@@ -934,8 +947,10 @@ html[data-custom-bg] #serverRail {
         </div>
         <div class="vp-body">
             <h3 class="vp-username" id="vpUsername">Player</h3>
-            <p class="vp-bio-label">Bio</p>
-            <p class="vp-bio" id="vpBio">—</p>
+            <div class="vp-info-panel">
+                <p class="vp-bio-label">Bio</p>
+                <p class="vp-bio" id="vpBio">—</p>
+            </div>
         </div>
         <div class="dc-modal-footer" id="vpActions">
             <button class="dc-btn dc-btn-ghost" id="viewProfileCloseBtn2">Close</button>
@@ -2614,9 +2629,11 @@ function applyCustomBg(customTheme) {
     if (css) {
         document.documentElement.setAttribute('data-custom-bg', '1');
         document.documentElement.style.setProperty('--dc-custom-bg', css);
+        document.documentElement.style.setProperty('--dc-custom-c1', customTheme.c1 || '#313338');
     } else {
         document.documentElement.removeAttribute('data-custom-bg');
         document.documentElement.style.removeProperty('--dc-custom-bg');
+        document.documentElement.style.removeProperty('--dc-custom-c1');
     }
 }
 
@@ -2678,6 +2695,16 @@ userSettingsBackdrop.querySelectorAll('[data-utab]').forEach(tab => {
 
 function currentProfileColorDraft() {
     return { type: uSettingsPMode, c1: uSettingsPColor1.value, c2: uSettingsPColor2.value, angle: Number(uSettingsPAngle.value) };
+}
+
+// The little circular swatches next to each <input type="color"> are plain
+// labels — they don't pick up the chosen color automatically, so we paint
+// them ourselves whenever a color changes.
+function syncSwatch(inputEl) {
+    inputEl.parentElement.style.background = inputEl.value;
+}
+function refreshAllSwatches() {
+    [uSettingsPColor1, uSettingsPColor2, uSettingsCbgColor1, uSettingsCbgColor2].forEach(syncSwatch);
 }
 
 function renderAvatarPreview() {
@@ -2755,11 +2782,16 @@ userSettingsBackdrop.querySelectorAll('[data-pc-mode]').forEach(btn => {
         renderAvatarPreview();
     });
 });
-[uSettingsPColor1, uSettingsPColor2, uSettingsPAngle].forEach(input => {
+[uSettingsPColor1, uSettingsPColor2].forEach(input => {
     input.addEventListener('input', () => {
+        syncSwatch(input);
         updatePColorPreview();
         renderAvatarPreview();
     });
+});
+uSettingsPAngle.addEventListener('input', () => {
+    updatePColorPreview();
+    renderAvatarPreview();
 });
 
 // ── Custom background theme (solid / gradient) ────────────────────
@@ -2793,9 +2825,13 @@ userSettingsBackdrop.querySelectorAll('[data-cbg-mode]').forEach(btn => {
         updateCbgPreviewAndApply();
     });
 });
-[uSettingsCbgColor1, uSettingsCbgColor2, uSettingsCbgAngle].forEach(input => {
-    input.addEventListener('input', updateCbgPreviewAndApply);
+[uSettingsCbgColor1, uSettingsCbgColor2].forEach(input => {
+    input.addEventListener('input', () => {
+        syncSwatch(input);
+        updateCbgPreviewAndApply();
+    });
 });
+uSettingsCbgAngle.addEventListener('input', updateCbgPreviewAndApply);
 uSettingsCustomBgEnabled.addEventListener('change', updateCbgPreviewAndApply);
 
 function openUserSettings() {
@@ -2825,6 +2861,7 @@ function openUserSettings() {
     buildAccentGrid();
     renderAvatarPreview();
     setThemeButtonsActive(uSettingsSelectedTheme);
+    refreshAllSwatches();
     setPModeButtonsActive();
     updatePColorPreview();
     setCbgModeButtonsActive();
@@ -2880,6 +2917,7 @@ const viewProfileCloseBtn = document.getElementById('viewProfileCloseBtn');
 const viewProfileCloseBtn2 = document.getElementById('viewProfileCloseBtn2');
 const viewProfileMessageBtn = document.getElementById('viewProfileMessageBtn');
 const vpBanner = document.getElementById('vpBanner');
+const vpCard = document.getElementById('vpCard');
 const vpAvatar = document.getElementById('vpAvatar');
 const vpUsername = document.getElementById('vpUsername');
 const vpBio = document.getElementById('vpBio');
@@ -2891,7 +2929,7 @@ function renderViewProfile(data) {
     const av = buildAvatarStyle(data.name, data.avatarEmoji, data.photoURL, data.profileColor);
     vpAvatar.innerHTML = av.html;
     vpAvatar.style.cssText = vpAvatar.style.cssText.replace(/background-image:[^;]+;?/g, '').replace(/background:[^;]+;?/g, '') + av.bg;
-    vpBanner.style.background = profileColorCss(data.profileColor) || 'var(--dc-blurple)';
+    vpCard.style.background = profileColorCss(data.profileColor) || 'var(--dc-blurple)';
     vpUsername.textContent = data.name || 'Player';
     const bio = (data.bio || '').trim();
     vpBio.textContent = bio || 'No bio yet.';

@@ -432,6 +432,7 @@ html, body {
 .dc-modal-header h2 { margin: 0; color: var(--dc-text-header); font-size: 20px; font-weight: 700; }
 .dc-modal-header p { margin: 6px 0 0; color: var(--dc-text-muted); font-size: 13px; }
 .dc-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.dc-modal-body.is-hidden { display: none; }
 .dc-modal-footer { padding: 16px 20px; background: var(--dc-bg-secondary); display: flex; justify-content: flex-end; gap: 8px; }
 .dc-label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--dc-text-muted); margin-bottom: 6px; display: block; }
 .dc-input {
@@ -540,6 +541,7 @@ html, body {
     <div id="serverRail">
         <!-- Hub brand mark — links back to index, matches index.html nav glyph -->
         <a href="index.html" title="Back to Game Hub" style="display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:16px;background:linear-gradient(145deg,#7c6af5,#5b41d4);font-size:20px;text-decoration:none;box-shadow:0 4px 14px rgba(124,106,245,0.35);flex-shrink:0;margin-bottom:4px;transition:border-radius 0.15s,opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">🃏</a>
+        <a href="index.html" id="homeNavBtn" title="Back to Game Hub" style="display:flex;align-items:center;justify-content:center;width:48px;padding:4px 0;font-size:10px;font-weight:700;letter-spacing:0.02em;color:#9aa5b3;text-decoration:none;flex-shrink:0;transition:color 0.15s;" onmouseover="this.style.color='#d4ccff'" onmouseout="this.style.color='#9aa5b3'">Home</a>
         <div class="rail-divider" style="margin:4px 0;"></div>
         <div class="rail-icon-wrap is-active" id="dmRailIcon" title="Direct Messages">
             <div class="rail-pill"></div>
@@ -580,9 +582,6 @@ html, body {
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
                 <button class="small-action-btn" id="mainMembersToggleBtn" title="Toggle member list" style="display:none;font-size:16px;">👥</button>
-                <button class="home-nav-btn" id="homeNavBtn" title="Back to Game Hub">
-                    <span class="home-nav-icon">🏠</span><span>Home</span>
-                </button>
             </div>
         </div>
 
@@ -1107,6 +1106,10 @@ function openDmHome() {
     activeContext = { type: 'dm-home' };
     secondColHeaderText.textContent = 'Direct Messages';
     startDmBtn.style.display = '';
+    startDmBtn.textContent = '✎';
+    startDmBtn.title = 'New DM';
+    startDmBtnMode = 'dm';
+    startDmBtnServerCtx = null;
     renderDmList();
     renderServerRail();
     teardownActiveConversation();
@@ -1159,7 +1162,20 @@ async function openDm(dmId) {
     updateInputPlaceholder();
 }
 
-startDmBtn.addEventListener('click', () => openDmModal());
+// Single source of truth for what startDmBtn does — it's reused as either
+// "New DM" (in the DM-home view) or the server settings cog (in a server
+// view, if you're the owner). Using one handler that checks the current
+// mode avoids stacking multiple click handlers on the same button, which
+// previously caused both actions to fire together.
+let startDmBtnMode = 'dm';
+let startDmBtnServerCtx = null;
+startDmBtn.addEventListener('click', () => {
+    if (startDmBtnMode === 'server' && startDmBtnServerCtx) {
+        openServerSettings(startDmBtnServerCtx.serverId, startDmBtnServerCtx.serverData);
+    } else {
+        openDmModal();
+    }
+});
 
 // ─────────────────────────────────────────────
 // DM search modal
@@ -1388,7 +1404,8 @@ async function openServer(serverId) {
     startDmBtn.textContent = isOwner ? '⚙' : '';
     startDmBtn.title = isOwner ? 'Server Settings' : '';
     startDmBtn.style.display = isOwner ? '' : 'none';
-    startDmBtn.onclick = isOwner ? () => openServerSettings(serverId, serverData) : null;
+    startDmBtnMode = 'server';
+    startDmBtnServerCtx = isOwner ? { serverId, serverData } : null;
 
     mainMembersToggleBtn.style.display = 'flex';
     memberCol.classList.remove('is-hidden');
@@ -2246,11 +2263,12 @@ sSettingsDeleteServerBtn.addEventListener('click', () => {
     deleteServer(serverSettingsServerId, serverSettingsData);
 });
 
-homeNavBtn.addEventListener('click', () => {
+homeNavBtn.addEventListener('click', (e) => {
     if (msgInput.value.trim().length > 0) {
+        e.preventDefault();
         if (!confirm('You have an unsent message. Leave chat anyway?')) return;
+        window.location.href = 'index.html';
     }
-    window.location.href = 'index.html';
 });
 
 // Default view on load

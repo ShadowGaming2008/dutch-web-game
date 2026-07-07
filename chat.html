@@ -4,6 +4,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chat — Game Hub</title>
+<script>
+// Applied immediately, before any other rendering, so a returning user with
+// a saved theme/accent never sees a flash of the default dark theme first.
+// The real source of truth is the user's Firestore profile (synced once
+// signed in); this local copy just makes the very first paint match.
+(function () {
+    try {
+        const savedTheme = localStorage.getItem('chatTheme');
+        if (savedTheme === 'light' || savedTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+        const savedAccent = localStorage.getItem('chatAccent');
+        if (savedAccent) {
+            document.documentElement.setAttribute('data-accent', '1');
+            document.documentElement.style.setProperty('--dc-custom-accent', savedAccent);
+        }
+    } catch (e) { /* localStorage unavailable — fall back to default theme */ }
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,900&family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;500;600;700;800&display=swap');
@@ -26,6 +45,35 @@ html, body {
     --dc-text-muted: #949ba4;
     --dc-text-header: #f2f3f5;
     --dc-divider: rgba(255,255,255,0.06);
+}
+
+/* ── Light theme ── */
+html[data-theme="light"] {
+    --dc-bg-primary: #ffffff;
+    --dc-bg-secondary: #f2f3f5;
+    --dc-bg-tertiary: #e3e5e8;
+    --dc-blurple: #5865f2;
+    --dc-blurple-hover: #4752c4;
+    --dc-green: #248046;
+    --dc-red: #d83c3e;
+    --dc-text-normal: #313338;
+    --dc-text-muted: #5c5e66;
+    --dc-text-header: #060607;
+    --dc-divider: rgba(0,0,0,0.08);
+}
+html[data-theme="light"] body { background: #e3e5e8; }
+html[data-theme="light"] #userBar { background: #ebedef; }
+html[data-theme="light"] .dc-modal { background: #ffffff; }
+html[data-theme="light"] .dc-modal-footer { background: #f2f3f5; }
+html[data-theme="light"] ::-webkit-scrollbar-thumb { background: #c7c9cd !important; }
+
+/* ── Custom accent override — applied on top of either theme when the user
+   picks a custom accent color. Only --dc-blurple/--dc-blurple-hover change;
+   everything else keeps following whichever base theme (dark/light) is
+   active, so this layers cleanly. ── */
+html[data-accent] {
+    --dc-blurple: var(--dc-custom-accent, #7c6af5);
+    --dc-blurple-hover: color-mix(in srgb, var(--dc-custom-accent, #7c6af5) 82%, black);
 }
 
 #appRoot {
@@ -453,6 +501,30 @@ html, body {
 .dc-tab { padding: 10px 4px; margin-right: 16px; color: var(--dc-text-muted); font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; }
 .dc-tab.is-active { color: var(--dc-text-header); border-bottom-color: var(--dc-blurple); }
 
+/* Settings modal — appearance pickers */
+.theme-swatch-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    background: var(--dc-bg-tertiary); border: 2px solid transparent; border-radius: 8px;
+    padding: 10px 16px; cursor: pointer; color: var(--dc-text-normal); font-size: 12px; font-weight: 600;
+    transition: border-color 0.15s;
+}
+.theme-swatch-btn:hover { border-color: var(--dc-divider); }
+.theme-swatch-btn.is-active { border-color: var(--dc-blurple); }
+.theme-swatch-preview { width: 40px; height: 26px; border-radius: 5px; display: block; }
+.accent-swatch-btn {
+    width: 26px; height: 26px; border-radius: 50%; cursor: pointer; flex-shrink: 0;
+    border: 2px solid transparent; padding: 0; transition: transform 0.1s, border-color 0.15s;
+}
+.accent-swatch-btn:hover { transform: scale(1.1); }
+.accent-swatch-btn.is-active { border-color: var(--dc-text-header); }
+.avatar-preset-btn {
+    width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; background: var(--dc-bg-tertiary); border: 2px solid transparent; cursor: pointer;
+    transition: border-color 0.15s;
+}
+.avatar-preset-btn:hover { border-color: var(--dc-divider); }
+.avatar-preset-btn.is-active { border-color: var(--dc-blurple); }
+
 .search-result-row {
     display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; cursor: pointer;
 }
@@ -559,6 +631,7 @@ html, body {
                 <div id="userBarName">—</div>
                 <div id="userBarSub">Online</div>
             </div>
+            <button class="small-action-btn" id="userSettingsBtn" title="Profile & Settings" style="font-size:15px;">⚙</button>
         </div>
     </div>
 
@@ -666,6 +739,75 @@ html, body {
         </div>
         <div class="dc-modal-footer">
             <button class="dc-btn dc-btn-ghost" id="inviteModalCloseBtn">Done</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── USER SETTINGS MODAL (Profile + Appearance) ── -->
+<div class="dc-modal-backdrop is-hidden" id="userSettingsBackdrop">
+    <div class="dc-modal" style="max-width:480px;">
+        <div class="dc-modal-header" style="display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;">
+            <div>
+                <h2>Settings</h2>
+                <p>Your profile and appearance</p>
+            </div>
+            <button class="small-action-btn" id="userSettingsCloseBtn" style="font-size:18px;width:32px;height:32px;">✕</button>
+        </div>
+        <div class="dc-tab-row">
+            <div class="dc-tab is-active" data-utab="profile">Profile</div>
+            <div class="dc-tab" data-utab="appearance">Appearance</div>
+        </div>
+
+        <!-- Profile pane -->
+        <div class="dc-modal-body" id="uSettingsProfilePane">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div id="uSettingsAvatarPreview" style="width:56px;height:56px;border-radius:50%;background:var(--dc-blurple);display:flex;align-items:center;justify-content:center;font-size:24px;color:white;font-weight:700;flex-shrink:0;background-size:cover;background-position:center;overflow:hidden;"></div>
+                <div style="flex:1;min-width:0;">
+                    <label class="dc-label" style="margin-bottom:4px;">Avatar</label>
+                    <div id="uSettingsAvatarGrid" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+                </div>
+            </div>
+            <div>
+                <label class="dc-label">Username</label>
+                <input type="text" class="dc-input" id="uSettingsUsernameInput" placeholder="Your username" maxlength="30" />
+            </div>
+            <div>
+                <label class="dc-label">Bio</label>
+                <textarea class="dc-input" id="uSettingsBioInput" placeholder="Say a little about yourself..." maxlength="190" rows="3" style="resize:none;font-family:inherit;"></textarea>
+                <div id="uSettingsBioCounter" style="text-align:right;font-size:11px;color:var(--dc-text-muted);margin-top:2px;">0/190</div>
+            </div>
+        </div>
+
+        <!-- Appearance pane -->
+        <div class="dc-modal-body is-hidden" id="uSettingsAppearancePane">
+            <div>
+                <label class="dc-label">Theme</label>
+                <div style="display:flex;gap:8px;">
+                    <button class="theme-swatch-btn" data-theme-choice="dark" title="Dark">
+                        <span class="theme-swatch-preview" style="background:#313338;border:1px solid #1e1f22;"></span>
+                        <span>Dark</span>
+                    </button>
+                    <button class="theme-swatch-btn" data-theme-choice="light" title="Light">
+                        <span class="theme-swatch-preview" style="background:#ffffff;border:1px solid #d8dadd;"></span>
+                        <span>Light</span>
+                    </button>
+                </div>
+            </div>
+            <div>
+                <label class="dc-label">Accent color</label>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                    <div id="uSettingsAccentGrid" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+                    <label id="uSettingsCustomAccentWrap" title="Custom color" style="width:26px;height:26px;border-radius:50%;cursor:pointer;flex-shrink:0;position:relative;background:conic-gradient(red,yellow,lime,aqua,blue,magenta,red);display:flex;align-items:center;justify-content:center;">
+                        <input type="color" id="uSettingsCustomAccentInput" value="#7c6af5" style="opacity:0;width:100%;height:100%;position:absolute;inset:0;cursor:pointer;" />
+                    </label>
+                </div>
+                <p style="font-size:11px;color:var(--dc-text-muted);margin:8px 0 0;">Changes the highlight color used across buttons, links, and active states.</p>
+            </div>
+        </div>
+
+        <div class="dc-modal-footer">
+            <button class="dc-btn dc-btn-ghost" id="userSettingsCancelBtn">Cancel</button>
+            <button class="dc-btn dc-btn-primary" id="userSettingsSaveBtn">Save Changes</button>
         </div>
     </div>
 </div>
@@ -941,6 +1083,7 @@ onAuthStateChanged(auth, async (user) => {
     const av = buildAvatarStyle(currentProfile.username, currentProfile.avatarEmoji, currentProfile.photoURL);
     userBarAvatar.innerHTML = av.html;
     userBarAvatar.style.cssText += av.bg;
+    applyProfileAppearance();
 
     registerGlobalPresence();
     subscribeGlobalPresence();
@@ -961,12 +1104,16 @@ function subscribeOwnProfile() {
         const changed = data.username !== currentProfile?.username
             || data.avatarEmoji !== currentProfile?.avatarEmoji
             || data.photoURL !== currentProfile?.photoURL;
+        const appearanceChanged = data.theme !== currentProfile?.theme
+            || data.accentColor !== currentProfile?.accentColor;
         currentProfile = data;
 
         userBarName.textContent = currentProfile.username || 'Player';
         const av = buildAvatarStyle(currentProfile.username, currentProfile.avatarEmoji, currentProfile.photoURL);
         userBarAvatar.innerHTML = av.html;
         userBarAvatar.style.cssText = userBarAvatar.style.cssText.replace(/background-image:[^;]+;?/g, '') + av.bg;
+
+        if (appearanceChanged) applyProfileAppearance();
 
         if (!changed) return;
 
@@ -2258,6 +2405,173 @@ homeNavBtn.addEventListener('click', (e) => {
         e.preventDefault();
         if (!confirm('You have an unsent message. Leave chat anyway?')) return;
         window.location.href = 'index.html';
+    }
+});
+
+// ── Theme & Accent ───────────────────────────────────────────────
+const AVATAR_PRESETS = ['🐱', '🐶', '🦊', '🐻', '🐼', '🦁', '🐸', '🐵', '🦉', '🐯', '🐧', '🦄'];
+const ACCENT_PRESETS = ['#7c6af5', '#5865f2', '#23a55a', '#f23f43', '#f0b132', '#eb459e', '#00a8fc', '#ff7847'];
+
+function applyTheme(theme) {
+    if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem('chatTheme', theme === 'light' ? 'light' : 'dark'); } catch (e) {}
+}
+
+function applyAccent(color) {
+    if (color) {
+        document.documentElement.setAttribute('data-accent', '1');
+        document.documentElement.style.setProperty('--dc-custom-accent', color);
+        try { localStorage.setItem('chatAccent', color); } catch (e) {}
+    } else {
+        document.documentElement.removeAttribute('data-accent');
+        document.documentElement.style.removeProperty('--dc-custom-accent');
+        try { localStorage.removeItem('chatAccent'); } catch (e) {}
+    }
+}
+
+// Applies the signed-in user's saved appearance prefs (called once the
+// profile loads, so their choice follows them across devices/browsers).
+function applyProfileAppearance() {
+    applyTheme(currentProfile?.theme === 'light' ? 'light' : 'dark');
+    applyAccent(currentProfile?.accentColor || null);
+}
+
+// ── User Settings Modal (Profile + Appearance) ───────────────────
+const userSettingsBackdrop = document.getElementById('userSettingsBackdrop');
+const userSettingsCloseBtn = document.getElementById('userSettingsCloseBtn');
+const userSettingsCancelBtn = document.getElementById('userSettingsCancelBtn');
+const userSettingsSaveBtn = document.getElementById('userSettingsSaveBtn');
+const uSettingsProfilePane = document.getElementById('uSettingsProfilePane');
+const uSettingsAppearancePane = document.getElementById('uSettingsAppearancePane');
+const uSettingsAvatarPreview = document.getElementById('uSettingsAvatarPreview');
+const uSettingsAvatarGrid = document.getElementById('uSettingsAvatarGrid');
+const uSettingsUsernameInput = document.getElementById('uSettingsUsernameInput');
+const uSettingsBioInput = document.getElementById('uSettingsBioInput');
+const uSettingsBioCounter = document.getElementById('uSettingsBioCounter');
+const uSettingsAccentGrid = document.getElementById('uSettingsAccentGrid');
+const uSettingsCustomAccentInput = document.getElementById('uSettingsCustomAccentInput');
+
+let uSettingsSelectedAvatar = null;
+let uSettingsSelectedTheme = 'dark';
+let uSettingsSelectedAccent = null;
+
+function setUserSettingsTab(tab) {
+    userSettingsBackdrop.querySelectorAll('[data-utab]').forEach(t => t.classList.toggle('is-active', t.dataset.utab === tab));
+    uSettingsProfilePane.classList.toggle('is-hidden', tab !== 'profile');
+    uSettingsAppearancePane.classList.toggle('is-hidden', tab !== 'appearance');
+}
+userSettingsBackdrop.querySelectorAll('[data-utab]').forEach(tab => {
+    tab.addEventListener('click', () => setUserSettingsTab(tab.dataset.utab));
+});
+
+function renderAvatarPreview() {
+    const av = buildAvatarStyle(uSettingsUsernameInput.value || currentProfile?.username, uSettingsSelectedAvatar, currentProfile?.photoURL);
+    uSettingsAvatarPreview.innerHTML = av.html;
+    uSettingsAvatarPreview.style.cssText = uSettingsAvatarPreview.style.cssText.replace(/background-image:[^;]+;?/g, '') + av.bg;
+}
+
+function buildAvatarGrid() {
+    uSettingsAvatarGrid.innerHTML = AVATAR_PRESETS.map(emoji => `
+        <button type="button" class="avatar-preset-btn${uSettingsSelectedAvatar === emoji ? ' is-active' : ''}" data-emoji="${emoji}">${emoji}</button>
+    `).join('');
+    uSettingsAvatarGrid.querySelectorAll('[data-emoji]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            uSettingsSelectedAvatar = uSettingsSelectedAvatar === btn.dataset.emoji ? null : btn.dataset.emoji;
+            buildAvatarGrid();
+            renderAvatarPreview();
+        });
+    });
+}
+
+function buildAccentGrid() {
+    uSettingsAccentGrid.innerHTML = ACCENT_PRESETS.map(color => `
+        <button type="button" class="accent-swatch-btn${uSettingsSelectedAccent === color ? ' is-active' : ''}" data-color="${color}" style="background:${color};"></button>
+    `).join('');
+    uSettingsAccentGrid.querySelectorAll('[data-color]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            uSettingsSelectedAccent = btn.dataset.color;
+            applyAccent(uSettingsSelectedAccent);
+            buildAccentGrid();
+        });
+    });
+}
+
+function setThemeButtonsActive(theme) {
+    userSettingsBackdrop.querySelectorAll('[data-theme-choice]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.themeChoice === theme);
+    });
+}
+userSettingsBackdrop.querySelectorAll('[data-theme-choice]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        uSettingsSelectedTheme = btn.dataset.themeChoice;
+        applyTheme(uSettingsSelectedTheme);
+        setThemeButtonsActive(uSettingsSelectedTheme);
+    });
+});
+
+uSettingsCustomAccentInput.addEventListener('input', (e) => {
+    uSettingsSelectedAccent = e.target.value;
+    applyAccent(uSettingsSelectedAccent);
+    buildAccentGrid();
+});
+
+uSettingsBioInput.addEventListener('input', () => {
+    uSettingsBioCounter.textContent = `${uSettingsBioInput.value.length}/190`;
+});
+uSettingsUsernameInput.addEventListener('input', renderAvatarPreview);
+
+function openUserSettings() {
+    uSettingsSelectedAvatar = currentProfile?.avatarEmoji || null;
+    uSettingsSelectedTheme = currentProfile?.theme === 'light' ? 'light' : 'dark';
+    uSettingsSelectedAccent = currentProfile?.accentColor || null;
+
+    uSettingsUsernameInput.value = currentProfile?.username || '';
+    uSettingsBioInput.value = currentProfile?.bio || '';
+    uSettingsBioCounter.textContent = `${uSettingsBioInput.value.length}/190`;
+    uSettingsCustomAccentInput.value = uSettingsSelectedAccent || '#7c6af5';
+
+    buildAvatarGrid();
+    buildAccentGrid();
+    renderAvatarPreview();
+    setThemeButtonsActive(uSettingsSelectedTheme);
+    setUserSettingsTab('profile');
+    userSettingsBackdrop.classList.remove('is-hidden');
+}
+
+function closeUserSettings() {
+    userSettingsBackdrop.classList.add('is-hidden');
+    // Revert any live-previewed appearance changes that weren't saved.
+    applyProfileAppearance();
+}
+
+document.getElementById('userSettingsBtn').addEventListener('click', openUserSettings);
+userSettingsCloseBtn.addEventListener('click', closeUserSettings);
+userSettingsCancelBtn.addEventListener('click', closeUserSettings);
+userSettingsBackdrop.addEventListener('click', (e) => { if (e.target === userSettingsBackdrop) closeUserSettings(); });
+
+userSettingsSaveBtn.addEventListener('click', async () => {
+    const newUsername = uSettingsUsernameInput.value.trim();
+    if (!newUsername) { showToast('Username cannot be empty.'); return; }
+
+    const updates = {
+        username: newUsername,
+        usernameLower: newUsername.toLowerCase(),
+        avatarEmoji: uSettingsSelectedAvatar,
+        bio: uSettingsBioInput.value.trim(),
+        theme: uSettingsSelectedTheme,
+        accentColor: uSettingsSelectedAccent || null
+    };
+
+    try {
+        await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
+        currentProfile = { ...currentProfile, ...updates };
+        applyProfileAppearance();
+        userSettingsBackdrop.classList.add('is-hidden');
+        showToast('Settings saved!');
+    } catch (err) {
+        console.warn('Could not save settings:', err);
+        showToast('Could not save — check your connection.');
     }
 });
 

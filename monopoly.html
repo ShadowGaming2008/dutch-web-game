@@ -466,7 +466,7 @@
         <div class="flex items-center gap-2">
             <button id="rulesBtn" class="hub-btn hub-btn-ghost">📖 How to Play</button>
             <button id="exitButton" class="hub-btn hub-btn-ghost">← Exit to Hub</button>
-            <button id="leaderboardBtn" class="hub-btn hub-btn-brass">🏆 Leaderboard</button>
+            <button id="leaderboardBtn" class="hub-btn hub-btn-brass" title="Monopoly leaderboard — separate from Dutch's">🏆 Leaderboard</button>
             <button id="headerSignInBtn" class="hub-btn hub-btn-slate">Sign in</button>
             <button id="headerAccountBtn" class="hidden hub-account-btn">
                 <div id="headerAvatar" class="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-xs flex-shrink-0" style="background:var(--hub-panel-raised);border:1px solid var(--hub-border);"></div>
@@ -544,11 +544,12 @@
         </div>
     </div>
 
-    <!-- Global Leaderboard Modal -->
+    <!-- Monopoly Leaderboard Modal (separate from Dutch's leaderboard —
+         reads/writes the leaderboard_monopoly collection, not leaderboard) -->
     <div id="leaderboardModal" class="hidden fixed inset-0 backdrop-blur-sm hub-modal-backdrop flex items-end sm:items-center justify-center p-4" style="z-index:50;">
         <div class="hub-panel w-full max-w-lg max-h-[80vh] flex flex-col">
             <div class="flex items-center justify-between p-5" style="border-bottom:1px solid var(--hub-border-soft);">
-                <h2 class="font-display text-xl font-bold" style="color:var(--hub-text-bright);">🏆 Global Leaderboard</h2>
+                <h2 class="font-display text-xl font-bold" style="color:var(--hub-text-bright);">🏆 Monopoly Leaderboard</h2>
                 <button id="closeLeaderboardBtn" class="text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-lg transition" style="color:var(--hub-muted);" onmouseover="this.style.color='var(--hub-text)';this.style.background='var(--hub-panel-raised)'" onmouseout="this.style.color='var(--hub-muted)';this.style.background='transparent'">✕</button>
             </div>
             <div id="leaderboardContent" class="flex-1 overflow-y-auto p-4 space-y-2">
@@ -559,83 +560,102 @@
     </div>
 
     <div id="lobbyScreen" class="fixed left-0 right-0 bottom-0 bg-[#12181f] z-30 flex items-center justify-center p-4 overflow-y-auto" style="top:60px;">
-        <div class="w-full max-w-md hub-panel p-7 space-y-6 my-8">
 
-            <!-- Signed-out gate: mirrors dutch.html's landing sign-in prompt,
-                 but is a soft nudge, not a hard block — guest play works
-                 fine (see signedInLobbyArea below), same as dutch.html. -->
-            <div id="signedOutLobbyArea" class="hidden text-center space-y-4">
-                <span class="hub-eyebrow" style="margin-bottom:4px;">Pull up a chair</span>
-                <h2 class="font-display font-bold text-2xl text-white mt-2">Global Tycoon</h2>
-                <p class="text-sm text-[#9aa5b3]">Sign in to save your stats and appear on the leaderboard — or play as a guest below.</p>
-                <button id="landingSignInBtn" class="w-full flex items-center justify-center gap-2 py-3 bg-white hover:bg-slate-100 text-slate-800 font-semibold rounded-xl transition border border-slate-300 shadow-sm text-sm">
-                    <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6 29.6 4 24 4c-7.6 0-14.1 4.3-17.7 10.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.8 14.1-5l-6.5-5.5c-2 1.4-4.6 2.3-7.6 2.3-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.8 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.1 5.7l6.5 5.5C41.5 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
-                    Sign in with Google
-                </button>
-                <button id="landingEmailSignInBtn" class="text-xs mt-1 transition underline" style="color:var(--hub-faint);">or sign in with email</button>
-                <div class="flex items-center gap-3 pt-1">
-                    <div class="flex-1 h-px" style="background:var(--hub-border);"></div>
-                    <span class="text-[11px] uppercase tracking-widest" style="color:var(--hub-faint);">or</span>
-                    <div class="flex-1 h-px" style="background:var(--hub-border);"></div>
-                </div>
-                <button id="continueAsGuestBtn" class="hub-btn hub-btn-slate w-full py-3 text-sm">Continue as Guest</button>
-                <a href="index.html" class="block text-xs mt-1 transition underline" style="color:var(--hub-faint);">← Back to Game Hub</a>
-            </div>
+        <!-- SCREEN: LANDING — signed-out gate + signed-in host/join panel.
+             Structured as two independent full screens (mirrors dutch.html's
+             screen-landing → screen-lobby swap) rather than nested sub-divs,
+             so only one is ever on-panel at a time. -->
+        <section id="screen-landing" class="w-full max-w-md">
+            <div class="hub-panel p-7 my-8">
 
-            <div id="signedInLobbyArea" class="hidden space-y-6">
-
-                <!-- ── Party header: shows who you're about to play as ── -->
-                <div class="text-center">
-                    <span class="hub-eyebrow" style="margin-bottom:8px;">Pull up a chair</span>
+                <!-- Signed-out gate: soft nudge, not a hard block — guest
+                     play works fine via "Continue as Guest" below. -->
+                <div id="signedOutLobbyArea" class="hidden text-center space-y-4">
+                    <span class="hub-eyebrow" style="margin-bottom:4px;">Pull up a chair</span>
                     <h2 class="font-display font-bold text-2xl text-white mt-2">Global Tycoon</h2>
-                    <p class="text-sm text-[#9aa5b3] mt-1">Host a table or join one with a code — 2 to 6 players.</p>
-                </div>
-
-                <!-- ── Identity strip: avatar + editable name, synced with the
-                     shared users/{uid} profile when signed in ── -->
-                <div class="flex items-center gap-3 p-3 rounded-xl" style="background:var(--hub-panel-raised);border:1px solid var(--hub-border);">
-                    <div id="lobbyAvatarPreview" class="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center text-lg flex-shrink-0 font-bold" style="background:var(--hub-panel);border:1px solid var(--hub-border);color:var(--hub-muted);">?</div>
-                    <div class="flex-1 min-w-0 space-y-1">
-                        <label class="block text-[10px] font-bold uppercase tracking-wider" style="color:var(--hub-muted);">Playing as</label>
-                        <input type="text" id="lobbyNameInput" placeholder="Enter display name..." maxlength="20" class="hub-input px-3 py-1.5 text-sm font-semibold" style="padding:6px 10px;">
-                    </div>
-                    <span id="lobbyGuestBadge" class="hidden text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md flex-shrink-0" style="color:var(--hub-faint);background:var(--hub-panel);border:1px solid var(--hub-border);">Guest</span>
-                </div>
-
-                <!-- ── Host / Join ── -->
-                <div class="grid grid-cols-1 gap-3">
-                    <button id="btnCreateRoom" class="hub-btn hub-btn-brass w-full py-3.5 text-sm tracking-wide uppercase" style="box-shadow:0 8px 20px rgba(124,106,245,0.2);">
-                        👑 Host New Table
+                    <p class="text-sm text-[#9aa5b3]">Sign in to save your stats and appear on the leaderboard — or play as a guest below.</p>
+                    <button id="landingSignInBtn" class="w-full flex items-center justify-center gap-2 py-3 bg-white hover:bg-slate-100 text-slate-800 font-semibold rounded-xl transition border border-slate-300 shadow-sm text-sm">
+                        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6 29.6 4 24 4c-7.6 0-14.1 4.3-17.7 10.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.8 14.1-5l-6.5-5.5c-2 1.4-4.6 2.3-7.6 2.3-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.8 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.1 5.7l6.5 5.5C41.5 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+                        Sign in with Google
                     </button>
-                    <div class="relative flex py-1 items-center">
-                        <div class="flex-grow border-t" style="border-color:var(--hub-border);"></div>
-                        <span class="flex-shrink mx-4 text-xs uppercase tracking-widest" style="color:var(--hub-faint);">or join</span>
-                        <div class="flex-grow border-t" style="border-color:var(--hub-border);"></div>
+                    <button id="landingEmailSignInBtn" class="text-xs mt-1 transition underline" style="color:var(--hub-faint);">or sign in with email</button>
+                    <div class="flex items-center gap-3 pt-1">
+                        <div class="flex-1 h-px" style="background:var(--hub-border);"></div>
+                        <span class="text-[11px] uppercase tracking-widest" style="color:var(--hub-faint);">or</span>
+                        <div class="flex-1 h-px" style="background:var(--hub-border);"></div>
                     </div>
-                    <div class="flex gap-2">
-                        <input id="inputRoomCode" type="text" placeholder="ROOM CODE" maxlength="5" class="hub-input flex-1 px-4 py-3 text-center tracking-widest font-mono uppercase text-sm">
-                        <button id="btnJoinRoom" class="hub-btn hub-btn-slate px-6">Join</button>
-                    </div>
+                    <button id="continueAsGuestBtn" class="hub-btn hub-btn-slate w-full py-3 text-sm">Continue as Guest</button>
+                    <a href="index.html" class="block text-xs mt-1 transition underline" style="color:var(--hub-faint);">← Back to Game Hub</a>
                 </div>
 
-                <!-- ── Waiting room: only shown once a table exists ── -->
-                <div id="lobbyWaitingArea" class="hidden border-t pt-5 space-y-4" style="border-color:var(--hub-border);">
-                    <div class="flex justify-between items-center">
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-mono" style="color:var(--hub-accent-bright);">ROOM: <span id="displayRoomCode" class="font-bold" style="color:var(--hub-text-bright);">-----</span></span>
-                            <button id="btnCopyInvite" title="Copy invite link" class="text-xs px-2 py-1 rounded-md transition" style="color:var(--hub-muted);background:var(--hub-panel-raised);border:1px solid var(--hub-border);">🔗 Copy Link</button>
-                        </div>
-                        <span id="playerCountBadge" class="text-xs px-2.5 py-1 rounded-full font-bold" style="background:var(--hub-panel-raised);color:var(--hub-muted);border:1px solid var(--hub-border);">0/6 Players</span>
+                <div id="signedInLobbyArea" class="hidden space-y-6">
+
+                    <!-- ── Party header: shows who you're about to play as ── -->
+                    <div class="text-center">
+                        <span class="hub-eyebrow" style="margin-bottom:8px;">Pull up a chair</span>
+                        <h2 class="font-display font-bold text-2xl text-white mt-2">Global Tycoon</h2>
+                        <p class="text-sm text-[#9aa5b3] mt-1">Host a table or join one with a code — 2 to 6 players.</p>
                     </div>
 
-                    <div id="lobbyPlayerList" class="space-y-2 max-h-56 overflow-y-auto pr-1"></div>
+                    <!-- ── Identity strip: avatar + editable name, synced with the
+                         shared users/{uid} profile when signed in ── -->
+                    <div class="flex items-center gap-3 p-3 rounded-xl" style="background:var(--hub-panel-raised);border:1px solid var(--hub-border);">
+                        <div id="lobbyAvatarPreview" class="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center text-lg flex-shrink-0 font-bold" style="background:var(--hub-panel);border:1px solid var(--hub-border);color:var(--hub-muted);">?</div>
+                        <div class="flex-1 min-w-0 space-y-1">
+                            <label class="block text-[10px] font-bold uppercase tracking-wider" style="color:var(--hub-muted);">Playing as</label>
+                            <input type="text" id="lobbyNameInput" placeholder="Enter display name..." maxlength="20" class="hub-input px-3 py-1.5 text-sm font-semibold" style="padding:6px 10px;">
+                        </div>
+                        <span id="lobbyGuestBadge" class="hidden text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md flex-shrink-0" style="color:var(--hub-faint);background:var(--hub-panel);border:1px solid var(--hub-border);">Guest</span>
+                    </div>
 
-                    <button id="btnStartGame" class="hidden hub-btn hub-btn-brass w-full py-3 text-sm tracking-wide uppercase">Start Match</button>
-                    <p id="hostWaitMessage" class="text-xs text-center italic" style="color:var(--hub-faint);">Waiting for the host to launch...</p>
-                    <button id="btnLeaveLobby" class="w-full text-xs text-center transition underline" style="color:var(--hub-faint);">Leave table</button>
+                    <!-- ── Host / Join ── -->
+                    <div class="grid grid-cols-1 gap-3">
+                        <button id="btnCreateRoom" class="hub-btn hub-btn-brass w-full py-3.5 text-sm tracking-wide uppercase" style="box-shadow:0 8px 20px rgba(124,106,245,0.2);">
+                            👑 Host New Table
+                        </button>
+                        <div class="relative flex py-1 items-center">
+                            <div class="flex-grow border-t" style="border-color:var(--hub-border);"></div>
+                            <span class="flex-shrink mx-4 text-xs uppercase tracking-widest" style="color:var(--hub-faint);">or join</span>
+                            <div class="flex-grow border-t" style="border-color:var(--hub-border);"></div>
+                        </div>
+                        <div class="flex gap-2">
+                            <input id="inputRoomCode" type="text" placeholder="ROOM CODE" maxlength="5" class="hub-input flex-1 px-4 py-3 text-center tracking-widest font-mono uppercase text-sm">
+                            <button id="btnJoinRoom" class="hub-btn hub-btn-slate px-6">Join</button>
+                        </div>
+                    </div>
+                    <a href="index.html" class="block text-xs text-center transition underline" style="color:var(--hub-faint);">← Back to Game Hub</a>
                 </div>
             </div>
-        </div>
+        </section>
+
+        <!-- SCREEN: LOBBY / WAITING ROOM — its own full screen, matching
+             dutch.html's screen-lobby, shown only once a table exists.
+             Replaces the old lobbyWaitingArea sub-div approach. -->
+        <section id="screen-lobby" class="hidden w-full max-w-2xl p-8 hub-panel my-8">
+            <div class="flex justify-between items-center gap-4 pb-5" style="border-bottom:1px solid var(--hub-border-soft);">
+                <div>
+                    <h2 class="font-display text-2xl font-bold" style="color:var(--hub-text-bright);">Table Lobby</h2>
+                    <p class="text-sm mt-1" style="color:var(--hub-muted);">Share the code — the host starts once everyone's seated. (2–6 players)</p>
+                </div>
+                <div class="px-5 py-3 rounded-xl text-center flex-shrink-0" style="background:var(--hub-panel-raised);border:1px solid var(--hub-border);">
+                    <span class="block text-[9px] uppercase font-bold tracking-widest mb-0.5" style="color:var(--hub-faint);">Room Code</span>
+                    <span id="displayRoomCode" class="text-2xl font-mono font-black uppercase tracking-widest" style="color:var(--hub-accent-bright);">-----</span>
+                </div>
+            </div>
+            <div class="flex justify-between items-center pt-5">
+                <button id="btnCopyInvite" title="Copy invite link" class="text-xs px-3 py-1.5 rounded-md transition" style="color:var(--hub-muted);background:var(--hub-panel-raised);border:1px solid var(--hub-border);">🔗 Copy Invite Link</button>
+                <span id="playerCountBadge" class="text-xs px-2.5 py-1 rounded-full font-bold" style="background:var(--hub-panel-raised);color:var(--hub-muted);border:1px solid var(--hub-border);">0/6 Players</span>
+            </div>
+            <div class="space-y-2 pt-4">
+                <h3 class="text-xs font-bold uppercase tracking-wider" style="color:var(--hub-muted);">Players (max 6)</h3>
+                <div id="lobbyPlayerList" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+            </div>
+            <div class="flex gap-3 pt-5 mt-1 items-center" style="border-top:1px solid var(--hub-border-soft);">
+                <button id="btnStartGame" class="hidden hub-btn hub-btn-brass flex-1 py-3 text-sm tracking-wide uppercase">Start Match ⚔️</button>
+                <p id="hostWaitMessage" class="flex-1 text-xs text-center italic" style="color:var(--hub-faint);">Waiting for the host to launch...</p>
+                <button id="btnLeaveLobby" class="text-xs text-center transition underline flex-shrink-0" style="color:var(--hub-faint);">Leave table</button>
+            </div>
+        </section>
     </div>
 
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start opacity-20" id="gameWorkspace">
@@ -878,7 +898,7 @@
                 currentProfile = s.data();
                 const name = currentProfile.username || localUser?.displayName || 'Player';
                 const avatarEmoji = currentProfile.avatarEmoji || null;
-                const photo = localUser?.photoURL || '';
+                const photo = currentProfile.photoURL || localUser?.photoURL || '';
                 renderAvatarInto(document.getElementById('headerAvatar'), photo, avatarEmoji);
                 document.getElementById('headerAccountName').textContent = name;
                 renderAvatarInto(document.getElementById('dropdownAvatar'), photo, avatarEmoji);
@@ -1043,7 +1063,7 @@
             const newAvatarEmoji = pendingAvatarChoice !== undefined ? pendingAvatarChoice : (currentProfile?.avatarEmoji || null);
             await updateDoc(doc(db, 'users', localUser.uid), { username: newUsername, avatarEmoji: newAvatarEmoji });
             try {
-                await setDoc(doc(db, 'leaderboard', localUser.uid), {
+                await setDoc(doc(db, 'leaderboard_monopoly', localUser.uid), {
                     displayName: newUsername,
                     avatarEmoji: newAvatarEmoji,
                     photoURL: currentProfile?.photoURL || null
@@ -1057,12 +1077,10 @@
         });
 
         // ── Leaderboard ──
-        // The leaderboard/{uid} doc's win/played counters are written by
-        // each game's own logic (this file writes Monopoly wins via
-        // recordMonopolyResult below; Dutch's app.js presumably does the
-        // same for its own stats) — schema isn't guaranteed identical
-        // across games, so this reads defensively across a couple of
-        // likely shapes rather than assuming one.
+        // Reads leaderboard_monopoly/{uid}, a collection dedicated to this
+        // game — completely separate from Dutch's own `leaderboard`
+        // collection in app.js, so the two games never mix standings.
+        // Win/played counters are written by recordMonopolyResult below.
         function extractWinsPlayed(data) {
             const wins = data.stats?.gamesWon ?? data.gamesWon ?? data.wins ?? 0;
             const played = data.stats?.gamesPlayed ?? data.gamesPlayed ?? data.played ?? 0;
@@ -1073,7 +1091,7 @@
             const content = document.getElementById('leaderboardContent');
             content.innerHTML = `<p class="text-center py-8" style="color:var(--hub-muted);">Loading...</p>`;
             try {
-                const snap = await getDocs(collection(db, 'leaderboard'));
+                const snap = await getDocs(collection(db, 'leaderboard_monopoly'));
                 if (snap.empty) {
                     content.innerHTML = `<p class="text-center py-8" style="color:var(--hub-muted);">No leaderboard entries yet.</p>`;
                     return;
@@ -1124,7 +1142,7 @@
             return {
                 name: (document.getElementById('lobbyNameInput')?.value || '').trim() || currentDisplayName(),
                 avatarEmoji: currentAvatarEmoji(),
-                photoURL: localUser?.isGuest ? null : (localUser?.photoURL || null)
+                photoURL: localUser?.isGuest ? null : (currentProfile?.photoURL || localUser?.photoURL || null)
             };
         }
 
@@ -1315,10 +1333,12 @@
                 if (!inActiveRoom) localUser = guestUser;
             }
             // Guest play is always available, same as dutch.html — the
-            // signed-out gate now only nudges toward signing in, it
-            // doesn't block hosting/joining.
-            document.getElementById('signedOutLobbyArea').classList.add('hidden');
-            document.getElementById('signedInLobbyArea').classList.remove('hidden');
+            // signed-out gate is just a nudge, not a hard block, so once
+            // someone chooses "Continue as Guest" it should stay dismissed
+            // (tracked via guestChoiceMade) even though `user` is still null.
+            const showSignedIn = !!user || guestChoiceMade;
+            document.getElementById('signedOutLobbyArea').classList.toggle('hidden', showSignedIn);
+            document.getElementById('signedInLobbyArea').classList.toggle('hidden', !showSignedIn);
             refreshLobbyNameField();
             if (!lobbyBootstrapped) {
                 lobbyBootstrapped = true;
@@ -1332,6 +1352,7 @@
             }
         });
         let lobbyBootstrapped = false;
+        let guestChoiceMade = false; // set true once the user clicks "Continue as Guest"
 
         async function hostNewTable() {
             const code = generateRoomCode();
@@ -1370,7 +1391,8 @@
             }
             if (roomSubscription) roomSubscription();
             currentRoomCode = code;
-            document.getElementById("lobbyWaitingArea").classList.remove("hidden");
+            document.getElementById("screen-landing").classList.add("hidden");
+            document.getElementById("screen-lobby").classList.remove("hidden");
             document.getElementById("displayRoomCode").textContent = code;
 
             roomSubscription = onSnapshot(doc(db, "rooms", code), (snapshot) => {
@@ -1465,11 +1487,14 @@
         }
 
         // Writes this player's own result to their shared users/{uid} profile
-        // and the public leaderboard/{uid} doc — same schema and same two
-        // documents Dutch's recordRoundResultForCurrentUser writes to, so
-        // wins/games-played from either game add up on one leaderboard.
-        // Guests have no Firestore profile to write to, so this is a no-op
-        // for them (matches Dutch: stats only accrue for signed-in players).
+        // — but under a Monopoly-specific `monopolyStats` field, not the
+        // shared `stats` field Dutch owns, so the two games' win/loss
+        // counters never overwrite each other. Also writes the public
+        // leaderboard_monopoly/{uid} doc, which is a completely separate
+        // collection from Dutch's `leaderboard`, so the two games each get
+        // their own standings. Guests have no Firestore profile to write
+        // to, so this is a no-op for them (matches Dutch: stats only
+        // accrue for signed-in players).
         async function recordMonopolyResult(state) {
             if (!localUser || localUser.isGuest) return;
             if (state.status !== 'finished' || !state.winnerId) return;
@@ -1477,23 +1502,23 @@
             statsWrittenForRoom = currentRoomCode;
 
             const won = state.winnerId === localUser.uid;
-            const stats = currentProfile?.stats || defaultStats();
+            const stats = currentProfile?.monopolyStats || defaultStats();
             const updatedStats = {
                 ...stats,
                 gamesPlayed: stats.gamesPlayed + 1,
                 gamesWon: stats.gamesWon + (won ? 1 : 0),
             };
             try {
-                await updateDoc(doc(db, 'users', localUser.uid), { stats: updatedStats });
-                if (currentProfile) currentProfile.stats = updatedStats;
-                await setDoc(doc(db, 'leaderboard', localUser.uid), {
+                await updateDoc(doc(db, 'users', localUser.uid), { monopolyStats: updatedStats });
+                if (currentProfile) currentProfile.monopolyStats = updatedStats;
+                await setDoc(doc(db, 'leaderboard_monopoly', localUser.uid), {
                     displayName: currentDisplayName(),
                     avatarEmoji: currentAvatarEmoji(),
-                    photoURL: localUser.photoURL || null,
+                    photoURL: currentProfile?.photoURL || localUser.photoURL || null,
                     stats: updatedStats,
                     updatedAt: new Date()
                 }, { merge: true });
-                if (won) showToast('⭐ Win recorded on the leaderboard!', 'info', 3000);
+                if (won) showToast('⭐ Win recorded on the Monopoly leaderboard!', 'info', 3000);
             } catch (err) {
                 console.warn('Could not record Monopoly result:', err);
             }
@@ -2074,13 +2099,14 @@
 
         // ── Party section wiring ──
         document.getElementById("continueAsGuestBtn").addEventListener("click", () => {
+            guestChoiceMade = true;
             document.getElementById('signedOutLobbyArea').classList.add('hidden');
             document.getElementById('signedInLobbyArea').classList.remove('hidden');
         });
         function refreshLobbyAvatarPreview() {
             const el = document.getElementById('lobbyAvatarPreview');
             const emoji = currentAvatarEmoji();
-            const photo = localUser?.isGuest ? '' : (localUser?.photoURL || '');
+            const photo = localUser?.isGuest ? '' : (currentProfile?.photoURL || localUser?.photoURL || '');
             if (emoji) {
                 el.textContent = emoji;
                 el.style.backgroundImage = '';
@@ -2116,7 +2142,8 @@
             if (currentRoomCode) leaveRoom(currentRoomCode);
             currentRoomCode = null;
             cachedGameState = null;
-            document.getElementById('lobbyWaitingArea').classList.add('hidden');
+            document.getElementById('screen-lobby').classList.add('hidden');
+            document.getElementById('screen-landing').classList.remove('hidden');
             document.getElementById('inputRoomCode').value = '';
         });
 

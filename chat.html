@@ -1126,6 +1126,7 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
             </div>
         </div>
         <div class="dc-modal-footer">
+            <button class="dc-btn is-hidden" id="channelModalDeleteBtn" style="background:var(--dc-red);color:white;margin-right:auto;">Delete Channel</button>
             <button class="dc-btn dc-btn-ghost" id="channelModalCancelBtn">Cancel</button>
             <button class="dc-btn dc-btn-primary" id="channelModalSubmitBtn">Create Channel</button>
         </div>
@@ -1258,6 +1259,7 @@ const channelModalSubtitle = document.getElementById('channelModalSubtitle');
 const newChannelNameInput = document.getElementById('newChannelNameInput');
 const channelModalCancelBtn = document.getElementById('channelModalCancelBtn');
 const channelModalSubmitBtn = document.getElementById('channelModalSubmitBtn');
+const channelModalDeleteBtn = document.getElementById('channelModalDeleteBtn');
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -2074,11 +2076,19 @@ function openChannelModal(serverId, editId = null, currentName = '') {
     channelModalTitle.textContent = editId ? 'Rename Channel' : 'Create Text Channel';
     channelModalSubtitle.textContent = editId ? 'Pick a new name for this channel.' : 'Channels are where your server members chat.';
     channelModalSubmitBtn.textContent = editId ? 'Save' : 'Create Channel';
+    // Only offer deletion when editing an existing channel, and never let the
+    // last remaining channel in a server be deleted from here either.
+    channelModalDeleteBtn.classList.toggle('is-hidden', !editId || Object.keys(myChannels).length <= 1);
     channelModalBackdrop.classList.remove('is-hidden');
     newChannelNameInput.focus();
     if (editId) newChannelNameInput.select();
 }
 channelModalCancelBtn.addEventListener('click', () => channelModalBackdrop.classList.add('is-hidden'));
+channelModalDeleteBtn.addEventListener('click', async () => {
+    if (!channelModalEditId) return;
+    const ok = await deleteChannel(channelModalServerId, channelModalEditId);
+    if (ok) channelModalBackdrop.classList.add('is-hidden');
+});
 channelModalSubmitBtn.addEventListener('click', async () => {
     const raw = newChannelNameInput.value.trim();
     if (!raw) { showToast('Give the channel a name first.'); return; }
@@ -2107,20 +2117,32 @@ channelModalSubmitBtn.addEventListener('click', async () => {
     }
 });
 
+// Returns true if the channel was actually deleted, false otherwise (caller
+// can use this to decide whether to close a modal, etc).
 async function deleteChannel(serverId, channelId) {
     if (Object.keys(myChannels).length <= 1) {
         showToast('A server needs at least one channel.');
-        return;
+        return false;
     }
-    if (!confirm(`Delete #${myChannels[channelId]?.name || 'channel'}? This cannot be undone.`)) return;
+    if (!confirm(`Delete #${myChannels[channelId]?.name || 'channel'}? This cannot be undone.`)) return false;
     try {
-        await deleteDoc(doc(db, 'servers', serverId, 'channels', channelId));
+        // Batch the message deletes with the channel doc delete so a failure
+        // partway through can't leave orphaned messages behind.
+        const msgsSnap = await getDocs(collection(db, 'servers', serverId, 'channels', channelId, 'messages'));
+        const refsToDelete = [...msgsSnap.docs.map(m => m.ref), doc(db, 'servers', serverId, 'channels', channelId)];
+        for (let i = 0; i < refsToDelete.length; i += 450) {
+            const batch = writeBatch(db);
+            refsToDelete.slice(i, i + 450).forEach(ref => batch.delete(ref));
+            await batch.commit();
+        }
         showToast('Channel deleted.');
+        return true;
     } catch (err) {
         console.error('Delete channel failed:', err.code || err, err.message || '');
         showToast(err.code === 'permission-denied'
             ? 'Could not delete channel — permission denied by Firestore rules.'
             : 'Could not delete channel — try again.');
+        return false;
     }
 }
 

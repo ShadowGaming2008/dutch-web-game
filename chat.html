@@ -272,12 +272,15 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
 .channel-row:hover { background: var(--dc-overlay-04); color: var(--dc-text-normal); }
 .channel-row.is-active { background: var(--dc-overlay-08); color: var(--dc-text-header); }
 .channel-hash { font-size: 16px; color: inherit; opacity: 0.7; }
-.channel-row .channel-delete-btn {
-    margin-left: auto; opacity: 0; background: none; border: none; color: var(--dc-text-muted);
+.channel-row .channel-delete-btn, .channel-row .channel-edit-btn {
+    opacity: 0; background: none; border: none; color: var(--dc-text-muted);
     cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px;
 }
-.channel-row:hover .channel-delete-btn { opacity: 1; }
+.channel-row .channel-edit-btn { margin-left: auto; }
+.channel-row .channel-delete-btn { margin-left: 2px; }
+.channel-row:hover .channel-delete-btn, .channel-row:hover .channel-edit-btn { opacity: 1; }
 .channel-row .channel-delete-btn:hover { color: var(--dc-red); background: rgba(242,63,67,0.1); }
+.channel-row .channel-edit-btn:hover { color: var(--dc-text-header); background: var(--dc-overlay-08); }
 .add-channel-btn {
     display: flex; align-items: center; gap: 6px; padding: 6px 8px;
     color: var(--dc-text-muted); font-size: 13px; font-weight: 600; cursor: pointer;
@@ -1109,12 +1112,12 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
     </div>
 </div>
 
-<!-- ── NEW CHANNEL MODAL ── -->
+<!-- ── NEW / EDIT CHANNEL MODAL (dual-purpose: create when channelModalEditId is null, rename otherwise) ── -->
 <div class="dc-modal-backdrop is-hidden" id="channelModalBackdrop">
     <div class="dc-modal">
         <div class="dc-modal-header">
-            <h2>Create Text Channel</h2>
-            <p>Channels are where your server members chat.</p>
+            <h2 id="channelModalTitle">Create Text Channel</h2>
+            <p id="channelModalSubtitle">Channels are where your server members chat.</p>
         </div>
         <div class="dc-modal-body">
             <div>
@@ -1250,6 +1253,8 @@ const inviteModalCloseBtn = document.getElementById('inviteModalCloseBtn');
 
 
 const channelModalBackdrop = document.getElementById('channelModalBackdrop');
+const channelModalTitle = document.getElementById('channelModalTitle');
+const channelModalSubtitle = document.getElementById('channelModalSubtitle');
 const newChannelNameInput = document.getElementById('newChannelNameInput');
 const channelModalCancelBtn = document.getElementById('channelModalCancelBtn');
 const channelModalSubmitBtn = document.getElementById('channelModalSubmitBtn');
@@ -1445,12 +1450,31 @@ async function loadOrCreateProfile() {
 // ─────────────────────────────────────────────
 // Presence (global, RTDB) — used for DM online dots + server member lists
 // ─────────────────────────────────────────────
+let presenceConnectedUnsub = null;
 function registerGlobalPresence() {
     const presenceRef = ref(rtdb, `chatPresence/${currentUser.uid}`);
-    set(presenceRef, { since: rtdbServerTimestamp() }).catch((err) => {
-        console.error('Failed to register presence (check RTDB rules):', err);
+    // Re-arm on EVERY (re)connection, not just once at load. The old version
+    // only ever called set()+onDisconnect() a single time right after sign-in.
+    // That's fine for the very first connection, but RTDB sockets drop and
+    // reconnect on their own (network blips, laptop sleep, switching wifi,
+    // a backgrounded mobile tab) — when that happens, the *old* connection's
+    // onDisconnect fires and removes the presence entry, but nothing ever
+    // set it back on the *new* connection. Net effect: the person is truly
+    // back online, their client is running fine, but everyone else still
+    // sees them as offline until they hard-refresh the page.
+    // Listening to '.info/connected' fires true on initial connect AND every
+    // reconnect after a drop, so we re-register presence each time.
+    if (presenceConnectedUnsub) presenceConnectedUnsub();
+    presenceConnectedUnsub = onValue(ref(rtdb, '.info/connected'), (snap) => {
+        if (snap.val() !== true) return; // only act once we're actually connected
+        // Queue removal-on-disconnect first, then mark ourselves online —
+        // order matters so we're never briefly "online with no onDisconnect armed".
+        onDisconnect(presenceRef).remove().then(() => {
+            set(presenceRef, { since: rtdbServerTimestamp() }).catch((err) => {
+                console.error('Failed to register presence (check RTDB rules):', err);
+            });
+        });
     });
-    onDisconnect(presenceRef).remove();
 }
 
 function subscribeGlobalPresence() {
@@ -1909,6 +1933,7 @@ function renderChannelList(serverId, serverData) {
             return `
                 <div class="channel-row${isActive ? ' is-active' : ''}" data-channel-id="${id}">
                     <span class="channel-hash">#</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;">${escHtml(ch.name)}</span>
+                    ${isOwner ? `<button class="channel-edit-btn" data-edit-channel-id="${id}" title="Rename channel">✎</button>` : ''}
                     ${isOwner && ids.length > 1 ? `<button class="channel-delete-btn" data-delete-channel-id="${id}" title="Delete channel">✕</button>` : ''}
                 </div>`;
         }).join('')}
@@ -1919,7 +1944,7 @@ function renderChannelList(serverId, serverData) {
 
     secondColBody.querySelectorAll('[data-channel-id]').forEach(el => {
         el.addEventListener('click', (e) => {
-            if (e.target.closest('[data-delete-channel-id]')) return;
+            if (e.target.closest('[data-delete-channel-id]') || e.target.closest('[data-edit-channel-id]')) return;
             const chId = el.dataset.channelId;
             activeContext.channelId = chId;
             switchChannel(serverId, chId, myChannels[chId]?.name);
@@ -1930,6 +1955,13 @@ function renderChannelList(serverId, serverData) {
         el.addEventListener('click', (e) => {
             e.stopPropagation();
             deleteChannel(serverId, el.dataset.deleteChannelId);
+        });
+    });
+    secondColBody.querySelectorAll('[data-edit-channel-id]').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const chId = el.dataset.editChannelId;
+            openChannelModal(serverId, chId, myChannels[chId]?.name);
         });
     });
     document.getElementById('addChannelBtn')?.addEventListener('click', () => openChannelModal(serverId));
@@ -1989,11 +2021,18 @@ function switchChannel(serverId, channelId, channelName) {
 }
 
 let channelModalServerId = null;
-function openChannelModal(serverId) {
+// null while creating a new channel; set to the channel's doc id while renaming.
+let channelModalEditId = null;
+function openChannelModal(serverId, editId = null, currentName = '') {
     channelModalServerId = serverId;
-    newChannelNameInput.value = '';
+    channelModalEditId = editId;
+    newChannelNameInput.value = editId ? currentName : '';
+    channelModalTitle.textContent = editId ? 'Rename Channel' : 'Create Text Channel';
+    channelModalSubtitle.textContent = editId ? 'Pick a new name for this channel.' : 'Channels are where your server members chat.';
+    channelModalSubmitBtn.textContent = editId ? 'Save' : 'Create Channel';
     channelModalBackdrop.classList.remove('is-hidden');
     newChannelNameInput.focus();
+    if (editId) newChannelNameInput.select();
 }
 channelModalCancelBtn.addEventListener('click', () => channelModalBackdrop.classList.add('is-hidden'));
 channelModalSubmitBtn.addEventListener('click', async () => {
@@ -2002,16 +2041,25 @@ channelModalSubmitBtn.addEventListener('click', async () => {
     // Discord-style slugify: lowercase, spaces to hyphens, strip anything unsafe
     const name = raw.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-_]/g, '').slice(0, 40) || 'new-channel';
     try {
-        await addDoc(collection(db, 'servers', channelModalServerId, 'channels'), {
-            name,
-            createdAt: serverTimestamp()
-        });
+        if (channelModalEditId) {
+            await updateDoc(doc(db, 'servers', channelModalServerId, 'channels', channelModalEditId), { name });
+            // If we just renamed the channel that's currently open, refresh the header title too.
+            if (activeContext?.channelId === channelModalEditId) {
+                mainHeaderTitle.textContent = name;
+            }
+            showToast('Channel renamed.');
+        } else {
+            await addDoc(collection(db, 'servers', channelModalServerId, 'channels'), {
+                name,
+                createdAt: serverTimestamp()
+            });
+        }
         channelModalBackdrop.classList.add('is-hidden');
     } catch (err) {
-        console.error('Create channel failed:', err.code || err, err.message || '');
+        console.error('Save channel failed:', err.code || err, err.message || '');
         showToast(err.code === 'permission-denied'
-            ? 'Could not create channel — permission denied by Firestore rules.'
-            : 'Could not create channel — try again.');
+            ? `Could not ${channelModalEditId ? 'rename' : 'create'} channel — permission denied by Firestore rules.`
+            : `Could not ${channelModalEditId ? 'rename' : 'create'} channel — try again.`);
     }
 });
 

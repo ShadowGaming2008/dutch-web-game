@@ -907,6 +907,17 @@
                 renderAvatarInto(document.getElementById('headerAvatar'), photo, avatarEmoji);
                 document.getElementById('headerAccountName').textContent = name;
                 renderAvatarInto(document.getElementById('dropdownAvatar'), photo, avatarEmoji);
+                // playerProfiles.{uid} on the room doc is only written at
+                // join time (see myProfileSnapshot/joinRoom) — without this,
+                // an avatar/name change made mid-lobby via Edit Profile
+                // would update the header but leave the party player list
+                // (and every other seated player's view of you) stuck on
+                // the stale snapshot from when you joined.
+                if (currentRoomCode && localUser && !localUser.isGuest && localUser.uid === user.uid) {
+                    updateDoc(doc(db, 'rooms', currentRoomCode), {
+                        [`playerProfiles.${localUser.uid}`]: myProfileSnapshot()
+                    }).catch(() => {});
+                }
                 document.getElementById('dropdownName').textContent = name;
                 document.getElementById('dropdownEmail').textContent = localUser?.email || '';
                 refreshLobbyNameField();
@@ -1144,8 +1155,18 @@
         }
 
         function myProfileSnapshot() {
+            const input = document.getElementById('lobbyNameInput');
+            // Only trust the input's value over the synced profile name if
+            // the user actually typed into it themselves this session
+            // (dataset.userEdited). Otherwise prefer currentDisplayName()
+            // — if the field was auto-filled before currentProfile finished
+            // loading (e.g. clicking Host/Join in that first instant), its
+            // value could still be the raw Google displayName rather than
+            // the custom username, and that stale value would otherwise
+            // get locked into the room's playerProfiles snapshot.
+            const typedName = (input?.dataset.userEdited && input.value.trim()) || '';
             return {
-                name: (document.getElementById('lobbyNameInput')?.value || '').trim() || currentDisplayName(),
+                name: typedName || currentDisplayName(),
                 avatarEmoji: currentAvatarEmoji(),
                 photoURL: localUser?.isGuest ? null : (currentProfile?.photoURL || localUser?.photoURL || null)
             };
@@ -1236,6 +1257,7 @@
         let currentRoomCode = null;
         let roomSubscription = null;
         let localUser = null;
+        let guestChoiceMade = false; // set true once the user clicks "Continue as Guest"; declared here (not near its usage below) so it's initialized before onAuthStateChanged's first callback can fire
         let cachedGameState = null;
         let chatSubscription = null;
         let chatPanelOpen = false;
@@ -1357,7 +1379,6 @@
             }
         });
         let lobbyBootstrapped = false;
-        let guestChoiceMade = false; // set true once the user clicks "Continue as Guest"
 
         async function hostNewTable() {
             const code = generateRoomCode();
@@ -1396,6 +1417,18 @@
             }
             if (roomSubscription) roomSubscription();
             currentRoomCode = code;
+            // Safety re-sync: joinRoom() above may have raced ahead of
+            // currentProfile finishing its first load (e.g. clicking
+            // Host/Join in the first instant after sign-in), which could
+            // have locked in the raw Google displayName instead of the
+            // real username. Push a corrected snapshot now that
+            // currentRoomCode is set, so subscribeToProfile's own re-sync
+            // logic (and this one-off call) both have a chance to fix it.
+            if (localUser && !localUser.isGuest) {
+                updateDoc(doc(db, 'rooms', code), {
+                    [`playerProfiles.${localUser.uid}`]: myProfileSnapshot()
+                }).catch(() => {});
+            }
             document.getElementById("screen-landing").classList.add("hidden");
             document.getElementById("screen-lobby").classList.remove("hidden");
             document.getElementById("displayRoomCode").textContent = code;

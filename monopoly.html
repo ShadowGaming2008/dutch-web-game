@@ -183,9 +183,28 @@
             background-color: #ef4444;
             border-radius: 1px;
         }
+
+        /* ── Toasts (self-contained — this page doesn't share app.js's DOM) ── */
+        #toastContainer {
+            position: fixed;
+            top: 76px;
+            right: 16px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+            max-width: min(90vw, 360px);
+        }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .toast-enter { animation: toastIn 0.22s ease; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
+    <div id="toastContainer"></div>
 
     <nav class="sticky top-0 z-40 flex items-center justify-between h-[60px] px-6 bg-[#12181f]/90 backdrop-blur-md border-b border-[rgba(124,106,245,0.08)]">
         <div class="flex items-center gap-2.5">
@@ -303,8 +322,94 @@
     </main>
 
     <script type="module">
-        import { db, auth, showToast, generateRoomCode, joinRoom, leaveRoom } from "./app.js";
-        import { doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import {
+            getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // ── Firebase init ──────────────────────────────────────────────
+        // This page used to `import { db, auth, showToast, generateRoomCode,
+        // joinRoom, leaveRoom } from "./app.js"` — but app.js has no exports
+        // at all (it's dutch.html's own standalone script, not a shared
+        // module), so that import silently failed and broke this entire
+        // page. This page now sets up its own Firebase app instance and its
+        // own copies of the small helpers it needs, same pattern chat.html
+        // uses, pointed at the same project so auth/rooms are shared.
+        const firebaseConfig = {
+            apiKey: "AIzaSyDTIz9LcVxLwJ4l5keMeSSAoCh2oTSWg9E",
+            authDomain: "dutch-card-game-60d1c.firebaseapp.com",
+            projectId: "dutch-card-game-60d1c",
+            storageBucket: "dutch-card-game-60d1c.firebasestorage.app",
+            messagingSenderId: "91699670709",
+            appId: "1:91699670709:web:230f57e39f8f55128398fc",
+            measurementId: "G-40FS16HJCN",
+            databaseURL: "https://dutch-card-game-60d1c-default-rtdb.europe-west1.firebasedatabase.app"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // ── Toast system (mirrors app.js's visual style/config) ──
+        function showToast(message, type = 'info', duration = 4500) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            const configs = {
+                info:    { bg: 'bg-slate-800 border-slate-600',     text: 'text-slate-100',   icon: 'ℹ️' },
+                success: { bg: 'bg-emerald-900 border-emerald-600', text: 'text-emerald-100', icon: '✅' },
+                error:   { bg: 'bg-rose-900 border-rose-600',       text: 'text-rose-100',    icon: '❌' },
+                warning: { bg: 'bg-amber-900 border-amber-600',     text: 'text-amber-100',   icon: '⚠️' },
+            };
+            const c = configs[type] || configs.info;
+            toast.className = `toast-enter flex items-center gap-3 px-4 py-3 rounded-xl border-2 shadow-2xl text-sm leading-snug font-semibold pointer-events-auto ${c.bg} ${c.text}`;
+            toast.innerHTML = `<span class="text-base flex-shrink-0">${c.icon}</span><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.transition = 'all 0.3s ease';
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-8px)';
+                setTimeout(() => toast.remove(), 320);
+            }, duration);
+        }
+
+        // ── Room helpers ──
+        // 5-char codes (Dutch's rooms use 4-char codes) so the two games'
+        // room codes can never collide as strings even though both live in
+        // the same top-level `rooms` collection.
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
+            let code = '';
+            for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+            return code;
+        }
+
+        async function joinRoom(code) {
+            // Adds the current user to the room's player order exactly once.
+            // Safe to call every time a room is (re)joined — arrayUnion is a
+            // no-op if the uid is already present, so refreshing mid-game or
+            // re-running joinActiveTable() never duplicates a seat.
+            const roomRef = doc(db, "rooms", code);
+            const snap = await getDoc(roomRef);
+            if (!snap.exists()) throw new Error("room-not-found");
+            const state = snap.data();
+            if (state.status === "playing" && !(state.playersOrder || []).includes(localUser.uid)) {
+                throw new Error("already-started");
+            }
+            if ((state.playersOrder || []).length >= 6 && !(state.playersOrder || []).includes(localUser.uid)) {
+                throw new Error("room-full");
+            }
+            await updateDoc(roomRef, { playersOrder: arrayUnion(localUser.uid) });
+        }
+
+        async function leaveRoom(code) {
+            if (!code || !localUser) return;
+            try {
+                await updateDoc(doc(db, "rooms", code), { playersOrder: arrayRemove(localUser.uid) });
+            } catch (err) {
+                // Room may already be gone (host deleted it) — nothing to clean up.
+            }
+        }
 
         const BOARD_DATA = [
             { id: 0,  name: "START", type: "go", color: null, cost: null, rent: [0], group: "special" },
@@ -404,7 +509,7 @@
             });
         }
 
-        auth.onAuthStateChanged(user => {
+        onAuthStateChanged(auth, user => {
             if (user) {
                 localUser = user;
                 const params = new URLSearchParams(window.location.search);
@@ -432,22 +537,30 @@
                 playerBalances: {},
                 playerPositions: {},
                 playerJailStatus: {},
+                playerBankrupt: {}, // uid -> true once balance goes negative and can't recover
                 properties: {}, // spaceId -> ownerId
                 propertyHouses: {}, // spaceId -> count
                 createdAt: new Date().toISOString()
             };
 
             await setDoc(doc(db, "rooms", code), initialGameState);
-            joinActiveTable(code);
+            await joinActiveTable(code);
         }
 
-        function joinActiveTable(code) {
+        async function joinActiveTable(code) {
+            try {
+                await joinRoom(code);
+            } catch (err) {
+                if (err.message === "room-not-found") showToast("No table found with that code.", "error");
+                else if (err.message === "already-started") showToast("That game has already started.", "error");
+                else if (err.message === "room-full") showToast("That table is full (6 players max).", "error");
+                else showToast("Could not join that table — try again.", "error");
+                return;
+            }
             if (roomSubscription) roomSubscription();
             currentRoomCode = code;
             document.getElementById("lobbyWaitingArea").classList.remove("hidden");
             document.getElementById("displayRoomCode").textContent = code;
-
-            if (typeof joinRoom === "function") joinRoom(code);
 
             roomSubscription = onSnapshot(doc(db, "rooms", code), (snapshot) => {
                 if (!snapshot.exists()) return;
@@ -476,7 +589,7 @@
                 document.getElementById("hostWaitMessage").classList.remove("hidden");
             }
 
-            if (state.status === "playing") {
+            if (state.status === "playing" || state.status === "finished") {
                 document.getElementById("lobbyScreen").classList.add("hidden");
                 document.getElementById("gameWorkspace").classList.remove("opacity-20");
                 
@@ -487,8 +600,30 @@
 
                 updateBoardTokens(state);
                 renderPropertyImprovements(state);
-                evaluateTurnContext(state);
                 renderLedger(state);
+
+                if (state.status === "finished") {
+                    announceWinnerIfNeeded(state);
+                } else {
+                    evaluateTurnContext(state);
+                }
+            }
+        }
+
+        let announcedWinnerFor = null; // roomCode, so a fresh room can announce again
+        function announceWinnerIfNeeded(state) {
+            document.getElementById("actionPanel").classList.add("hidden");
+            const statusAlert = document.getElementById("statusAlert");
+            const turnIndicator = document.getElementById("turnIndicator");
+            const isWinner = state.winnerId === localUser.uid;
+            const label = isWinner ? "You" : `Player (${(state.winnerId || '').substring(0, 4)})`;
+            turnIndicator.textContent = "Game Over";
+            turnIndicator.className = "font-mono text-xs bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20";
+            statusAlert.classList.remove("hidden");
+            statusAlert.textContent = `🏆 ${label} won the game — everyone else went bankrupt!`;
+            if (announcedWinnerFor !== currentRoomCode) {
+                announcedWinnerFor = currentRoomCode;
+                showToast(isWinner ? "You won! 🏆" : `${label} won the game.`, isWinner ? "success" : "info");
             }
         }
 
@@ -499,10 +634,12 @@
             const startingBalances = {};
             const startingPositions = {};
             const startingJail = {};
+            const startingBankrupt = {};
             orders.forEach(uid => {
                 startingBalances[uid] = 1500;
                 startingPositions[uid] = 0;
                 startingJail[uid] = false;
+                startingBankrupt[uid] = false;
             });
 
             await updateDoc(doc(db, "rooms", currentRoomCode), {
@@ -512,6 +649,7 @@
                 playerBalances: startingBalances,
                 playerPositions: startingPositions,
                 playerJailStatus: startingJail,
+                playerBankrupt: startingBankrupt,
                 properties: {},
                 propertyHouses: {}
             });
@@ -658,13 +796,15 @@
                 const bal = state.playerBalances?.[uid] ?? 0;
                 const pos = state.playerPositions?.[uid] ?? 0;
                 const isJailed = state.playerJailStatus?.[uid] || false;
+                const isBankrupt = state.playerBankrupt?.[uid] || false;
                 const spaceName = BOARD_DATA[pos]?.name || "START";
                 return `
-                    <div class="flex items-center justify-between p-2.5 rounded-xl border ${idx === state.turnIndex ? 'bg-[#7c6af5]/10 border-[#7c6af5]/40' : 'bg-[#0d1319] border-[#263140]'}" >
+                    <div class="flex items-center justify-between p-2.5 rounded-xl border ${idx === state.turnIndex && !isBankrupt ? 'bg-[#7c6af5]/10 border-[#7c6af5]/40' : 'bg-[#0d1319] border-[#263140]'} ${isBankrupt ? 'opacity-50' : ''}" >
                         <div class="flex items-center gap-2">
                             <div class="w-2 h-2 rounded-full" style="background-color: hsl(${PLAYER_HUES[idx % 6]}, 70%, 50%)"></div>
-                            <span class="text-sm font-medium ${bal < 0 ? 'line-through text-slate-500' : 'text-slate-200'}">P(${uid.substring(0,4)})</span>
-                            ${isJailed ? `<span class="text-[9px] bg-red-900/40 border border-red-800 text-red-400 px-1 rounded">JAILED</span>` : ''}
+                            <span class="text-sm font-medium ${isBankrupt ? 'line-through text-slate-500' : 'text-slate-200'}">P(${uid.substring(0,4)})</span>
+                            ${isJailed && !isBankrupt ? `<span class="text-[9px] bg-red-900/40 border border-red-800 text-red-400 px-1 rounded">JAILED</span>` : ''}
+                            ${isBankrupt ? `<span class="text-[9px] bg-slate-800 border border-slate-600 text-slate-400 px-1 rounded">BANKRUPT</span>` : ''}
                         </div>
                         <div class="text-right">
                             <div class="text-sm font-mono font-bold text-emerald-400">$${bal}</div>
@@ -688,6 +828,9 @@
             const updatedPositions = { ...cachedGameState.playerPositions };
             const updatedBalances = { ...cachedGameState.playerBalances };
             const updatedJail = { ...cachedGameState.playerJailStatus };
+            const updatedProperties = { ...cachedGameState.properties };
+            const updatedHouses = { ...cachedGameState.propertyHouses };
+            const updatedBankrupt = { ...cachedGameState.playerBankrupt };
 
             if (nextPos < currentPos) {
                 updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + 200;
@@ -727,13 +870,52 @@
                 showToast(`Tax Applied! Deducted $${taxAmount}`, "error");
             }
 
-            await updateDoc(doc(db, "rooms", currentRoomCode), {
+            // If any of the above left us in the red, go bankrupt: release
+            // our properties (they become unowned again) and drop out of
+            // the turn rotation for the rest of the match.
+            const bankruptcyUpdate = applyBankruptcyIfNeeded(localUser.uid, updatedBalances, updatedProperties, updatedHouses, updatedBankrupt);
+
+            const payload = {
                 dice: [d1, d2],
                 playerPositions: updatedPositions,
                 playerBalances: updatedBalances,
                 playerJailStatus: updatedJail,
+                properties: updatedProperties,
+                propertyHouses: updatedHouses,
+                playerBankrupt: updatedBankrupt,
                 turnPhase: "action"
+            };
+            Object.assign(payload, checkForWinner(updatedBankrupt));
+            await updateDoc(doc(db, "rooms", currentRoomCode), payload);
+        }
+
+        // Marks a player bankrupt the moment their balance drops below zero:
+        // all their properties/houses are released back to the bank so play
+        // can continue for everyone else. Returns true if bankruptcy just
+        // occurred (useful for callers that want to react, e.g. a toast).
+        function applyBankruptcyIfNeeded(uid, balances, properties, houses, bankruptMap) {
+            if ((balances[uid] || 0) >= 0 || bankruptMap[uid]) return false;
+            bankruptMap[uid] = true;
+            Object.keys(properties).forEach(spaceId => {
+                if (properties[spaceId] === uid) {
+                    delete properties[spaceId];
+                    delete houses[spaceId];
+                }
             });
+            showToast("You've gone bankrupt and are out of the game!", "error");
+            return true;
+        }
+
+        // If only one non-bankrupt player remains, ends the match and
+        // records the winner. Returns a partial update object to merge in,
+        // or {} if the game should keep going.
+        function checkForWinner(bankruptMap) {
+            const orders = cachedGameState.playersOrder || [];
+            const solvent = orders.filter(uid => !bankruptMap[uid]);
+            if (orders.length > 1 && solvent.length === 1) {
+                return { status: "finished", winnerId: solvent[0] };
+            }
+            return {};
         }
 
         async function payJailFineToEscape() {
@@ -808,6 +990,12 @@
             const currentPos = cachedGameState.playerPositions[localUser.uid] || 0;
             const space = BOARD_DATA[currentPos];
 
+            const currentBalance = cachedGameState.playerBalances[localUser.uid] || 0;
+            if (currentBalance < space.houseCost) {
+                showToast("Insufficient capital for this upgrade!", "error");
+                return;
+            }
+
             const updatedBalances = { ...cachedGameState.playerBalances };
             const updatedHouses = { ...cachedGameState.propertyHouses };
 
@@ -826,14 +1014,14 @@
             if (!currentRoomCode || !cachedGameState) return;
             const orders = cachedGameState.playersOrder || [];
             
-            // Loop step sequence skipping bankrupted players
+            // Loop step sequence skipping bankrupt players
             let nextIndex = cachedGameState.turnIndex;
             let safetyCounter = 0;
 
             do {
                 nextIndex = (nextIndex + 1) % orders.length;
                 safetyCounter++;
-            } while (cachedGameState.playerBalances?.[orders[nextIndex]] < 0 && safetyCounter < orders.length);
+            } while (cachedGameState.playerBankrupt?.[orders[nextIndex]] && safetyCounter < orders.length);
 
             await updateDoc(doc(db, "rooms", currentRoomCode), {
                 turnIndex: nextIndex,
@@ -843,7 +1031,7 @@
 
         function exitToHub() {
             if (roomSubscription) roomSubscription();
-            if (currentRoomCode && typeof leaveRoom === "function") leaveRoom(currentRoomCode);
+            if (currentRoomCode) leaveRoom(currentRoomCode);
             window.location.href = "index.html";
         }
 
@@ -860,6 +1048,16 @@
         document.getElementById("btnRollJailEscape").addEventListener("click", rollJailEscapeAttempt);
         document.getElementById("btnEndTurn").addEventListener("click", stepNextTurn);
         document.getElementById("exitButton").addEventListener("click", exitToHub);
+
+        // Only auto-remove from the lobby, not from a match already in
+        // progress — leaving mid-game would shift playersOrder indices out
+        // from under turnIndex and everyone's board positions/properties,
+        // so a disconnect there just leaves your seat for you to resume.
+        window.addEventListener('pagehide', () => {
+            if (currentRoomCode && cachedGameState?.status === "waiting") {
+                leaveRoom(currentRoomCode);
+            }
+        });
 
         document.addEventListener("DOMContentLoaded", initializeBoardLayout);
     </script>

@@ -187,20 +187,140 @@
         /* ── Toasts (self-contained — this page doesn't share app.js's DOM) ── */
         #toastContainer {
             position: fixed;
-            top: 76px;
-            right: 16px;
-            z-index: 100;
+            top: 64px;
+            left: 12px;
+            z-index: 50;
             display: flex;
             flex-direction: column;
             gap: 8px;
             pointer-events: none;
-            max-width: min(90vw, 360px);
+            max-width: 300px;
         }
         @keyframes toastIn {
             from { opacity: 0; transform: translateY(-8px); }
             to { opacity: 1; transform: translateY(0); }
         }
         .toast-enter { animation: toastIn 0.22s ease; }
+
+        /* ========== ACTIVITY LOG (ported from dutch.html) ========== */
+        #activity-log-panel {
+            display: none;
+            position: fixed;
+            bottom: 12px;
+            right: 12px;
+            width: 270px;
+            max-height: 300px;
+            background: rgba(8,15,30,0.95);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            backdrop-filter: blur(12px);
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            transition: max-height 0.25s ease;
+        }
+        #activity-log-panel.log-collapsed { max-height: 38px; }
+        .log-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.07);
+            cursor: pointer; user-select: none; flex-shrink: 0;
+        }
+        .log-header:hover { background: rgba(255,255,255,0.03); }
+        .log-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; }
+        .log-badge {
+            font-size: 9px; font-weight: 800; background: #4c1d95; color: #c4b5fd;
+            border-radius: 999px; padding: 1px 6px; display: none;
+        }
+        .log-badge.has-new { display: block; }
+        #log-entries { overflow-y: auto; flex: 1; padding: 6px 0; }
+        .log-entry { padding: 6px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); animation: log-in 0.25s ease forwards; }
+        @keyframes log-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+        .log-entry:last-child { border-bottom: none; }
+        .log-entry .log-time { font-size: 9px; color: #475569; font-family: monospace; margin-bottom: 1px; }
+        .log-entry .log-msg { font-size: 11px; color: #cbd5e1; line-height: 1.4; }
+        .log-entry.log-buy .log-msg { color: #6ee7b7; }
+        .log-entry.log-rent .log-msg { color: #fca5a5; }
+        .log-entry.log-bankrupt .log-msg { color: #f87171; }
+        .log-entry.log-win .log-msg { color: #fde047; }
+
+        /* ========== PARTY CHAT (Discord-style, ported from dutch.html) ========== */
+        :root {
+            --dc-bg-primary: #313338;
+            --dc-bg-secondary: #2b2d31;
+            --dc-blurple: #5865f2;
+            --dc-text-normal: #dbdee1;
+            --dc-text-muted: #949ba4;
+            --dc-text-header: #f2f3f5;
+            --dc-divider: rgba(255,255,255,0.06);
+        }
+        #chat-launcher {
+            display: none;
+            position: fixed; bottom: 12px; left: 12px; z-index: 30;
+            display: flex; align-items: center; gap: 8px;
+            background: var(--dc-bg-secondary); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 999px; padding: 8px 16px 8px 10px; cursor: pointer;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+            transition: background 0.15s, transform 0.1s; user-select: none;
+        }
+        #chat-launcher:hover { background: #35373c; }
+        #chat-launcher:active { transform: scale(0.97); }
+        #chat-launcher.is-hidden { display: none; }
+        #chat-launcher .launcher-icon {
+            width: 28px; height: 28px; border-radius: 50%; background: var(--dc-blurple);
+            display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0;
+        }
+        #chat-launcher .launcher-label { font-size: 13px; font-weight: 600; color: var(--dc-text-header); }
+        #chat-launcher .launcher-badge {
+            display: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+            background: #f23f43; color: white; font-size: 10px; font-weight: 800;
+            align-items: center; justify-content: center;
+        }
+        #chat-launcher .launcher-badge.has-new { display: flex; }
+        #party-chat-panel {
+            position: fixed; bottom: 12px; left: 12px; width: 420px; height: 440px;
+            max-width: calc(100vw - 24px); max-height: calc(100vh - 90px);
+            background: var(--dc-bg-primary); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 14px; z-index: 30; display: flex; flex-direction: column;
+            overflow: hidden; box-shadow: 0 16px 48px rgba(0,0,0,0.55); font-family: 'Inter', sans-serif;
+        }
+        #party-chat-panel.chat-collapsed { display: none; }
+        .chat-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 14px; height: 44px; flex-shrink: 0;
+            border-bottom: 1px solid var(--dc-divider); box-shadow: 0 1px 0 rgba(0,0,0,0.15);
+        }
+        .chat-header-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
+        .chat-hash { color: var(--dc-text-muted); font-size: 18px; font-weight: 500; }
+        .chat-title { font-size: 14px; font-weight: 700; color: var(--dc-text-header); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .chat-header-btn {
+            width: 26px; height: 26px; border-radius: 6px; border: none; background: transparent;
+            color: var(--dc-text-muted); font-size: 13px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; transition: background 0.12s, color 0.12s;
+        }
+        .chat-header-btn:hover { background: rgba(255,255,255,0.06); color: var(--dc-text-header); }
+        #chat-messages { overflow-y: auto; flex: 1; padding: 12px 0 8px; min-height: 0; }
+        #chat-messages::-webkit-scrollbar { width: 8px; }
+        #chat-messages::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+        .chat-msg-line-wrap { display: flex; gap: 8px; padding: 3px 16px; }
+        .chat-sender { font-size: 13px; font-weight: 700; flex-shrink: 0; }
+        .chat-sender.is-me { color: #86efac; }
+        .chat-sender:not(.is-me) { color: #9585f8; }
+        .chat-msg-line { font-size: 13.5px; line-height: 1.4; color: var(--dc-text-normal); word-break: break-word; }
+        .chat-msg-time { font-size: 10px; color: var(--dc-text-muted); margin-left: auto; flex-shrink: 0; }
+        #chat-empty { text-align: center; color: var(--dc-text-muted); font-size: 13px; padding: 24px 16px; }
+        #chat-input-row {
+            display: flex; align-items: center; gap: 8px; margin: 0 12px 12px; padding: 0 12px;
+            height: 42px; background: #383a40; border-radius: 8px; flex-shrink: 0;
+        }
+        #chat-input { flex: 1; background: transparent; border: none; padding: 0; font-size: 14px; color: var(--dc-text-normal); font-family: 'Inter', sans-serif; outline: none; min-width: 0; }
+        #chat-input::placeholder { color: var(--dc-text-muted); }
+        #chat-send-btn { background: transparent; border: none; color: var(--dc-text-muted); font-size: 15px; padding: 0 2px; cursor: pointer; transition: color 0.15s; flex-shrink: 0; }
+        #chat-send-btn:hover { color: var(--dc-blurple); }
+        @media (max-width: 720px) {
+            #party-chat-panel { width: calc(100vw - 24px); height: calc(100vh - 90px); }
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -213,9 +333,14 @@
             <div class="w-[1px] h-[22px] bg-[rgba(232,227,213,0.08)] mx-1"></div>
             <span class="font-display font-bold italic text-sm text-[#9585f8]">Monopoly Edition</span>
         </div>
-        <button id="exitButton" class="px-4 py-2 border border-[#263140] rounded-xl text-xs font-bold text-[#e8e3d5] bg-[#1a2530] hover:bg-[#212d3a] transition">
-            ← Exit to Hub
-        </button>
+        <div class="flex items-center gap-2">
+            <button id="rulesBtn" class="px-4 py-2 border border-[#263140] rounded-xl text-xs font-bold text-[#9585f8] bg-[#1a2530] hover:bg-[#212d3a] transition">
+                📖 How to Play
+            </button>
+            <button id="exitButton" class="px-4 py-2 border border-[#263140] rounded-xl text-xs font-bold text-[#e8e3d5] bg-[#1a2530] hover:bg-[#212d3a] transition">
+                ← Exit to Hub
+            </button>
+        </div>
     </nav>
 
     <div id="lobbyScreen" class="fixed inset-0 bg-[#12181f] z-50 flex items-center justify-center p-4">
@@ -321,10 +446,75 @@
         </section>
     </main>
 
+    <!-- ── Rules Modal ── -->
+    <div id="rulesModalBackdrop" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(10,14,19,0.82);backdrop-filter:blur(5px);">
+        <div class="w-full max-w-lg bg-[#1a2530] border border-[#263140] rounded-2xl p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div class="flex items-center justify-between">
+                <h2 class="font-display font-bold text-xl text-white">📖 How to Play</h2>
+                <button id="closeRulesBtn" class="text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg text-[#9aa5b3] hover:text-white hover:bg-[#0d1319] transition">✕</button>
+            </div>
+            <div class="space-y-4 text-sm text-slate-300 leading-relaxed">
+                <p><strong class="text-white">Goal:</strong> Bankrupt every other player. Last tycoon standing wins.</p>
+                <div class="space-y-1.5">
+                    <h4 class="font-bold text-[#9585f8] uppercase text-xs tracking-wider">Your Turn</h4>
+                    <p class="text-xs">Roll the dice to move around the board. Land on an unowned property, railroad, or utility and you can buy it. Land on someone else's and you'll owe rent automatically.</p>
+                </div>
+                <div class="space-y-1.5">
+                    <h4 class="font-bold text-[#9585f8] uppercase text-xs tracking-wider">Building</h4>
+                    <p class="text-xs">Own every property in a color group and you can build houses (then a hotel at 5) to raise the rent on that space.</p>
+                </div>
+                <div class="space-y-1.5">
+                    <h4 class="font-bold text-[#9585f8] uppercase text-xs tracking-wider">Jail</h4>
+                    <p class="text-xs">Landing on "Go To Jail" sends you straight there. Escape by paying a $50 fine or rolling doubles.</p>
+                </div>
+                <div class="space-y-1.5">
+                    <h4 class="font-bold text-[#9585f8] uppercase text-xs tracking-wider">Bankruptcy</h4>
+                    <p class="text-xs">If rent or tax drops your balance below $0, you're out — your properties return to the bank and you're skipped for the rest of the game. Once only one player is left, they win.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Activity Log ── -->
+    <div id="activity-log-panel" class="log-collapsed">
+        <div class="log-header" id="log-toggle">
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span class="log-title">📋 Activity Log</span>
+                <span class="log-badge" id="log-badge">new</span>
+            </div>
+            <span id="log-chevron" style="font-size:10px;color:#475569;transition:transform 0.2s;">▲</span>
+        </div>
+        <div id="log-entries"></div>
+    </div>
+
+    <!-- ── Party Chat ── -->
+    <div id="chat-launcher">
+        <span class="launcher-icon">💬</span>
+        <span class="launcher-label">Party Chat</span>
+        <span class="launcher-badge" id="chat-badge">•</span>
+    </div>
+    <div id="party-chat-panel" class="chat-collapsed">
+        <div class="chat-header" id="chat-toggle">
+            <div class="chat-header-left">
+                <span class="chat-hash">#</span>
+                <span class="chat-title">party-chat</span>
+            </div>
+            <button class="chat-header-btn" id="chat-close-btn" title="Minimize">─</button>
+        </div>
+        <div id="chat-messages">
+            <div id="chat-empty">No messages yet.<br>Say something to your table!</div>
+        </div>
+        <div id="chat-input-row">
+            <input id="chat-input" type="text" maxlength="200" placeholder="Message #party-chat" autocomplete="off" />
+            <button id="chat-send-btn" title="Send">➤</button>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import {
-            getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove
+            getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove,
+            collection, addDoc, query, orderBy, limit, serverTimestamp
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
@@ -467,6 +657,11 @@
         let roomSubscription = null;
         let localUser = null;
         let cachedGameState = null;
+        let chatSubscription = null;
+        let chatPanelOpen = false;
+        let lastSeenChatCount = 0;
+        let lastRenderedLogCount = 0;
+        let logPanelOpen = false;
 
         function initializeBoardLayout() {
             const board = document.getElementById("boardContainer");
@@ -567,6 +762,7 @@
                 cachedGameState = snapshot.data();
                 syncLobbyAndGameData(cachedGameState);
             });
+            subscribeChat(code);
         }
 
         function syncLobbyAndGameData(state) {
@@ -592,6 +788,8 @@
             if (state.status === "playing" || state.status === "finished") {
                 document.getElementById("lobbyScreen").classList.add("hidden");
                 document.getElementById("gameWorkspace").classList.remove("opacity-20");
+                document.getElementById("activity-log-panel").style.display = "flex";
+                document.getElementById("chat-launcher").style.display = "flex";
                 
                 if (state.dice) {
                     document.getElementById("dice1").textContent = DICE_FACES[(state.dice[0] - 1) || 0];
@@ -601,6 +799,7 @@
                 updateBoardTokens(state);
                 renderPropertyImprovements(state);
                 renderLedger(state);
+                renderActivityLog(state);
 
                 if (state.status === "finished") {
                     announceWinnerIfNeeded(state);
@@ -651,7 +850,8 @@
                 playerJailStatus: startingJail,
                 playerBankrupt: startingBankrupt,
                 properties: {},
-                propertyHouses: {}
+                propertyHouses: {},
+                activityLog: [{ msg: "Game started! Good luck.", time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]
             });
         }
 
@@ -831,10 +1031,13 @@
             const updatedProperties = { ...cachedGameState.properties };
             const updatedHouses = { ...cachedGameState.propertyHouses };
             const updatedBankrupt = { ...cachedGameState.playerBankrupt };
+            const myName = "P(" + localUser.uid.substring(0, 4) + ")";
+            const logEntries = [{ msg: `${myName} rolled ${d1}+${d2} (${totalRoll}).` }];
 
             if (nextPos < currentPos) {
                 updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + 200;
                 showToast("Passed GO! Collected $200", "success");
+                logEntries.push({ msg: `${myName} passed GO and collected $200.`, tag: 'buy' });
             }
 
             // Check Go To Jail tracking rules
@@ -843,6 +1046,7 @@
                 nextPos = 10; // Instantly snap to prison ward
                 updatedJail[localUser.uid] = true;
                 showToast("Sent directly to Jail!", "error");
+                logEntries.push({ msg: `${myName} was sent to Jail!`, tag: 'rent' });
             }
             updatedPositions[localUser.uid] = nextPos;
 
@@ -855,6 +1059,7 @@
                 updatedBalances[localUser.uid] -= finalRent;
                 updatedBalances[spaceOwner] = (updatedBalances[spaceOwner] || 0) + finalRent;
                 showToast(`Paid $${finalRent} rent to owner`, "error");
+                logEntries.push({ msg: `${myName} paid $${finalRent} rent on ${targetSpace.name}.`, tag: 'rent' });
             }
 
             // Chance & Community Chest Card processing
@@ -862,18 +1067,21 @@
                 const card = CHANCE_CARDS[Math.floor(Math.random() * CHANCE_CARDS.length)];
                 updatedBalances[localUser.uid] += card.value;
                 showToast(`Card Drawn: ${card.text}`, "info");
+                logEntries.push({ msg: `${myName} drew: ${card.text}` });
             }
 
             if (targetSpace.type === "tax") {
                 const taxAmount = targetSpace.rent[0];
                 updatedBalances[localUser.uid] -= taxAmount;
                 showToast(`Tax Applied! Deducted $${taxAmount}`, "error");
+                logEntries.push({ msg: `${myName} paid $${taxAmount} in tax.`, tag: 'rent' });
             }
 
             // If any of the above left us in the red, go bankrupt: release
             // our properties (they become unowned again) and drop out of
             // the turn rotation for the rest of the match.
-            const bankruptcyUpdate = applyBankruptcyIfNeeded(localUser.uid, updatedBalances, updatedProperties, updatedHouses, updatedBankrupt);
+            const wentBankrupt = applyBankruptcyIfNeeded(localUser.uid, updatedBalances, updatedProperties, updatedHouses, updatedBankrupt);
+            if (wentBankrupt) logEntries.push({ msg: `${myName} went bankrupt!`, tag: 'bankrupt' });
 
             const payload = {
                 dice: [d1, d2],
@@ -885,7 +1093,12 @@
                 playerBankrupt: updatedBankrupt,
                 turnPhase: "action"
             };
-            Object.assign(payload, checkForWinner(updatedBankrupt));
+            const winnerUpdate = checkForWinner(updatedBankrupt);
+            Object.assign(payload, winnerUpdate);
+            if (winnerUpdate.status === "finished") {
+                logEntries.push({ msg: `🏆 P(${winnerUpdate.winnerId.substring(0, 4)}) won the game!`, tag: 'win' });
+            }
+            withLog(payload, logEntries);
             await updateDoc(doc(db, "rooms", currentRoomCode), payload);
         }
 
@@ -976,10 +1189,9 @@
             const updatedProperties = { ...cachedGameState.properties };
             updatedProperties[currentPos] = localUser.uid;
 
-            await updateDoc(doc(db, "rooms", currentRoomCode), {
-                playerBalances: updatedBalances,
-                properties: updatedProperties
-            });
+            const payload = { playerBalances: updatedBalances, properties: updatedProperties };
+            withLog(payload, [{ msg: `P(${localUser.uid.substring(0, 4)}) bought ${space.name} for $${cost}.`, tag: 'buy' }]);
+            await updateDoc(doc(db, "rooms", currentRoomCode), payload);
 
             showToast(`Successfully purchased ${space.name}!`, "success");
             document.getElementById("buyActionWrapper").classList.add("hidden");
@@ -1002,10 +1214,10 @@
             updatedBalances[localUser.uid] -= space.houseCost;
             updatedHouses[currentPos] = (updatedHouses[currentPos] || 0) + 1;
 
-            await updateDoc(doc(db, "rooms", currentRoomCode), {
-                playerBalances: updatedBalances,
-                propertyHouses: updatedHouses
-            });
+            const payload = { playerBalances: updatedBalances, propertyHouses: updatedHouses };
+            const label = updatedHouses[currentPos] === 5 ? "a hotel" : "a house";
+            withLog(payload, [{ msg: `P(${localUser.uid.substring(0, 4)}) built ${label} on ${space.name}.`, tag: 'buy' }]);
+            await updateDoc(doc(db, "rooms", currentRoomCode), payload);
 
             showToast(`Upgraded infrastructure at ${space.name}!`, "success");
         }
@@ -1031,9 +1243,142 @@
 
         function exitToHub() {
             if (roomSubscription) roomSubscription();
+            if (chatSubscription) chatSubscription();
             if (currentRoomCode) leaveRoom(currentRoomCode);
             window.location.href = "index.html";
         }
+
+        // ─────────────────────────────────────────────
+        // Activity Log — ported from dutch.html's UI. Stored as a capped
+        // array on the room doc itself (already covered by the existing
+        // wide-open `rooms/{roomCode}` rule, no rules changes needed).
+        // ─────────────────────────────────────────────
+        function withLog(payload, entries) {
+            const current = cachedGameState.activityLog || [];
+            const stamped = entries.map(e => ({
+                msg: e.msg,
+                tag: e.tag || 'info',
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }));
+            payload.activityLog = [...current, ...stamped].slice(-40);
+            return payload;
+        }
+
+        function renderActivityLog(state) {
+            const entries = state.activityLog || [];
+            const container = document.getElementById("log-entries");
+            const badge = document.getElementById("log-badge");
+            container.innerHTML = entries.map(e => `
+                <div class="log-entry ${e.tag ? 'log-' + e.tag : ''}">
+                    <div class="log-time">${e.time || ''}</div>
+                    <div class="log-msg">${escHtmlMono(e.msg)}</div>
+                </div>
+            `).join('') || `<div class="log-entry"><div class="log-msg" style="color:#64748b;">No activity yet.</div></div>`;
+            container.scrollTop = container.scrollHeight;
+
+            if (entries.length > lastRenderedLogCount && !logPanelOpen && lastRenderedLogCount > 0) {
+                badge.classList.add('has-new');
+            }
+            lastRenderedLogCount = entries.length;
+        }
+        function escHtmlMono(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        document.getElementById("log-toggle").addEventListener("click", () => {
+            logPanelOpen = !logPanelOpen;
+            const panel = document.getElementById("activity-log-panel");
+            const chevron = document.getElementById("log-chevron");
+            panel.classList.toggle("log-collapsed", !logPanelOpen);
+            chevron.style.transform = logPanelOpen ? "rotate(180deg)" : "rotate(0deg)";
+            if (logPanelOpen) document.getElementById("log-badge").classList.remove("has-new");
+        });
+
+        // ─────────────────────────────────────────────
+        // Party Chat — uses the rooms/{code}/chat subcollection, which the
+        // existing firestore.rules already allow (create requires senderId/
+        // senderName/text/ts, text capped at 200 chars — same rule Dutch's
+        // own party chat uses).
+        // ─────────────────────────────────────────────
+        function subscribeChat(code) {
+            if (chatSubscription) chatSubscription();
+            const chatQuery = query(collection(db, "rooms", code, "chat"), orderBy("ts", "asc"), limit(50));
+            chatSubscription = onSnapshot(chatQuery, (snap) => {
+                const messages = snap.docs.map(d => d.data());
+                renderChatMessages(messages);
+            });
+        }
+
+        function renderChatMessages(messages) {
+            const container = document.getElementById("chat-messages");
+            const empty = document.getElementById("chat-empty");
+            if (!messages.length) {
+                container.innerHTML = '';
+                container.appendChild(empty);
+                return;
+            }
+            container.innerHTML = messages.map(m => {
+                const isMe = m.senderId === localUser.uid;
+                const time = m.ts?.toDate ? m.ts.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                return `
+                    <div class="chat-msg-line-wrap">
+                        <span class="chat-sender ${isMe ? 'is-me' : ''}">${escHtmlMono(m.senderName || 'Player')}</span>
+                        <span class="chat-msg-line">${escHtmlMono(m.text || '')}</span>
+                        <span class="chat-msg-time">${time}</span>
+                    </div>
+                `;
+            }).join('');
+            container.scrollTop = container.scrollHeight;
+
+            if (messages.length > lastSeenChatCount && !chatPanelOpen) {
+                document.getElementById("chat-badge").classList.add("has-new");
+            }
+            if (chatPanelOpen) lastSeenChatCount = messages.length;
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById("chat-input");
+            const text = input.value.trim();
+            if (!text || !currentRoomCode) return;
+            input.value = '';
+            try {
+                await addDoc(collection(db, "rooms", currentRoomCode, "chat"), {
+                    senderId: localUser.uid,
+                    senderName: localUser.displayName || 'Player',
+                    text,
+                    ts: serverTimestamp()
+                });
+            } catch (err) {
+                showToast("Message failed to send.", "error");
+            }
+        }
+
+        document.getElementById("chat-launcher").addEventListener("click", () => {
+            chatPanelOpen = true;
+            document.getElementById("chat-launcher").classList.add("is-hidden");
+            document.getElementById("party-chat-panel").classList.remove("chat-collapsed");
+            document.getElementById("chat-badge").classList.remove("has-new");
+        });
+        document.getElementById("chat-close-btn").addEventListener("click", () => {
+            chatPanelOpen = false;
+            document.getElementById("party-chat-panel").classList.add("chat-collapsed");
+            document.getElementById("chat-launcher").classList.remove("is-hidden");
+        });
+        document.getElementById("chat-send-btn").addEventListener("click", sendChatMessage);
+        document.getElementById("chat-input").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") sendChatMessage();
+        });
+
+        // ── Rules modal ──
+        document.getElementById("rulesBtn").addEventListener("click", () => {
+            document.getElementById("rulesModalBackdrop").classList.remove("hidden");
+        });
+        document.getElementById("closeRulesBtn").addEventListener("click", () => {
+            document.getElementById("rulesModalBackdrop").classList.add("hidden");
+        });
+        document.getElementById("rulesModalBackdrop").addEventListener("click", (e) => {
+            if (e.target.id === "rulesModalBackdrop") e.target.classList.add("hidden");
+        });
 
         document.getElementById("btnCreateRoom").addEventListener("click", hostNewTable);
         document.getElementById("btnJoinRoom").addEventListener("click", () => {

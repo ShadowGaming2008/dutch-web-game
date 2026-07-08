@@ -1136,7 +1136,7 @@ html[data-custom-bg]:not([data-custom-bg-light]) #appRoot {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
     getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, addDoc,
-    query, orderBy, serverTimestamp, getDocs, deleteDoc, where, limit, limitToLast
+    query, orderBy, serverTimestamp, getDocs, deleteDoc, where, limit, limitToLast, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
@@ -1500,7 +1500,40 @@ function subscribeMyServers() {
         myServers = {};
         snap.forEach(d => { myServers[d.id] = d.data(); });
         renderServerRail();
+        pruneOrphanedServerPointers(Object.keys(myServers));
     });
+}
+
+// Self-heal: users/{uid}/servers/{serverId} pointer docs can be left behind if a
+// server was deleted by an older code path (or a delete was interrupted) without
+// cleaning up every member's pointer. Verify each referenced server still exists
+// and silently delete any pointer whose target is gone, then re-render.
+let pruneInFlight = false;
+async function pruneOrphanedServerPointers(serverIds) {
+    if (pruneInFlight || serverIds.length === 0) return;
+    pruneInFlight = true;
+    try {
+        const results = await Promise.all(serverIds.map(async (id) => {
+            try {
+                const snap = await getDoc(doc(db, 'servers', id));
+                return { id, exists: snap.exists() };
+            } catch (e) {
+                // Permission-denied or transient errors: don't delete on uncertainty.
+                return { id, exists: true };
+            }
+        }));
+        const orphanIds = results.filter(r => !r.exists).map(r => r.id);
+        if (orphanIds.length === 0) return;
+
+        await Promise.all(orphanIds.map(id =>
+            deleteDoc(doc(db, 'users', currentUser.uid, 'servers', id)).catch(() => {})
+        ));
+
+        orphanIds.forEach(id => delete myServers[id]);
+        renderServerRail();
+    } finally {
+        pruneInFlight = false;
+    }
 }
 
 function renderServerRail() {
@@ -1983,23 +2016,34 @@ async function deleteServer(serverId, serverData) {
     if (!confirm(`Delete "${serverData?.name || 'this server'}" for everyone? This cannot be undone.`)) return;
 
     try {
+        // Gather everything that needs deleting up front, then commit it all via
+        // batches so a failure partway through can't leave dangling pointer docs
+        // (which is how servers deleted by an older build kept reappearing in
+        // other members' rails even after the server itself was gone).
         const channelsSnap = await getDocs(collection(db, 'servers', serverId, 'channels'));
+        const allMsgRefs = [];
         for (const chDoc of channelsSnap.docs) {
             const msgsSnap = await getDocs(collection(db, 'servers', serverId, 'channels', chDoc.id, 'messages'));
-            await Promise.all(msgsSnap.docs.map(m => deleteDoc(m.ref)));
-            await deleteDoc(chDoc.ref);
+            msgsSnap.docs.forEach(m => allMsgRefs.push(m.ref));
         }
 
         const memberUids = Object.keys(serverData?.members || {});
-        await Promise.all(memberUids.map(uid =>
-            deleteDoc(doc(db, 'users', uid, 'servers', serverId)).catch(() => {})
-        ));
-
+        const refsToDelete = [
+            ...allMsgRefs,
+            ...channelsSnap.docs.map(c => c.ref),
+            ...memberUids.map(uid => doc(db, 'users', uid, 'servers', serverId)),
+        ];
         if (serverData?.inviteCode) {
-            await deleteDoc(doc(db, 'serverInvites', serverData.inviteCode)).catch(() => {});
+            refsToDelete.push(doc(db, 'serverInvites', serverData.inviteCode));
         }
+        refsToDelete.push(doc(db, 'servers', serverId));
 
-        await deleteDoc(doc(db, 'servers', serverId));
+        // Firestore batches cap at 500 writes; chunk defensively.
+        for (let i = 0; i < refsToDelete.length; i += 450) {
+            const batch = writeBatch(db);
+            refsToDelete.slice(i, i + 450).forEach(ref => batch.delete(ref));
+            await batch.commit();
+        }
 
         showToast('Server deleted.');
         openDmHome();

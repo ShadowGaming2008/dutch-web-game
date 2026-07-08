@@ -400,6 +400,11 @@
             transition: border-color 0.2s, background 0.2s;
         }
         .hub-account-btn:hover { border-color: #3a4859; background: #1f2c39; }
+        /* Same-specificity tie with Tailwind's .hidden (both single-class
+           selectors) meant source order could let .hub-account-btn's
+           display:flex win even with .hidden applied, leaving the account
+           chip visible at the same time as the sign-in button. Force it. */
+        .hub-account-btn.hidden { display: none !important; }
 
         .hub-panel {
             background: var(--hub-panel);

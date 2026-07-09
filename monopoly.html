@@ -389,6 +389,11 @@
         .hub-btn-slate:hover { background: #212d3a; border-color: #3a4859; }
         .hub-btn-ghost { background: transparent; color: var(--hub-muted); border: 1px solid var(--hub-border); }
         .hub-btn-ghost:hover { background: var(--hub-panel); color: var(--hub-text); }
+        /* Same specificity-tie issue as .hub-account-btn below: .hub-btn's
+           display:inline-flex is a single-class selector, same specificity
+           as Tailwind's .hidden, so source order could let it win and keep
+           headerSignInBtn visible at the same time as the account chip. */
+        .hub-btn.hidden { display: none !important; }
 
         .hub-account-btn {
             display: flex; align-items: center; gap: 8px;

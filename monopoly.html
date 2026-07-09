@@ -919,9 +919,6 @@
                             Pass Turn →
                         </button>
                     </div>
-                    <button id="btnOpenTrade" class="hidden w-full py-2 bg-teal-800 hover:bg-teal-700 text-teal-200 font-bold rounded-xl text-xs transition">
-                        🤝 Propose Trade
-                    </button>
                     <div id="freeParkingPot" class="hidden text-xs text-center rounded-lg py-1.5 font-mono font-bold" style="background:rgba(234,179,8,0.1);color:#fde047;border:1px solid rgba(234,179,8,0.25);">
                         🏖️ Vacation Pot: <span id="freeParkingAmount">$0</span>
                     </div>
@@ -930,6 +927,13 @@
                 <div id="statusAlert" class="text-sm text-[#9aa5b3] bg-slate-800/20 p-3 rounded-lg border border-slate-800/40 italic">
                     Syncing data...
                 </div>
+
+                <!-- Trade is a cross-player action, so this button lives outside
+                     the turn-gated actionPanel/statusAlert split above and stays
+                     visible to every player in the hub regardless of whose turn it is. -->
+                <button id="btnOpenTrade" class="hidden w-full py-2 mt-4 bg-teal-800 hover:bg-teal-700 text-teal-200 font-bold rounded-xl text-xs transition">
+                    🤝 Propose Trade
+                </button>
             </div>
 
             <div class="bg-[#1a2530] border border-[#263140] rounded-2xl p-6">
@@ -1932,6 +1936,7 @@
                 renderPropertyImprovements(state);
                 renderLedger(state);
                 renderActivityLog(state);
+                updateTradeButtonVisibility(state);
 
                 if (state.status === "finished") {
                     announceWinnerIfNeeded(state);
@@ -2061,7 +2066,14 @@
         function renderPropertyImprovements(state) {
             document.querySelectorAll(".owner-badge").forEach(el => el.remove());
             document.querySelectorAll(".house-indicator-row").forEach(el => el.innerHTML = "");
-            
+            // Reset any owner-tinted backgrounds so spaces that changed hands
+            // (or were auctioned back to the bank) don't keep a stale colour.
+            document.querySelectorAll(".board-space.owned-space").forEach(el => {
+                el.classList.remove("owned-space");
+                el.style.background = "";
+                el.style.borderColor = "";
+            });
+
             const props = state.properties || {};
             const houses = state.propertyHouses || {};
             const orders = state.playersOrder || [];
@@ -2071,13 +2083,22 @@
                 const playerIdx = orders.indexOf(ownerUid);
                 if (playerIdx === -1) return;
 
+                const hue = PLAYER_HUES[playerIdx % PLAYER_HUES.length];
+
                 const spaceCard = document.getElementById(`space-card-${spaceId}`);
                 if (spaceCard) {
                     const badge = document.createElement("div");
                     badge.className = "owner-badge";
-                    badge.style.color = `hsl(${PLAYER_HUES[playerIdx % PLAYER_HUES.length]}, 100%, 65%)`;
-                    badge.style.backgroundColor = `hsl(${PLAYER_HUES[playerIdx % PLAYER_HUES.length]}, 70%, 50%)`;
+                    badge.style.color = `hsl(${hue}, 100%, 65%)`;
+                    badge.style.backgroundColor = `hsl(${hue}, 70%, 50%)`;
                     spaceCard.appendChild(badge);
+
+                    // Tint the whole tile with the owning player's dot colour
+                    // (a translucent wash over the normal dark tile background)
+                    // so ownership is readable at a glance across the board.
+                    spaceCard.classList.add("owned-space");
+                    spaceCard.style.background = `linear-gradient(160deg, hsla(${hue}, 70%, 45%, 0.45) 0%, hsla(${hue}, 70%, 25%, 0.45) 100%), linear-gradient(160deg, #1c2836 0%, #151f2b 100%)`;
+                    spaceCard.style.borderColor = `hsla(${hue}, 70%, 60%, 0.5)`;
 
                     const isMortgaged = !!state.propertyMortgaged?.[spaceId];
                     spaceCard.style.opacity = isMortgaged ? "0.45" : "";
@@ -2142,8 +2163,7 @@
 
                 if (state.turnPhase === "roll") {
                     buyWrapper.classList.add("hidden");
-                    document.getElementById("btnOpenTrade").classList.add("hidden");
-                    
+
                     if (isJailed) {
                         jailWrapper.classList.remove("hidden");
                         document.getElementById("btnRollDice").classList.add("hidden");
@@ -2174,11 +2194,6 @@
                     }
 
                     document.getElementById("actionPrompt").textContent = "Actions complete. Click any of your properties on the board to manage houses or mortgages. Pass turn when ready.";
-
-                    // Show trade button if trading is enabled and there are non-bankrupt opponents
-                    const tradingOn = state.houseRules?.tradingEnabled !== false;
-                    const hasTradableOpponent = orders.some(uid => uid !== localUser.uid && !state.playerBankrupt?.[uid]);
-                    document.getElementById("btnOpenTrade").classList.toggle("hidden", !(tradingOn && hasTradableOpponent));
                 }
             } else {
                 const activeName = shortNameFor(activePlayerUid) || 'Another Player';
@@ -2189,8 +2204,25 @@
                 buyWrapper.classList.add("hidden");
                 jailWrapper.classList.add("hidden");
                 statusAlert.textContent = `Waiting for ${activeName} to complete their turn...`;
-                document.getElementById("btnOpenTrade").classList.add("hidden");
             }
+        }
+
+        // The trade button is visible to every player at all times in the
+        // Live Action Hub (not just on your own turn) as long as trading is
+        // allowed by house rules, there's a non-bankrupt opponent to trade
+        // with, you yourself haven't gone bankrupt, no auction is in
+        // progress, and the game hasn't already finished.
+        function updateTradeButtonVisibility(state) {
+            const tradeBtn = document.getElementById("btnOpenTrade");
+            if (!tradeBtn) return;
+            const orders = state.playersOrder || [];
+            const tradingOn = state.houseRules?.tradingEnabled !== false;
+            const hasTradableOpponent = orders.some(uid => uid !== localUser.uid && !state.playerBankrupt?.[uid]);
+            const localBankrupt = !!state.playerBankrupt?.[localUser.uid];
+            const auctionActive = !!state.auction;
+            const gameFinished = state.status === "finished";
+            const shouldShow = tradingOn && hasTradableOpponent && !localBankrupt && !auctionActive && !gameFinished;
+            tradeBtn.classList.toggle("hidden", !shouldShow);
         }
 
         // Renders the auction bidding panel. Shown to everyone while an

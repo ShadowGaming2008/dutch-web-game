@@ -3559,7 +3559,7 @@
         // Only auto-remove from the lobby, not from a match already in
         // progress — leaving mid-game would shift playersOrder indices out
         // from under turnIndex and everyone's board positions/properties,
-        // so a disconnect there just leaves your seat for you to resume.
+        // so a disconnect there just leaves your seat for you to resume
         window.addEventListener('pagehide', () => {
             if (currentRoomCode && cachedGameState?.status === "waiting") {
                 leaveRoom(currentRoomCode);

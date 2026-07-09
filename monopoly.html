@@ -81,7 +81,7 @@
         }
 
         /* Grid specific positional item placements (0 to 39) */
-        .space-0  { grid-column: 11; grid-row: 11; } /* GO */
+        .space-0  { grid-column: 11; grid-row: 11; } /* Jail */
         .space-1  { grid-column: 10; grid-row: 11; }
         .space-2  { grid-column: 9;  grid-row: 11; }
         .space-3  { grid-column: 8;  grid-row: 11; }
@@ -91,7 +91,7 @@
         .space-7  { grid-column: 4;  grid-row: 11; }
         .space-8  { grid-column: 3;  grid-row: 11; }
         .space-9  { grid-column: 2;  grid-row: 11; }
-        .space-10 { grid-column: 1;  grid-row: 11; } /* Jail */
+        .space-10 { grid-column: 1;  grid-row: 11; } /* GO */
         .space-11 { grid-column: 1;  grid-row: 10; }
         .space-12 { grid-column: 1;  grid-row: 9; }
         .space-13 { grid-column: 1;  grid-row: 8; }
@@ -101,7 +101,7 @@
         .space-17 { grid-column: 1;  grid-row: 4; }
         .space-18 { grid-column: 1;  grid-row: 3; }
         .space-19 { grid-column: 1;  grid-row: 2; }
-        .space-20 { grid-column: 1;  grid-row: 1; } /* Free Parking */
+        .space-20 { grid-column: 1;  grid-row: 1; } /* Go To Jail */
         .space-21 { grid-column: 2;  grid-row: 1; }
         .space-22 { grid-column: 3;  grid-row: 1; }
         .space-23 { grid-column: 4;  grid-row: 1; }
@@ -111,7 +111,7 @@
         .space-27 { grid-column: 8;  grid-row: 1; }
         .space-28 { grid-column: 9;  grid-row: 1; }
         .space-29 { grid-column: 10; grid-row: 1; }
-        .space-30 { grid-column: 11; grid-row: 1; } /* Go To Jail */
+        .space-30 { grid-column: 11; grid-row: 1; } /* Vacation */
         .space-31 { grid-column: 11; grid-row: 2; }
         .space-32 { grid-column: 11; grid-row: 3; }
         .space-33 { grid-column: 11; grid-row: 4; }
@@ -198,8 +198,8 @@
             line-height: 1;
             filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
         }
-        .space-0 .corner-icon { color: #ef4444; transform: rotate(-135deg) scaleX(-1); }
-        .space-30 .corner-icon { color: #ef4444; }
+        .space-10 .corner-icon { color: #ef4444; transform: rotate(-135deg) scaleX(-1); }
+        .space-20 .corner-icon { color: #ef4444; }
 
         .token-holder {
             display: flex;
@@ -563,6 +563,14 @@
             background: rgba(10,14,19,0.88); backdrop-filter: blur(5px);
         }
         #incomingTradeModal.hidden { display: none; }
+        /* ── Property management modal ── */
+        #propertyModal {
+            position: fixed; inset: 0; z-index: 57;
+            display: flex; align-items: center; justify-content: center; padding: 16px;
+            background: rgba(10,14,19,0.88); backdrop-filter: blur(5px);
+        }
+        #propertyModal.hidden { display: none; }
+        .prop-modal-clickable { cursor: pointer; }
         .trade-prop-chip {
             display: inline-flex; align-items: center; gap: 4px;
             padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
@@ -794,7 +802,7 @@
                     <div class="p-3 rounded-xl space-y-2" style="background:var(--hub-panel-raised);border:1px solid var(--hub-border);">
                         <label class="block text-[10px] font-bold uppercase tracking-wider mb-0.5" style="color:var(--hub-muted);">Toggles</label>
                         <label class="flex items-center justify-between cursor-pointer">
-                            <span class="text-xs font-medium" style="color:var(--hub-text);">🅿️ Free Parking Jackpot</span>
+                            <span class="text-xs font-medium" style="color:var(--hub-text);">🏖️ Vacation Jackpot</span>
                             <div class="relative">
                                 <input type="checkbox" id="hrFreeParkingToggle" class="sr-only">
                                 <div class="hr-toggle-track w-9 h-5 rounded-full transition" style="background:var(--hub-panel);border:1px solid var(--hub-border);"></div>
@@ -877,24 +885,17 @@
                     </div>
 
                     <div id="auctionWrapper" class="hidden bg-[#1a2530] p-3 rounded-xl border border-amber-700/50 space-y-2 text-xs">
-                        <p id="auctionStatus" class="text-amber-300 font-medium"></p>
-                        <div id="auctionBidderControls" class="hidden space-y-2">
-                            <div class="flex gap-2">
-                                <input id="auctionBidInput" type="number" min="1" step="1" placeholder="Bid amount" class="flex-1 bg-[#0d1319] border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs">
-                                <button id="btnSubmitBid" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 font-bold rounded-lg text-white">Bid</button>
-                            </div>
-                            <button id="btnPassBid" class="w-full py-1.5 bg-slate-700 hover:bg-slate-600 font-bold rounded-lg text-slate-300">Pass</button>
+                        <div class="flex items-center justify-between">
+                            <p id="auctionStatus" class="text-amber-300 font-medium"></p>
+                            <span id="auctionTimer" class="font-mono text-sm font-bold text-amber-400 flex-shrink-0 ml-2"></span>
                         </div>
-                    </div>
-
-                    <div id="housingControlWrapper" class="hidden bg-[#1a2530] p-3 rounded-xl border border-slate-700 space-y-2 text-xs">
-                        <p class="text-slate-300 font-medium">✨ Group Monopoly Unlocked! Improve this space:</p>
-                        <button id="btnBuildHouse" class="w-full py-1.5 bg-blue-600 hover:bg-blue-500 font-bold rounded text-white"></button>
-                    </div>
-
-                    <div id="mortgageControlWrapper" class="hidden bg-[#1a2530] p-3 rounded-xl border border-slate-700 space-y-2 text-xs">
-                        <button id="btnMortgage" class="hidden w-full py-1.5 bg-orange-700 hover:bg-orange-600 font-bold rounded text-white"></button>
-                        <button id="btnUnmortgage" class="hidden w-full py-1.5 bg-emerald-700 hover:bg-emerald-600 font-bold rounded text-white"></button>
+                        <div id="auctionBidderControls" class="space-y-2">
+                            <div class="grid grid-cols-3 gap-2">
+                                <button class="auction-quick-bid py-2 bg-amber-700 hover:bg-amber-600 font-bold rounded-lg text-white" data-increment="10">+$10</button>
+                                <button class="auction-quick-bid py-2 bg-amber-700 hover:bg-amber-600 font-bold rounded-lg text-white" data-increment="50">+$50</button>
+                                <button class="auction-quick-bid py-2 bg-amber-700 hover:bg-amber-600 font-bold rounded-lg text-white" data-increment="100">+$100</button>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="flex gap-2">
@@ -909,7 +910,7 @@
                         🤝 Propose Trade
                     </button>
                     <div id="freeParkingPot" class="hidden text-xs text-center rounded-lg py-1.5 font-mono font-bold" style="background:rgba(234,179,8,0.1);color:#fde047;border:1px solid rgba(234,179,8,0.25);">
-                        🅿️ Free Parking Pot: <span id="freeParkingAmount">$0</span>
+                        🏖️ Vacation Pot: <span id="freeParkingAmount">$0</span>
                     </div>
                 </div>
 
@@ -926,6 +927,23 @@
     </main>
 
     <!-- ── Trade Proposal Modal ── -->
+    <!-- ── Property Management Modal (click any board space to manage it) ── -->
+    <div id="propertyModal" class="hidden">
+        <div class="hub-panel w-full max-w-sm p-6 space-y-4">
+            <div class="flex items-center justify-between pb-3" style="border-bottom:1px solid var(--hub-border-soft);">
+                <h3 id="propModalTitle" class="font-display text-xl font-bold" style="color:var(--hub-text-bright);"></h3>
+                <button id="closePropertyModalBtn" class="text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg transition" style="color:var(--hub-muted);">✕</button>
+            </div>
+            <div id="propModalInfo" class="text-xs space-y-1.5" style="color:var(--hub-muted);"></div>
+            <div id="propModalActions" class="space-y-2 pt-1">
+                <button id="btnBuildHouse" class="hidden w-full py-2 bg-blue-600 hover:bg-blue-500 font-bold rounded-lg text-white text-xs"></button>
+                <button id="btnMortgage" class="hidden w-full py-2 bg-orange-700 hover:bg-orange-600 font-bold rounded-lg text-white text-xs"></button>
+                <button id="btnUnmortgage" class="hidden w-full py-2 bg-emerald-700 hover:bg-emerald-600 font-bold rounded-lg text-white text-xs"></button>
+                <p id="propModalHint" class="hidden text-xs italic" style="color:var(--hub-faint);"></p>
+            </div>
+        </div>
+    </div>
+
     <div id="tradeModal" class="hidden">
         <div class="hub-panel w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 space-y-5">
             <div class="flex items-center justify-between pb-3" style="border-bottom:1px solid var(--hub-border-soft);">
@@ -1496,7 +1514,7 @@
         }
 
         const BOARD_DATA = [
-            { id: 0,  name: "START", type: "go", color: null, cost: null, rent: [0], group: "special" },
+            { id: 10,  name: "START", type: "go", color: null, cost: null, rent: [0], group: "special" },
             { id: 1,  name: "Athens", type: "property", color: "#92400e", cost: 60, rent: [2, 10, 30, 90, 160, 250], houseCost: 50, group: "brown" },
             { id: 2,  name: "Community Chest", type: "chest", color: null, cost: null, rent: [0], group: "special" },
             { id: 3,  name: "Limassol", type: "property", color: "#92400e", cost: 60, rent: [4, 20, 60, 180, 320, 450], houseCost: 50, group: "brown" },
@@ -1506,7 +1524,7 @@
             { id: 7,  name: "Chance", type: "chance", color: null, cost: null, rent: [0], group: "special" },
             { id: 8,  name: "Venice", type: "property", color: "#0284c7", cost: 100, rent: [6, 30, 90, 270, 400, 550], houseCost: 50, group: "lightblue" },
             { id: 9,  name: "Milan", type: "property", color: "#0284c7", cost: 120, rent: [8, 40, 100, 300, 450, 600], houseCost: 50, group: "lightblue" },
-            { id: 10, name: "JAIL", type: "jail", color: null, cost: null, rent: [0], group: "special" },
+            { id: 0, name: "JAIL", type: "jail", color: null, cost: null, rent: [0], group: "special" },
             { id: 11, name: "Barcelona", type: "property", color: "#db2777", cost: 140, rent: [10, 50, 150, 450, 625, 750], houseCost: 100, group: "pink" },
             { id: 12, name: "Telecom", type: "utility", color: "#78716c", cost: 150, rent: [4, 10], group: "utility" },
             { id: 13, name: "Madrid", type: "property", color: "#db2777", cost: 140, rent: [10, 50, 150, 450, 625, 750], houseCost: 100, group: "pink" },
@@ -1516,7 +1534,7 @@
             { id: 17, name: "Community Chest", type: "chest", color: null, cost: null, rent: [0], group: "special" },
             { id: 18, name: "Munich", type: "property", color: "#ea580c", cost: 180, rent: [14, 70, 200, 550, 750, 950], houseCost: 100, group: "orange" },
             { id: 19, name: "Berlin", type: "property", color: "#ea580c", cost: 200, rent: [16, 80, 220, 600, 800, 1000], houseCost: 100, group: "orange" },
-            { id: 20, name: "FREE PARK", type: "parking", color: null, cost: null, rent: [0], group: "special" },
+            { id: 30, name: "VACATION", type: "parking", color: null, cost: null, rent: [0], group: "special" },
             { id: 21, name: "London", type: "property", color: "#e11d48", cost: 220, rent: [18, 90, 250, 700, 875, 1050], houseCost: 150, group: "red" },
             { id: 22, name: "Chance", type: "chance", color: null, cost: null, rent: [0], group: "special" },
             { id: 23, name: "Manchester", type: "property", color: "#e11d48", cost: 220, rent: [18, 90, 250, 700, 875, 1050], houseCost: 150, group: "red" },
@@ -1526,7 +1544,7 @@
             { id: 27, name: "Lyon", type: "property", color: "#eab308", cost: 260, rent: [22, 110, 330, 800, 975, 1150], houseCost: 150, group: "yellow" },
             { id: 28, name: "Water Works", type: "utility", color: "#78716c", cost: 150, rent: [4, 10], group: "utility" },
             { id: 29, name: "Bordeaux", type: "property", color: "#eab308", cost: 280, rent: [24, 120, 360, 850, 1025, 1200], houseCost: 150, group: "yellow" },
-            { id: 30, name: "GO TO JAIL", type: "gotojail", color: null, cost: null, rent: [0], group: "special" },
+            { id: 20, name: "GO TO JAIL", type: "gotojail", color: null, cost: null, rent: [0], group: "special" },
             { id: 31, name: "Sydney", type: "property", color: "#16a34a", cost: 300, rent: [26, 130, 390, 900, 1100, 1275], houseCost: 200, group: "green" },
             { id: 32, name: "Melbourne", type: "property", color: "#16a34a", cost: 300, rent: [26, 130, 390, 900, 1100, 1275], houseCost: 200, group: "green" },
             { id: 33, name: "Community Chest", type: "chest", color: null, cost: null, rent: [0], group: "special" },
@@ -1553,7 +1571,7 @@
             { text: "Bank dividend pays out. Collect $50.", action: "cash", value: 50 },
             { text: "Get Out of Jail Free — keep this card until needed.", action: "goojf" },
             { text: "Go Back 3 Spaces.", action: "go_back", value: 3 },
-            { text: "Go directly to Jail. Do not pass GO.", action: "advance_to", target: 10, is_jail: true },
+            { text: "Go directly to Jail. Do not pass GO.", action: "advance_to", target: 0, is_jail: true },
             { text: "Building repairs: pay $25 per house and $100 per hotel you own.", action: "repairs", houseCost: 25, hotelCost: 100 },
             { text: "Speeding fine. Pay $15.", action: "cash", value: -15 },
             { text: "Advance to Trans-Siberian Railroad. If you pass GO, collect $200.", action: "advance_to", target: 5 },
@@ -1564,7 +1582,7 @@
             { text: "Doctor's fees. Pay $50.", action: "cash", value: -50 },
             { text: "Advance to START. Collect $200.", action: "advance_go" },
             { text: "Get Out of Jail Free — keep this card until needed.", action: "goojf" },
-            { text: "Go directly to Jail. Do not pass GO.", action: "advance_to", target: 10, is_jail: true },
+            { text: "Go directly to Jail. Do not pass GO.", action: "advance_to", target: 0, is_jail: true },
             { text: "Grand Opera Night — collect $50 from every player.", action: "collect_each_player", value: 50 },
             { text: "Holiday fund matures. Collect $100.", action: "cash", value: 100 },
             { text: "Income tax refund. Collect $20.", action: "cash", value: 20 },
@@ -1622,7 +1640,7 @@
             return (p?.name || '?').charAt(0).toUpperCase();
         }
 
-        const CORNER_ICONS = { 0: '➜', 10: '🔒', 20: '🅿️', 30: '🚔' };
+        const CORNER_ICONS = { 10: '➜', 0: '🔒', 30: '🏖️', 20: '🚔' };
 
         const SPACE_ICONS = {
             1: '🇬🇷', 3: '🇨🇾',                         // brown: Greece, Cyprus
@@ -1660,6 +1678,10 @@
                 const side = isCorner ? '' : sideForSpaceId(space.id);
                 div.className = `board-space space-${space.id} ${isCorner ? 'corner-space' : ''} ${side}`.trim();
                 div.id = `space-card-${space.id}`;
+                if (["property", "railroad", "utility"].includes(space.type)) {
+                    div.classList.add("prop-modal-clickable");
+                    div.addEventListener("click", () => openPropertyModal(space.id));
+                }
 
                 if (isCorner) {
                     const icon = document.createElement("div");
@@ -1980,7 +2002,7 @@
             const startingGoojf = {};
             orders.forEach(uid => {
                 startingBalances[uid] = startingCash;
-                startingPositions[uid] = 0;
+                startingPositions[uid] = 10;
                 startingJail[uid] = false;
                 startingBankrupt[uid] = false;
                 startingGoojf[uid] = 0;
@@ -2003,7 +2025,7 @@
                 pendingTrade: null,
                 freeParkingPot: 0,
                 houseRules,
-                activityLog: [{ msg: `Game started! Starting cash: $${startingCash}. ${freeParkingJackpot ? 'Free Parking jackpot ON.' : ''} ${!auctionsEnabled ? 'Auctions disabled.' : ''} ${!tradingEnabled ? 'Trading disabled.' : ''}`.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]
+                activityLog: [{ msg: `Game started! Starting cash: $${startingCash}. ${freeParkingJackpot ? 'Vacation jackpot ON.' : ''} ${!auctionsEnabled ? 'Auctions disabled.' : ''} ${!tradingEnabled ? 'Trading disabled.' : ''}`.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]
             });
         }
 
@@ -2077,8 +2099,6 @@
             
             const buyWrapper = document.getElementById("buyActionWrapper");
             const jailWrapper = document.getElementById("jailControlsWrapper");
-            const housingWrapper = document.getElementById("housingControlWrapper");
-            const mortgageWrapper = document.getElementById("mortgageControlWrapper");
             const auctionWrapper = document.getElementById("auctionWrapper");
 
             // Auction UI overrides everything else and is shown to ANY
@@ -2090,8 +2110,6 @@
                 statusAlert.classList.add("hidden");
                 buyWrapper.classList.add("hidden");
                 jailWrapper.classList.add("hidden");
-                housingWrapper.classList.add("hidden");
-                mortgageWrapper.classList.add("hidden");
                 document.getElementById("btnRollDice").classList.add("hidden");
                 document.getElementById("btnEndTurn").classList.add("hidden");
                 document.getElementById("actionPrompt").textContent = `🔨 Auction in progress: ${BOARD_DATA[state.auction.spaceId].name}`;
@@ -2111,8 +2129,6 @@
 
                 if (state.turnPhase === "roll") {
                     buyWrapper.classList.add("hidden");
-                    housingWrapper.classList.add("hidden");
-                    mortgageWrapper.classList.add("hidden");
                     document.getElementById("btnOpenTrade").classList.add("hidden");
                     
                     if (isJailed) {
@@ -2144,51 +2160,7 @@
                         buyWrapper.classList.add("hidden");
                     }
 
-                    // Check for construction improvement availability (Monopoly group owned)
-                    if (space.type === "property" && owner === localUser.uid && !state.propertyMortgaged?.[currentPos]) {
-                        const sameGroupSpaces = BOARD_DATA.filter(s => s.group === space.group);
-                        const ownsAll = sameGroupSpaces.every(s => state.properties?.[s.id] === localUser.uid);
-                        const currentHouses = state.propertyHouses?.[currentPos] || 0;
-                        const minHousesInGroup = Math.min(...sameGroupSpaces.map(s => state.propertyHouses?.[s.id] || 0));
-
-                        if (ownsAll && currentHouses < 5 && currentHouses <= minHousesInGroup) {
-                            housingWrapper.classList.remove("hidden");
-                            const buildBtn = document.getElementById("btnBuildHouse");
-                            buildBtn.textContent = currentHouses === 4 ? `Build Hotel (-$${space.houseCost})` : `Build House (-$${space.houseCost})`;
-                        } else {
-                            housingWrapper.classList.add("hidden");
-                        }
-                    } else {
-                        housingWrapper.classList.add("hidden");
-                    }
-
-                    // Mortgage / unmortgage controls for the space you're on
-                    if (["property", "railroad", "utility"].includes(space.type) && owner === localUser.uid) {
-                        const isMortgaged = !!state.propertyMortgaged?.[currentPos];
-                        const houses = state.propertyHouses?.[currentPos] || 0;
-                        const mortgageValue = Math.floor(space.cost / 2);
-                        const payoff = Math.ceil(mortgageValue * 1.1);
-                        const mortgageBtn = document.getElementById("btnMortgage");
-                        const unmortgageBtn = document.getElementById("btnUnmortgage");
-
-                        if (isMortgaged) {
-                            mortgageWrapper.classList.remove("hidden");
-                            mortgageBtn.classList.add("hidden");
-                            unmortgageBtn.classList.remove("hidden");
-                            unmortgageBtn.textContent = `Unmortgage (-$${payoff})`;
-                        } else if (houses === 0) {
-                            mortgageWrapper.classList.remove("hidden");
-                            mortgageBtn.classList.remove("hidden");
-                            unmortgageBtn.classList.add("hidden");
-                            mortgageBtn.textContent = `Mortgage for $${mortgageValue}`;
-                        } else {
-                            mortgageWrapper.classList.add("hidden");
-                        }
-                    } else {
-                        mortgageWrapper.classList.add("hidden");
-                    }
-
-                    document.getElementById("actionPrompt").textContent = "Actions complete. Pass turn when ready.";
+                    document.getElementById("actionPrompt").textContent = "Actions complete. Click any of your properties on the board to manage houses or mortgages. Pass turn when ready.";
 
                     // Show trade button if trading is enabled and there are non-bankrupt opponents
                     const tradingOn = state.houseRules?.tradingEnabled !== false;
@@ -2203,35 +2175,73 @@
                 statusAlert.classList.remove("hidden");
                 buyWrapper.classList.add("hidden");
                 jailWrapper.classList.add("hidden");
-                housingWrapper.classList.add("hidden");
-                mortgageWrapper.classList.add("hidden");
                 statusAlert.textContent = `Waiting for ${activeName} to complete their turn...`;
                 document.getElementById("btnOpenTrade").classList.add("hidden");
             }
         }
 
         // Renders the auction bidding panel. Shown to everyone while an
-        // auction is live; only the player whose turn it is in the bid
-        // order sees the actual bid/pass controls.
+        // auction is live — any player, including whoever started the
+        // auction, can add to the bid at any time via the quick-bid
+        // buttons until the countdown runs out.
         function renderAuctionPanel(state) {
             const auction = state.auction;
             const space = BOARD_DATA[auction.spaceId];
             const wrapper = document.getElementById("auctionWrapper");
             const statusEl = document.getElementById("auctionStatus");
-            const controls = document.getElementById("auctionBidderControls");
 
             wrapper.classList.remove("hidden");
             const highBidderName = auction.highBidder ? shortNameFor(auction.highBidder) : "No bids yet";
-            statusEl.textContent = `${space.name} — High bid: $${auction.highBid} (${highBidderName})`;
+            statusEl.textContent = `🔨 ${space.name} — High bid: $${auction.highBid} (${highBidderName})`;
 
-            const currentBidderUid = auction.order[auction.cursor % auction.order.length];
-            if (currentBidderUid === localUser.uid) {
-                controls.classList.remove("hidden");
-                document.getElementById("auctionBidInput").min = auction.highBid + 1;
-                document.getElementById("auctionBidInput").placeholder = `Min $${auction.highBid + 1}`;
-            } else {
-                controls.classList.add("hidden");
+            const controls = document.getElementById("auctionBidderControls");
+            const canBid = auction.participants.includes(localUser.uid);
+            controls.classList.toggle("hidden", !canBid);
+
+            const currentBalance = state.playerBalances?.[localUser.uid] || 0;
+            document.querySelectorAll(".auction-quick-bid").forEach(btn => {
+                const increment = parseInt(btn.dataset.increment, 10);
+                const wouldBe = auction.highBid + increment;
+                btn.disabled = wouldBe > currentBalance;
+                btn.classList.toggle("opacity-40", btn.disabled);
+                btn.classList.toggle("cursor-not-allowed", btn.disabled);
+            });
+
+            renderAuctionTimer(state);
+        }
+
+        // Ticks the auction countdown once a second and resolves the
+        // auction on any client once the timer runs out. Firestore's
+        // "last write wins" + the null-check inside resolveAuction keep
+        // this safe if multiple clients race to close it out.
+        let auctionTickInterval = null;
+        function renderAuctionTimer(state) {
+            const auction = state.auction;
+            const timerEl = document.getElementById("auctionTimer");
+            if (!auction || !auction.endsAt) {
+                if (timerEl) timerEl.textContent = "";
+                return;
             }
+
+            function tick() {
+                if (!cachedGameState?.auction || cachedGameState.auction.endsAt !== auction.endsAt) {
+                    clearInterval(auctionTickInterval);
+                    auctionTickInterval = null;
+                    return;
+                }
+                const remainingMs = auction.endsAt - Date.now();
+                const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
+                timerEl.textContent = `⏱ 0:${String(remainingSec).padStart(2, '0')}`;
+                if (remainingMs <= 0) {
+                    clearInterval(auctionTickInterval);
+                    auctionTickInterval = null;
+                    resolveAuction(auction);
+                }
+            }
+
+            if (auctionTickInterval) clearInterval(auctionTickInterval);
+            tick();
+            auctionTickInterval = setInterval(tick, 250);
         }
 
         function renderLedger(state) {
@@ -2322,7 +2332,7 @@
             const newStreak = isDoubles ? priorStreak + 1 : 0;
 
             if (isDoubles && newStreak >= 3) {
-                updatedPositions[localUser.uid] = 10;
+                updatedPositions[localUser.uid] = 0;
                 updatedJail[localUser.uid] = true;
                 showToast("Three doubles in a row — straight to Jail!", "error");
                 logEntries.push({ msg: `${myName} rolled three doubles in a row and was sent to Jail!`, tag: 'rent' });
@@ -2349,7 +2359,7 @@
             const targetSpace = BOARD_DATA[nextPos];
             let sentToJail = false;
             if (targetSpace.type === "gotojail") {
-                nextPos = 10; // Instantly snap to prison ward
+                nextPos = 0; // Instantly snap to prison ward
                 updatedJail[localUser.uid] = true;
                 sentToJail = true;
                 showToast("Sent directly to Jail!", "error");
@@ -2391,18 +2401,18 @@
                     }
                 } else if (card.action === "advance_go") {
                     // Only collect $200 if not already on GO
-                    if (nextPos !== 0) {
+                    if (nextPos !== 10) {
                         updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + 200;
                         logEntries.push({ msg: `${myName} advanced to GO and collected $200.`, tag: 'buy' });
                     }
-                    nextPos = 0;
-                    updatedPositions[localUser.uid] = 0;
+                    nextPos = 10;
+                    updatedPositions[localUser.uid] = 10;
                 } else if (card.action === "advance_to") {
                     const dest = card.target;
                     const isJailDest = card.is_jail;
                     if (isJailDest) {
-                        nextPos = 10;
-                        updatedPositions[localUser.uid] = 10;
+                        nextPos = 0;
+                        updatedPositions[localUser.uid] = 0;
                         updatedJail[localUser.uid] = true;
                         sentToJail = true;
                         logEntries.push({ msg: `${myName} was sent to Jail by a card!`, tag: 'rent' });
@@ -2505,8 +2515,8 @@
             // Free Parking landing — collect the pot if house rule is on
             if (!sentToJail && targetSpace.type === "parking" && houseRules.freeParkingJackpot && freeParkingPot > 0) {
                 updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + freeParkingPot;
-                logEntries.push({ msg: `${myName} landed on Free Parking and collected the $${freeParkingPot} jackpot! 🅿️`, tag: 'buy' });
-                showToast(`Free Parking Jackpot! Collected $${freeParkingPot}!`, "success");
+                logEntries.push({ msg: `${myName} landed on Vacation and collected the $${freeParkingPot} jackpot! 🏖️`, tag: 'buy' });
+                showToast(`Vacation Jackpot! Collected $${freeParkingPot}!`, "success");
                 freeParkingPot = 0;
             }
 
@@ -2705,9 +2715,97 @@
             document.getElementById("buyActionWrapper").classList.add("hidden");
         }
 
+        // ─────────────────────────────────────────────
+        // Property management modal — opened by clicking any property,
+        // railroad, or utility space on the board. Houses and mortgages
+        // are managed here rather than in the live action hub. Only the
+        // active player, on their own turn, sees build/mortgage controls;
+        // anyone can open the modal to view a space's details.
+        // ─────────────────────────────────────────────
+        let selectedPropertySpaceId = null;
+
+        function openPropertyModal(spaceId) {
+            if (!cachedGameState) return;
+            const space = BOARD_DATA[spaceId];
+            if (!space) return;
+            selectedPropertySpaceId = spaceId;
+
+            const state = cachedGameState;
+            const owner = state.properties?.[spaceId];
+            const isMortgaged = !!state.propertyMortgaged?.[spaceId];
+            const houses = state.propertyHouses?.[spaceId] || 0;
+            const orders = state.playersOrder || [];
+            const activePlayerUid = orders[state.turnIndex];
+            const isMyTurn = activePlayerUid === localUser.uid && state.turnPhase !== "roll" && !state.auction;
+            const isMine = owner === localUser.uid;
+
+            document.getElementById("propModalTitle").textContent = space.name;
+
+            // ── Info block ──
+            const infoLines = [];
+            infoLines.push(`Price: $${space.cost}`);
+            if (owner) {
+                infoLines.push(`Owner: ${owner === localUser.uid ? 'You' : (shortNameFor(owner) || 'Another player')}${isMortgaged ? ' (Mortgaged)' : ''}`);
+            } else {
+                infoLines.push(`Owner: Unowned`);
+            }
+            if (space.type === "property" && houses > 0) {
+                infoLines.push(houses === 5 ? `Improvements: Hotel` : `Improvements: ${houses} house${houses > 1 ? 's' : ''}`);
+            }
+            document.getElementById("propModalInfo").innerHTML = infoLines.map(l => `<div>${l}</div>`).join('');
+
+            // ── Action buttons ──
+            const buildBtn = document.getElementById("btnBuildHouse");
+            const mortgageBtn = document.getElementById("btnMortgage");
+            const unmortgageBtn = document.getElementById("btnUnmortgage");
+            const hint = document.getElementById("propModalHint");
+            buildBtn.classList.add("hidden");
+            mortgageBtn.classList.add("hidden");
+            unmortgageBtn.classList.add("hidden");
+            hint.classList.add("hidden");
+
+            if (isMine && isMyTurn) {
+                // Build house/hotel — only for color-group properties with monopoly, evenly built, not mortgaged
+                if (space.type === "property" && !isMortgaged) {
+                    const sameGroupSpaces = BOARD_DATA.filter(s => s.group === space.group);
+                    const ownsAll = sameGroupSpaces.every(s => state.properties?.[s.id] === localUser.uid);
+                    const minHousesInGroup = Math.min(...sameGroupSpaces.map(s => state.propertyHouses?.[s.id] || 0));
+                    if (ownsAll && houses < 5 && houses <= minHousesInGroup) {
+                        buildBtn.classList.remove("hidden");
+                        buildBtn.textContent = houses === 4 ? `🏨 Build Hotel (-$${space.houseCost})` : `🏠 Build House (-$${space.houseCost})`;
+                    }
+                }
+
+                // Mortgage / unmortgage
+                if (isMortgaged) {
+                    const mortgageValue = Math.floor(space.cost / 2);
+                    const payoff = Math.ceil(mortgageValue * 1.1);
+                    unmortgageBtn.classList.remove("hidden");
+                    unmortgageBtn.textContent = `💵 Unmortgage (-$${payoff})`;
+                } else if (houses === 0) {
+                    const mortgageValue = Math.floor(space.cost / 2);
+                    mortgageBtn.classList.remove("hidden");
+                    mortgageBtn.textContent = `🏦 Mortgage for $${mortgageValue}`;
+                } else {
+                    hint.textContent = "Sell back houses/hotels before mortgaging.";
+                    hint.classList.remove("hidden");
+                }
+            } else if (isMine && !isMyTurn) {
+                hint.textContent = "You can manage this property on your own turn.";
+                hint.classList.remove("hidden");
+            }
+
+            document.getElementById("propertyModal").classList.remove("hidden");
+        }
+
+        function closePropertyModal() {
+            document.getElementById("propertyModal").classList.add("hidden");
+            selectedPropertySpaceId = null;
+        }
+
         async function buildPropertyImprovement() {
-            if (!currentRoomCode || !cachedGameState) return;
-            const currentPos = cachedGameState.playerPositions[localUser.uid] || 0;
+            if (!currentRoomCode || !cachedGameState || selectedPropertySpaceId === null) return;
+            const currentPos = selectedPropertySpaceId;
             const space = BOARD_DATA[currentPos];
 
             const currentBalance = cachedGameState.playerBalances[localUser.uid] || 0;
@@ -2738,14 +2836,15 @@
             await updateDoc(doc(db, "rooms", currentRoomCode), payload);
 
             showToast(`Upgraded infrastructure at ${space.name}!`, "success");
+            closePropertyModal();
         }
 
         // Mortgaging: sell a property back to the bank for half its listed
         // price. Mortgaged properties collect no rent until unmortgaged.
         // Can't mortgage a property that still has houses/hotels built.
         async function mortgageCurrentProperty() {
-            if (!currentRoomCode || !cachedGameState) return;
-            const currentPos = cachedGameState.playerPositions[localUser.uid] || 0;
+            if (!currentRoomCode || !cachedGameState || selectedPropertySpaceId === null) return;
+            const currentPos = selectedPropertySpaceId;
             const space = BOARD_DATA[currentPos];
             if (!["property", "railroad", "utility"].includes(space.type)) return;
             if (cachedGameState.properties?.[currentPos] !== localUser.uid) return;
@@ -2765,13 +2864,14 @@
             withLog(payload, [{ msg: `${shortNameFor(localUser.uid)} mortgaged ${space.name} for $${mortgageValue}.`, tag: 'buy' }]);
             await updateDoc(doc(db, "rooms", currentRoomCode), payload);
             showToast(`Mortgaged ${space.name} for $${mortgageValue}.`, "success");
+            closePropertyModal();
         }
 
         // Unmortgaging: pay back the mortgage value plus 10% interest,
         // matching standard Monopoly/Richup convention.
         async function unmortgageCurrentProperty() {
-            if (!currentRoomCode || !cachedGameState) return;
-            const currentPos = cachedGameState.playerPositions[localUser.uid] || 0;
+            if (!currentRoomCode || !cachedGameState || selectedPropertySpaceId === null) return;
+            const currentPos = selectedPropertySpaceId;
             const space = BOARD_DATA[currentPos];
             if (cachedGameState.properties?.[currentPos] !== localUser.uid) return;
             if (!cachedGameState.propertyMortgaged?.[currentPos]) return;
@@ -2793,13 +2893,18 @@
             withLog(payload, [{ msg: `${shortNameFor(localUser.uid)} paid $${payoff} to unmortgage ${space.name}.`, tag: 'buy' }]);
             await updateDoc(doc(db, "rooms", currentRoomCode), payload);
             showToast(`Unmortgaged ${space.name}!`, "success");
+            closePropertyModal();
         }
 
         // ─────────────────────────────────────────────
         // Auctions — triggered when the active player declines to buy an
-        // unowned property they land on. All other (non-bankrupt) players
-        // get one bid-or-pass action in turn order; highest bidder wins.
+        // unowned property they land on. Every non-bankrupt player,
+        // including whoever declined and started the auction, can add to
+        // the bid at any time via quick-bid buttons. The auction runs for
+        // 60 seconds and the highest bid when time runs out wins.
         // ─────────────────────────────────────────────
+        const AUCTION_DURATION_MS = 60 * 1000;
+
         async function declinePurchaseAndAuction() {
             if (!currentRoomCode || !cachedGameState) return;
             const currentPos = cachedGameState.playerPositions[localUser.uid] || 0;
@@ -2814,86 +2919,69 @@
             }
 
             const orders = cachedGameState.playersOrder || [];
-            const bidOrder = orders.filter(uid => uid !== localUser.uid && !cachedGameState.playerBankrupt?.[uid]);
+            const participants = orders.filter(uid => !cachedGameState.playerBankrupt?.[uid]);
 
-            if (bidOrder.length === 0) {
-                // No one else to bid — auction fizzles, property stays unowned.
+            if (participants.length === 0) {
+                // No one able to bid — auction fizzles, property stays unowned.
                 document.getElementById("buyActionWrapper").classList.add("hidden");
                 return;
             }
 
             const payload = {
-                auction: { spaceId: currentPos, highBid: 0, highBidder: null, order: bidOrder, cursor: 0, passed: [] }
+                auction: { spaceId: currentPos, highBid: 0, highBidder: null, participants, endsAt: Date.now() + AUCTION_DURATION_MS }
             };
-            withLog(payload, [{ msg: `${shortNameFor(localUser.uid)} declined to buy ${space.name} — auction started!`, tag: 'buy' }]);
+            withLog(payload, [{ msg: `${shortNameFor(localUser.uid)} declined to buy ${space.name} — auction started! Everyone has 60 seconds to bid.`, tag: 'buy' }]);
             await updateDoc(doc(db, "rooms", currentRoomCode), payload);
-            showToast(`Auctioning ${space.name}!`, "info");
+            showToast(`Auctioning ${space.name}! 60 seconds to bid.`, "info");
         }
 
-        function activeAuctionBidderUid() {
-            const auction = cachedGameState?.auction;
-            if (!auction) return null;
-            return auction.order[auction.cursor % auction.order.length];
-        }
-
-        async function submitAuctionBid(amount) {
+        async function submitAuctionQuickBid(increment) {
             if (!currentRoomCode || !cachedGameState?.auction) return;
             const auction = cachedGameState.auction;
-            if (activeAuctionBidderUid() !== localUser.uid) return;
+            if (!auction.participants.includes(localUser.uid)) return;
+            if (Date.now() >= auction.endsAt) return;
 
+            const amount = auction.highBid + increment;
             const currentBalance = cachedGameState.playerBalances[localUser.uid] || 0;
-            if (amount <= auction.highBid || amount > currentBalance) {
-                showToast("Bid must beat the current high bid and be within your balance.", "error");
+            if (amount > currentBalance) {
+                showToast("That bid is more than your balance.", "error");
                 return;
             }
-            await advanceAuction({ highBid: amount, highBidder: localUser.uid });
+
+            await updateDoc(doc(db, "rooms", currentRoomCode), {
+                auction: { ...auction, highBid: amount, highBidder: localUser.uid }
+            });
         }
 
-        async function passAuctionBid() {
+        // Resolves an auction once its timer expires. Safe to call from
+        // multiple clients simultaneously — the auction-still-live check
+        // means only the first successful write actually closes it out,
+        // and later calls become no-ops once `auction` is null.
+        async function resolveAuction(auction) {
             if (!currentRoomCode || !cachedGameState?.auction) return;
-            if (activeAuctionBidderUid() !== localUser.uid) return;
-            const auction = cachedGameState.auction;
-            await advanceAuction({ passed: [...auction.passed, localUser.uid] });
-        }
+            if (cachedGameState.auction.endsAt !== auction.endsAt) return; // already resolved / superseded
 
-        async function advanceAuction(delta) {
-            const auction = { ...cachedGameState.auction, ...delta };
-            const remaining = auction.order.filter(uid => !auction.passed.includes(uid));
+            const updatedProperties = { ...cachedGameState.properties };
+            const updatedBalances = { ...cachedGameState.playerBalances };
+            const space = BOARD_DATA[auction.spaceId];
+            const logEntries = [];
 
-            // Auction ends when everyone but (at most) the high bidder has
-            // passed, or everyone has passed with no bids at all.
-            const stillIn = remaining.length;
-            const shouldEnd = (auction.highBidder && stillIn <= 1) || (!auction.highBidder && remaining.length === 0);
-
-            if (shouldEnd) {
-                const updatedProperties = { ...cachedGameState.properties };
-                const updatedBalances = { ...cachedGameState.playerBalances };
-                const space = BOARD_DATA[auction.spaceId];
-                const logEntries = [];
-
-                if (auction.highBidder) {
-                    updatedProperties[auction.spaceId] = auction.highBidder;
-                    updatedBalances[auction.highBidder] = (updatedBalances[auction.highBidder] || 0) - auction.highBid;
-                    logEntries.push({ msg: `${shortNameFor(auction.highBidder)} won the auction for ${space.name} at $${auction.highBid}.`, tag: 'buy' });
-                } else {
-                    logEntries.push({ msg: `Auction for ${space.name} closed with no bids.` });
-                }
-
-                const payload = { properties: updatedProperties, playerBalances: updatedBalances, auction: null };
-                withLog(payload, logEntries);
-                await updateDoc(doc(db, "rooms", currentRoomCode), payload);
-                document.getElementById("buyActionWrapper").classList.add("hidden");
-                return;
+            if (auction.highBidder) {
+                updatedProperties[auction.spaceId] = auction.highBidder;
+                updatedBalances[auction.highBidder] = (updatedBalances[auction.highBidder] || 0) - auction.highBid;
+                logEntries.push({ msg: `${shortNameFor(auction.highBidder)} won the auction for ${space.name} at $${auction.highBid}.`, tag: 'buy' });
+            } else {
+                logEntries.push({ msg: `Auction for ${space.name} closed with no bids.` });
             }
 
-            // Move cursor to the next bidder still in the running.
-            let nextCursor = auction.cursor;
-            do {
-                nextCursor = (nextCursor + 1) % auction.order.length;
-            } while (auction.passed.includes(auction.order[nextCursor]));
-            auction.cursor = nextCursor;
-
-            await updateDoc(doc(db, "rooms", currentRoomCode), { auction });
+            const payload = { properties: updatedProperties, playerBalances: updatedBalances, auction: null };
+            withLog(payload, logEntries);
+            try {
+                await updateDoc(doc(db, "rooms", currentRoomCode), payload);
+            } catch (err) {
+                // Another client likely resolved it first — safe to ignore.
+            }
+            document.getElementById("buyActionWrapper").classList.add("hidden");
         }
 
         // ─────────────────────────────────────────────
@@ -3292,6 +3380,8 @@
         document.getElementById("btnUseGoojf").addEventListener("click", useGoojfCard);
         document.getElementById("btnMortgage").addEventListener("click", mortgageCurrentProperty);
         document.getElementById("btnUnmortgage").addEventListener("click", unmortgageCurrentProperty);
+        document.getElementById("closePropertyModalBtn").addEventListener("click", closePropertyModal);
+        document.getElementById("propertyModal").addEventListener("click", e => { if (e.target.id === "propertyModal") closePropertyModal(); });
         // ── House rules cash toggle ──
         document.querySelectorAll('.hr-cash-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -3340,16 +3430,9 @@
         document.getElementById("btnAcceptTrade").addEventListener("click", acceptTrade);
         document.getElementById("btnRejectTrade").addEventListener("click", rejectTrade);
 
-        document.getElementById("btnSubmitBid").addEventListener("click", () => {
-            const amount = parseInt(document.getElementById("auctionBidInput").value, 10);
-            if (!Number.isFinite(amount) || amount <= 0) {
-                showToast("Enter a valid bid amount.", "error");
-                return;
-            }
-            submitAuctionBid(amount);
-            document.getElementById("auctionBidInput").value = "";
+        document.querySelectorAll(".auction-quick-bid").forEach(btn => {
+            btn.addEventListener("click", () => submitAuctionQuickBid(parseInt(btn.dataset.increment, 10)));
         });
-        document.getElementById("btnPassBid").addEventListener("click", passAuctionBid);
         document.getElementById("btnEndTurn").addEventListener("click", stepNextTurn);
         document.getElementById("exitButton").addEventListener("click", exitToHub);
 

@@ -695,18 +695,40 @@
                             <button id="btnPayJailFine" class="py-2 bg-amber-700 hover:bg-amber-600 font-bold rounded-lg text-white">Pay $50 Fine</button>
                             <button id="btnRollJailEscape" class="py-2 bg-slate-800 hover:bg-slate-700 font-bold rounded-lg text-slate-300">Roll for Doubles</button>
                         </div>
+                        <button id="btnUseGoojf" class="hidden w-full py-2 bg-violet-700 hover:bg-violet-600 font-bold rounded-lg text-white">Use Get Out of Jail Free Card</button>
                     </div>
 
                     <div id="buyActionWrapper" class="hidden bg-[#1a2530] p-3 rounded-xl border border-slate-700 space-y-2">
                         <div id="buyPropertyDescription" class="text-xs text-slate-300"></div>
-                        <button id="btnBuyProperty" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition">
-                            💸 Buy Asset
-                        </button>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="btnBuyProperty" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition">
+                                💸 Buy Asset
+                            </button>
+                            <button id="btnDeclineAuction" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-lg text-xs transition">
+                                🔨 Auction It
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="auctionWrapper" class="hidden bg-[#1a2530] p-3 rounded-xl border border-amber-700/50 space-y-2 text-xs">
+                        <p id="auctionStatus" class="text-amber-300 font-medium"></p>
+                        <div id="auctionBidderControls" class="hidden space-y-2">
+                            <div class="flex gap-2">
+                                <input id="auctionBidInput" type="number" min="1" step="1" placeholder="Bid amount" class="flex-1 bg-[#0d1319] border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs">
+                                <button id="btnSubmitBid" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 font-bold rounded-lg text-white">Bid</button>
+                            </div>
+                            <button id="btnPassBid" class="w-full py-1.5 bg-slate-700 hover:bg-slate-600 font-bold rounded-lg text-slate-300">Pass</button>
+                        </div>
                     </div>
 
                     <div id="housingControlWrapper" class="hidden bg-[#1a2530] p-3 rounded-xl border border-slate-700 space-y-2 text-xs">
                         <p class="text-slate-300 font-medium">✨ Group Monopoly Unlocked! Improve this space:</p>
                         <button id="btnBuildHouse" class="w-full py-1.5 bg-blue-600 hover:bg-blue-500 font-bold rounded text-white"></button>
+                    </div>
+
+                    <div id="mortgageControlWrapper" class="hidden bg-[#1a2530] p-3 rounded-xl border border-slate-700 space-y-2 text-xs">
+                        <button id="btnMortgage" class="hidden w-full py-1.5 bg-orange-700 hover:bg-orange-600 font-bold rounded text-white"></button>
+                        <button id="btnUnmortgage" class="hidden w-full py-1.5 bg-emerald-700 hover:bg-emerald-600 font-bold rounded text-white"></button>
                     </div>
 
                     <div class="flex gap-2">
@@ -742,15 +764,27 @@
                 <p><strong class="text-white">Goal:</strong> Bankrupt every other player. Last tycoon standing wins.</p>
                 <div class="space-y-1.5">
                     <h4 class="font-bold text-[#9585f8] uppercase text-xs tracking-wider">Your Turn</h4>
-                    <p class="text-xs">Roll the dice to move around the board. Land on an unowned property, railroad, or utility and you can buy it. Land on someone else's and you'll owe rent automatically.</p>
+                    <p class="text-xs">Roll the dice to move around the board. Land on an unowned property, railroad, or utility and you can buy it or send it to auction. Land on someone else's and you'll owe rent automatically. Rolling doubles gives you another turn — but three doubles in a row sends you straight to Jail.</p>
+                </div>
+                <div class="space-y-1.5">
+                    <h4 class="font-bold text-[#9585f8] uppercase text-xs tracking-wider">Rent</h4>
+                    <p class="text-xs">Owning every property in a color group doubles the base rent, even with no houses built. Railroad rent scales with how many railroads you own; utility rent is a multiple of the dice roll (4× with one utility, 10× with both).</p>
                 </div>
                 <div class="space-y-1.5">
                     <h4 class="font-bold text-[#9585f8] uppercase text-xs tracking-wider">Building</h4>
-                    <p class="text-xs">Own every property in a color group and you can build houses (then a hotel at 5) to raise the rent on that space.</p>
+                    <p class="text-xs">Own every property in a color group and you can build houses (then a hotel at 5) to raise the rent on that space. Houses must be built evenly across the group — you can't stack them on one property while others in the set lag behind.</p>
+                </div>
+                <div class="space-y-1.5">
+                    <h4 class="font-bold text-[#9585f8] uppercase text-xs tracking-wider">Auctions</h4>
+                    <p class="text-xs">Decline to buy a property you land on and it goes to auction — every other player gets a turn to bid or pass, and the highest bidder wins it from the bank.</p>
+                </div>
+                <div class="space-y-1.5">
+                    <h4 class="font-bold text-[#9585f8] uppercase text-xs tracking-wider">Mortgaging</h4>
+                    <p class="text-xs">Need cash? Mortgage a property (with no houses on it) for half its price. Mortgaged properties collect no rent until you pay back the mortgage value plus 10% interest to unmortgage.</p>
                 </div>
                 <div class="space-y-1.5">
                     <h4 class="font-bold text-[#9585f8] uppercase text-xs tracking-wider">Jail</h4>
-                    <p class="text-xs">Landing on "Go To Jail" sends you straight there. Escape by paying a $50 fine or rolling doubles.</p>
+                    <p class="text-xs">Landing on "Go To Jail" sends you straight there. Escape by paying a $50 fine, rolling doubles (up to 3 attempts before the fine is charged automatically), or using a Get Out of Jail Free card if you've drawn one.</p>
                 </div>
                 <div class="space-y-1.5">
                     <h4 class="font-bold text-[#9585f8] uppercase text-xs tracking-wider">Bankruptcy</h4>
@@ -920,6 +954,7 @@
                 }
                 document.getElementById('dropdownName').textContent = name;
                 document.getElementById('dropdownEmail').textContent = localUser?.email || '';
+                applyLandingSignedState();
                 refreshLobbyNameField();
             });
         }
@@ -1020,12 +1055,25 @@
             const pass = document.getElementById('emailAuthPasswordInput').value;
             if (!email || !pass) { showEmailAuthError('missing'); return; }
             try {
+                let cred;
                 if (emailAuthMode === 'signin') {
-                    await signInWithEmailAndPassword(auth, email, pass);
+                    cred = await signInWithEmailAndPassword(auth, email, pass);
                 } else {
-                    await createUserWithEmailAndPassword(auth, email, pass);
+                    cred = await createUserWithEmailAndPassword(auth, email, pass);
                 }
                 closeEmailAuthModal();
+                // Don't wait on the async onAuthStateChanged listener to
+                // repaint the landing screen — apply it immediately using
+                // the credential we already have, the same way the Google
+                // popup path effectively resolves in one tick. This is
+                // what was missing before: email sign-in left the
+                // signed-out "Sign in" gate showing until something else
+                // happened to trigger a re-render.
+                localUser = cred.user;
+                guestChoiceMade = true;
+                renderHeaderAuthArea(cred.user);
+                applyLandingSignedState();
+                refreshLobbyNameField();
             } catch (e) { showEmailAuthError(e.message); }
         });
         document.getElementById('emailAuthPasswordInput').addEventListener('keydown', e => {
@@ -1248,7 +1296,8 @@
         const CHANCE_CARDS = [
             { text: "Global Market Rally! Collect $150", value: 150, action: "cash" },
             { text: "Aviation fuel surcharge penalty. Pay $50", value: -50, action: "cash" },
-            { text: "Advanced Research Grant awarded. Collect $100", value: 100, action: "cash" }
+            { text: "Advanced Research Grant awarded. Collect $100", value: 100, action: "cash" },
+            { text: "Get Out of Jail Free — keep this card until needed.", value: 0, action: "goojf" }
         ];
 
         const PLAYER_HUES = [140, 260, 20, 200, 320, 50];
@@ -1348,6 +1397,12 @@
             if (typeof refreshLobbyAvatarPreview === 'function') refreshLobbyAvatarPreview();
         }
 
+        function applyLandingSignedState() {
+            const showSignedIn = !!localUser && !localUser.isGuest || guestChoiceMade;
+            document.getElementById('signedOutLobbyArea').classList.toggle('hidden', showSignedIn);
+            document.getElementById('signedInLobbyArea').classList.toggle('hidden', !showSignedIn);
+        }
+
         onAuthStateChanged(auth, user => {
             renderHeaderAuthArea(user);
             const inActiveRoom = !!currentRoomCode;
@@ -1363,9 +1418,7 @@
             // signed-out gate is just a nudge, not a hard block, so once
             // someone chooses "Continue as Guest" it should stay dismissed
             // (tracked via guestChoiceMade) even though `user` is still null.
-            const showSignedIn = !!user || guestChoiceMade;
-            document.getElementById('signedOutLobbyArea').classList.toggle('hidden', showSignedIn);
-            document.getElementById('signedInLobbyArea').classList.toggle('hidden', !showSignedIn);
+            applyLandingSignedState();
             refreshLobbyNameField();
             if (!lobbyBootstrapped) {
                 lobbyBootstrapped = true;
@@ -1398,6 +1451,10 @@
                 playerBankrupt: {}, // uid -> true once balance goes negative and can't recover
                 properties: {}, // spaceId -> ownerId
                 propertyHouses: {}, // spaceId -> count
+                propertyMortgaged: {}, // spaceId -> true if mortgaged (no rent collectable)
+                playerGoojf: {}, // uid -> count of Get Out Of Jail Free cards held
+                doublesStreak: 0, // consecutive doubles rolled by the current player this turn
+                auction: null, // { spaceId, highBid, highBidder, order:[uids left to act], passed:[uids] } while an auction is live
                 createdAt: new Date().toISOString()
             };
 
@@ -1570,11 +1627,13 @@
             const startingPositions = {};
             const startingJail = {};
             const startingBankrupt = {};
+            const startingGoojf = {};
             orders.forEach(uid => {
                 startingBalances[uid] = 1500;
                 startingPositions[uid] = 0;
                 startingJail[uid] = false;
                 startingBankrupt[uid] = false;
+                startingGoojf[uid] = 0;
             });
 
             await updateDoc(doc(db, "rooms", currentRoomCode), {
@@ -1585,8 +1644,12 @@
                 playerPositions: startingPositions,
                 playerJailStatus: startingJail,
                 playerBankrupt: startingBankrupt,
+                playerGoojf: startingGoojf,
                 properties: {},
                 propertyHouses: {},
+                propertyMortgaged: {},
+                doublesStreak: 0,
+                auction: null,
                 activityLog: [{ msg: "Game started! Good luck.", time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]
             });
         }
@@ -1627,6 +1690,15 @@
                     badge.style.color = `hsl(${PLAYER_HUES[playerIdx % PLAYER_HUES.length]}, 100%, 65%)`;
                     badge.style.backgroundColor = `hsl(${PLAYER_HUES[playerIdx % PLAYER_HUES.length]}, 70%, 50%)`;
                     spaceCard.appendChild(badge);
+
+                    const isMortgaged = !!state.propertyMortgaged?.[spaceId];
+                    spaceCard.style.opacity = isMortgaged ? "0.45" : "";
+                    if (isMortgaged) {
+                        const mBadge = document.createElement("div");
+                        mBadge.textContent = "M";
+                        mBadge.style.cssText = "position:absolute;bottom:2px;right:2px;font-size:8px;font-weight:800;color:#f59e0b;background:#0d1319;border-radius:3px;padding:0 2px;z-index:5;";
+                        spaceCard.appendChild(mBadge);
+                    }
                 }
 
                 const count = houses[spaceId] || 0;
@@ -1653,6 +1725,28 @@
             const buyWrapper = document.getElementById("buyActionWrapper");
             const jailWrapper = document.getElementById("jailControlsWrapper");
             const housingWrapper = document.getElementById("housingControlWrapper");
+            const mortgageWrapper = document.getElementById("mortgageControlWrapper");
+            const auctionWrapper = document.getElementById("auctionWrapper");
+
+            // Auction UI overrides everything else and is shown to ANY
+            // eligible bidder, regardless of whose "turn" it nominally is —
+            // an auction is a cross-player mini-phase.
+            if (state.auction) {
+                renderAuctionPanel(state);
+                actionPanel.classList.remove("hidden");
+                statusAlert.classList.add("hidden");
+                buyWrapper.classList.add("hidden");
+                jailWrapper.classList.add("hidden");
+                housingWrapper.classList.add("hidden");
+                mortgageWrapper.classList.add("hidden");
+                document.getElementById("btnRollDice").classList.add("hidden");
+                document.getElementById("btnEndTurn").classList.add("hidden");
+                document.getElementById("actionPrompt").textContent = `🔨 Auction in progress: ${BOARD_DATA[state.auction.spaceId].name}`;
+                turnIndicator.textContent = "Auction";
+                turnIndicator.className = "font-mono text-xs bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full border border-amber-500/20";
+                return;
+            }
+            auctionWrapper.classList.add("hidden");
 
             if (isMyTurn) {
                 turnIndicator.textContent = "Your Turn";
@@ -1665,11 +1759,14 @@
                 if (state.turnPhase === "roll") {
                     buyWrapper.classList.add("hidden");
                     housingWrapper.classList.add("hidden");
+                    mortgageWrapper.classList.add("hidden");
                     
                     if (isJailed) {
                         jailWrapper.classList.remove("hidden");
                         document.getElementById("btnRollDice").classList.add("hidden");
                         document.getElementById("actionPrompt").textContent = "Select a method to escape incarceration before proceeding.";
+                        const goojfHeld = state.playerGoojf?.[localUser.uid] || 0;
+                        document.getElementById("btnUseGoojf").classList.toggle("hidden", goojfHeld < 1);
                     } else {
                         jailWrapper.classList.add("hidden");
                         document.getElementById("btnRollDice").classList.remove("hidden");
@@ -1694,12 +1791,13 @@
                     }
 
                     // Check for construction improvement availability (Monopoly group owned)
-                    if (space.type === "property" && owner === localUser.uid) {
+                    if (space.type === "property" && owner === localUser.uid && !state.propertyMortgaged?.[currentPos]) {
                         const sameGroupSpaces = BOARD_DATA.filter(s => s.group === space.group);
                         const ownsAll = sameGroupSpaces.every(s => state.properties?.[s.id] === localUser.uid);
                         const currentHouses = state.propertyHouses?.[currentPos] || 0;
+                        const minHousesInGroup = Math.min(...sameGroupSpaces.map(s => state.propertyHouses?.[s.id] || 0));
 
-                        if (ownsAll && currentHouses < 5) {
+                        if (ownsAll && currentHouses < 5 && currentHouses <= minHousesInGroup) {
                             housingWrapper.classList.remove("hidden");
                             const buildBtn = document.getElementById("btnBuildHouse");
                             buildBtn.textContent = currentHouses === 4 ? `Build Hotel (-$${space.houseCost})` : `Build House (-$${space.houseCost})`;
@@ -1708,6 +1806,32 @@
                         }
                     } else {
                         housingWrapper.classList.add("hidden");
+                    }
+
+                    // Mortgage / unmortgage controls for the space you're on
+                    if (["property", "railroad", "utility"].includes(space.type) && owner === localUser.uid) {
+                        const isMortgaged = !!state.propertyMortgaged?.[currentPos];
+                        const houses = state.propertyHouses?.[currentPos] || 0;
+                        const mortgageValue = Math.floor(space.cost / 2);
+                        const payoff = Math.ceil(mortgageValue * 1.1);
+                        const mortgageBtn = document.getElementById("btnMortgage");
+                        const unmortgageBtn = document.getElementById("btnUnmortgage");
+
+                        if (isMortgaged) {
+                            mortgageWrapper.classList.remove("hidden");
+                            mortgageBtn.classList.add("hidden");
+                            unmortgageBtn.classList.remove("hidden");
+                            unmortgageBtn.textContent = `Unmortgage (-$${payoff})`;
+                        } else if (houses === 0) {
+                            mortgageWrapper.classList.remove("hidden");
+                            mortgageBtn.classList.remove("hidden");
+                            unmortgageBtn.classList.add("hidden");
+                            mortgageBtn.textContent = `Mortgage for $${mortgageValue}`;
+                        } else {
+                            mortgageWrapper.classList.add("hidden");
+                        }
+                    } else {
+                        mortgageWrapper.classList.add("hidden");
                     }
 
                     document.getElementById("actionPrompt").textContent = "Actions complete. Pass turn when ready.";
@@ -1721,7 +1845,32 @@
                 buyWrapper.classList.add("hidden");
                 jailWrapper.classList.add("hidden");
                 housingWrapper.classList.add("hidden");
+                mortgageWrapper.classList.add("hidden");
                 statusAlert.textContent = `Waiting for Player ${shortId} to complete actions...`;
+            }
+        }
+
+        // Renders the auction bidding panel. Shown to everyone while an
+        // auction is live; only the player whose turn it is in the bid
+        // order sees the actual bid/pass controls.
+        function renderAuctionPanel(state) {
+            const auction = state.auction;
+            const space = BOARD_DATA[auction.spaceId];
+            const wrapper = document.getElementById("auctionWrapper");
+            const statusEl = document.getElementById("auctionStatus");
+            const controls = document.getElementById("auctionBidderControls");
+
+            wrapper.classList.remove("hidden");
+            const highBidderName = auction.highBidder ? shortNameFor(auction.highBidder) : "No bids yet";
+            statusEl.textContent = `${space.name} — High bid: $${auction.highBid} (${highBidderName})`;
+
+            const currentBidderUid = auction.order[auction.cursor % auction.order.length];
+            if (currentBidderUid === localUser.uid) {
+                controls.classList.remove("hidden");
+                document.getElementById("auctionBidInput").min = auction.highBid + 1;
+                document.getElementById("auctionBidInput").placeholder = `Min $${auction.highBid + 1}`;
+            } else {
+                controls.classList.add("hidden");
             }
         }
 
@@ -1756,12 +1905,43 @@
             }).join('');
         }
 
+        // Computes rent owed for a space given full game state context.
+        // Handles: mortgaged (no rent), monopoly base-rent doubling (owning
+        // full color set with 0 houses), railroad rent scaling by count
+        // owned, and utility rent as a dice-roll multiplier.
+        function computeRent(space, ownerUid, state, diceTotal) {
+            if (state.propertyMortgaged?.[space.id]) return 0;
+
+            if (space.type === "railroad") {
+                const ownedCount = BOARD_DATA.filter(s => s.type === "railroad" && state.properties?.[s.id] === ownerUid).length;
+                const idx = Math.max(0, Math.min(ownedCount - 1, space.rent.length - 1));
+                return space.rent[idx] || space.rent[0];
+            }
+
+            if (space.type === "utility") {
+                const ownedCount = BOARD_DATA.filter(s => s.type === "utility" && state.properties?.[s.id] === ownerUid).length;
+                const multiplier = ownedCount >= 2 ? 10 : 4;
+                return (diceTotal || 0) * multiplier;
+            }
+
+            const houses = state.propertyHouses?.[space.id] || 0;
+            if (houses > 0) return space.rent[houses] || space.rent[space.rent.length - 1];
+
+            // No houses: check for monopoly (full color group owned) which
+            // doubles base rent per Richup/Monopoly rules.
+            const sameGroupSpaces = BOARD_DATA.filter(s => s.group === space.group);
+            const ownsAll = sameGroupSpaces.every(s => state.properties?.[s.id] === ownerUid);
+            const baseRent = space.rent[0];
+            return ownsAll ? baseRent * 2 : baseRent;
+        }
+
         async function handleDiceRollSequence() {
             if (!currentRoomCode || !cachedGameState) return;
-            
+
             const d1 = Math.floor(Math.random() * 6) + 1;
             const d2 = Math.floor(Math.random() * 6) + 1;
             const totalRoll = d1 + d2;
+            const isDoubles = d1 === d2;
 
             const currentPos = cachedGameState.playerPositions[localUser.uid] || 0;
             let nextPos = (currentPos + totalRoll) % 40;
@@ -1772,8 +1952,32 @@
             const updatedProperties = { ...cachedGameState.properties };
             const updatedHouses = { ...cachedGameState.propertyHouses };
             const updatedBankrupt = { ...cachedGameState.playerBankrupt };
+            const updatedGoojf = { ...cachedGameState.playerGoojf };
             const myName = shortNameFor(localUser.uid);
-            const logEntries = [{ msg: `${myName} rolled ${d1}+${d2} (${totalRoll}).` }];
+            const logEntries = [{ msg: `${myName} rolled ${d1}+${d2}${isDoubles ? ' (doubles!)' : ''} (${totalRoll}).` }];
+
+            // Three doubles in a row sends you straight to jail, no
+            // movement on the third roll (Richup/Monopoly rule).
+            const priorStreak = cachedGameState.doublesStreak || 0;
+            const newStreak = isDoubles ? priorStreak + 1 : 0;
+
+            if (isDoubles && newStreak >= 3) {
+                updatedPositions[localUser.uid] = 10;
+                updatedJail[localUser.uid] = true;
+                showToast("Three doubles in a row — straight to Jail!", "error");
+                logEntries.push({ msg: `${myName} rolled three doubles in a row and was sent to Jail!`, tag: 'rent' });
+
+                const payload = {
+                    dice: [d1, d2],
+                    playerPositions: updatedPositions,
+                    playerJailStatus: updatedJail,
+                    doublesStreak: 0,
+                    turnPhase: "action"
+                };
+                withLog(payload, logEntries);
+                await updateDoc(doc(db, "rooms", currentRoomCode), payload);
+                return;
+            }
 
             if (nextPos < currentPos) {
                 updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + 200;
@@ -1783,35 +1987,46 @@
 
             // Check Go To Jail tracking rules
             const targetSpace = BOARD_DATA[nextPos];
+            let sentToJail = false;
             if (targetSpace.type === "gotojail") {
                 nextPos = 10; // Instantly snap to prison ward
                 updatedJail[localUser.uid] = true;
+                sentToJail = true;
                 showToast("Sent directly to Jail!", "error");
                 logEntries.push({ msg: `${myName} was sent to Jail!`, tag: 'rent' });
             }
             updatedPositions[localUser.uid] = nextPos;
 
             // Handle Rent Calculations
+            const finalSpace = BOARD_DATA[nextPos];
             const spaceOwner = cachedGameState.properties?.[nextPos];
-            if (spaceOwner && spaceOwner !== localUser.uid) {
-                const currentHouses = cachedGameState.propertyHouses?.[nextPos] || 0;
-                const finalRent = targetSpace.rent[currentHouses] || targetSpace.rent[0];
-                
-                updatedBalances[localUser.uid] -= finalRent;
-                updatedBalances[spaceOwner] = (updatedBalances[spaceOwner] || 0) + finalRent;
-                showToast(`Paid $${finalRent} rent to owner`, "error");
-                logEntries.push({ msg: `${myName} paid $${finalRent} rent on ${targetSpace.name}.`, tag: 'rent' });
+            if (spaceOwner && spaceOwner !== localUser.uid && !sentToJail) {
+                const finalRent = computeRent(finalSpace, spaceOwner, cachedGameState, totalRoll);
+                if (finalRent > 0) {
+                    updatedBalances[localUser.uid] -= finalRent;
+                    updatedBalances[spaceOwner] = (updatedBalances[spaceOwner] || 0) + finalRent;
+                    showToast(`Paid $${finalRent} rent to owner`, "error");
+                    logEntries.push({ msg: `${myName} paid $${finalRent} rent on ${finalSpace.name}.`, tag: 'rent' });
+                } else if (cachedGameState.propertyMortgaged?.[nextPos]) {
+                    logEntries.push({ msg: `${finalSpace.name} is mortgaged — no rent owed.` });
+                }
             }
 
             // Chance & Community Chest Card processing
-            if (["chance", "chest"].includes(targetSpace.type)) {
+            if (!sentToJail && ["chance", "chest"].includes(targetSpace.type)) {
                 const card = CHANCE_CARDS[Math.floor(Math.random() * CHANCE_CARDS.length)];
-                updatedBalances[localUser.uid] += card.value;
-                showToast(`Card Drawn: ${card.text}`, "info");
-                logEntries.push({ msg: `${myName} drew: ${card.text}` });
+                if (card.action === "goojf") {
+                    updatedGoojf[localUser.uid] = (updatedGoojf[localUser.uid] || 0) + 1;
+                    showToast(`Card Drawn: ${card.text}`, "info");
+                    logEntries.push({ msg: `${myName} drew a Get Out of Jail Free card.` });
+                } else {
+                    updatedBalances[localUser.uid] += card.value;
+                    showToast(`Card Drawn: ${card.text}`, "info");
+                    logEntries.push({ msg: `${myName} drew: ${card.text}` });
+                }
             }
 
-            if (targetSpace.type === "tax") {
+            if (!sentToJail && targetSpace.type === "tax") {
                 const taxAmount = targetSpace.rent[0];
                 updatedBalances[localUser.uid] -= taxAmount;
                 showToast(`Tax Applied! Deducted $${taxAmount}`, "error");
@@ -1824,6 +2039,11 @@
             const wentBankrupt = applyBankruptcyIfNeeded(localUser.uid, updatedBalances, updatedProperties, updatedHouses, updatedBankrupt);
             if (wentBankrupt) logEntries.push({ msg: `${myName} went bankrupt!`, tag: 'bankrupt' });
 
+            // Rolling doubles (and not jailed/bankrupt) earns another roll
+            // after finishing this turn's actions — handled by keeping
+            // turnPhase at "action" as normal; the extra-roll opportunity
+            // surfaces via the "Roll Again" button shown in stepNextTurn's
+            // UI logic instead of auto-advancing turnIndex.
             const payload = {
                 dice: [d1, d2],
                 playerPositions: updatedPositions,
@@ -1832,6 +2052,8 @@
                 properties: updatedProperties,
                 propertyHouses: updatedHouses,
                 playerBankrupt: updatedBankrupt,
+                playerGoojf: updatedGoojf,
+                doublesStreak: newStreak,
                 turnPhase: "action"
             };
             const winnerUpdate = checkForWinner(updatedBankrupt);
@@ -1880,12 +2102,38 @@
             updatedBalances[localUser.uid] -= 50;
             updatedJail[localUser.uid] = false;
 
-            await updateDoc(doc(db, "rooms", currentRoomCode), {
+            const payload = {
                 playerBalances: updatedBalances,
                 playerJailStatus: updatedJail,
+                doublesStreak: 0,
                 turnPhase: "roll"
-            });
+            };
+            withLog(payload, [{ msg: `${shortNameFor(localUser.uid)} paid a $50 fine to leave Jail.`, tag: 'rent' }]);
+            await updateDoc(doc(db, "rooms", currentRoomCode), payload);
             showToast("Paid $50 fine. Free to roll next turn!", "success");
+        }
+
+        async function useGoojfCard() {
+            if (!currentRoomCode || !cachedGameState) return;
+            const held = cachedGameState.playerGoojf?.[localUser.uid] || 0;
+            if (held < 1) {
+                showToast("You don't have a Get Out of Jail Free card.", "error");
+                return;
+            }
+            const updatedJail = { ...cachedGameState.playerJailStatus };
+            const updatedGoojf = { ...cachedGameState.playerGoojf };
+            updatedJail[localUser.uid] = false;
+            updatedGoojf[localUser.uid] = held - 1;
+
+            const payload = {
+                playerJailStatus: updatedJail,
+                playerGoojf: updatedGoojf,
+                doublesStreak: 0,
+                turnPhase: "roll"
+            };
+            withLog(payload, [{ msg: `${shortNameFor(localUser.uid)} used a Get Out of Jail Free card.`, tag: 'buy' }]);
+            await updateDoc(doc(db, "rooms", currentRoomCode), payload);
+            showToast("Used Get Out of Jail Free card!", "success");
         }
 
         async function rollJailEscapeAttempt() {
@@ -1893,21 +2141,54 @@
             const d1 = Math.floor(Math.random() * 6) + 1;
             const d2 = Math.floor(Math.random() * 6) + 1;
 
+            // Track failed attempts; after 3 failed rolls, must pay the fine
+            // and move (per Richup/Monopoly jail rules).
+            const priorAttempts = cachedGameState.jailAttempts?.[localUser.uid] || 0;
+
             if (d1 === d2) {
                 const updatedJail = { ...cachedGameState.playerJailStatus };
                 updatedJail[localUser.uid] = false;
+                const updatedAttempts = { ...(cachedGameState.jailAttempts || {}) };
+                updatedAttempts[localUser.uid] = 0;
                 await updateDoc(doc(db, "rooms", currentRoomCode), {
                     dice: [d1, d2],
                     playerJailStatus: updatedJail,
+                    jailAttempts: updatedAttempts,
+                    doublesStreak: 0,
                     turnPhase: "roll"
                 });
                 showToast("Doubles! You escaped jail!", "success");
             } else {
-                await updateDoc(doc(db, "rooms", currentRoomCode), {
-                    dice: [d1, d2],
-                    turnPhase: "action" // Skip movement phase context directly to ending turn
-                });
-                showToast("Failed to roll doubles. Remain in jail.", "error");
+                const newAttempts = priorAttempts + 1;
+                const updatedAttemptsMap = { ...(cachedGameState.jailAttempts || {}) };
+                updatedAttemptsMap[localUser.uid] = newAttempts;
+
+                if (newAttempts >= 3) {
+                    // Third failed attempt: forced to pay the fine and stay put
+                    // for the movement this turn, then walk normally next time.
+                    const updatedBalances = { ...cachedGameState.playerBalances };
+                    const updatedJail = { ...cachedGameState.playerJailStatus };
+                    updatedBalances[localUser.uid] -= 50;
+                    updatedJail[localUser.uid] = false;
+                    updatedAttemptsMap[localUser.uid] = 0;
+                    const payload = {
+                        dice: [d1, d2],
+                        playerBalances: updatedBalances,
+                        playerJailStatus: updatedJail,
+                        jailAttempts: updatedAttemptsMap,
+                        turnPhase: "action"
+                    };
+                    withLog(payload, [{ msg: `${shortNameFor(localUser.uid)} failed 3 escape rolls and paid the $50 fine.`, tag: 'rent' }]);
+                    await updateDoc(doc(db, "rooms", currentRoomCode), payload);
+                    showToast("Failed 3 attempts — fine paid automatically.", "error");
+                } else {
+                    await updateDoc(doc(db, "rooms", currentRoomCode), {
+                        dice: [d1, d2],
+                        jailAttempts: updatedAttemptsMap,
+                        turnPhase: "action" // Skip movement phase context directly to ending turn
+                    });
+                    showToast("Failed to roll doubles. Remain in jail.", "error");
+                }
             }
         }
 
@@ -1949,6 +2230,16 @@
                 return;
             }
 
+            // Even Build Rule: can't build on this space until every other
+            // property in the same color group has at least as many houses.
+            const sameGroupSpaces = BOARD_DATA.filter(s => s.group === space.group);
+            const currentHouses = cachedGameState.propertyHouses?.[currentPos] || 0;
+            const minHousesInGroup = Math.min(...sameGroupSpaces.map(s => cachedGameState.propertyHouses?.[s.id] || 0));
+            if (currentHouses > minHousesInGroup) {
+                showToast("Build evenly — improve your other properties in this set first.", "error");
+                return;
+            }
+
             const updatedBalances = { ...cachedGameState.playerBalances };
             const updatedHouses = { ...cachedGameState.propertyHouses };
 
@@ -1963,10 +2254,173 @@
             showToast(`Upgraded infrastructure at ${space.name}!`, "success");
         }
 
+        // Mortgaging: sell a property back to the bank for half its listed
+        // price. Mortgaged properties collect no rent until unmortgaged.
+        // Can't mortgage a property that still has houses/hotels built.
+        async function mortgageCurrentProperty() {
+            if (!currentRoomCode || !cachedGameState) return;
+            const currentPos = cachedGameState.playerPositions[localUser.uid] || 0;
+            const space = BOARD_DATA[currentPos];
+            if (!["property", "railroad", "utility"].includes(space.type)) return;
+            if (cachedGameState.properties?.[currentPos] !== localUser.uid) return;
+            if ((cachedGameState.propertyHouses?.[currentPos] || 0) > 0) {
+                showToast("Sell back houses/hotels before mortgaging.", "error");
+                return;
+            }
+            if (cachedGameState.propertyMortgaged?.[currentPos]) return;
+
+            const mortgageValue = Math.floor(space.cost / 2);
+            const updatedBalances = { ...cachedGameState.playerBalances };
+            const updatedMortgaged = { ...cachedGameState.propertyMortgaged };
+            updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + mortgageValue;
+            updatedMortgaged[currentPos] = true;
+
+            const payload = { playerBalances: updatedBalances, propertyMortgaged: updatedMortgaged };
+            withLog(payload, [{ msg: `${shortNameFor(localUser.uid)} mortgaged ${space.name} for $${mortgageValue}.`, tag: 'buy' }]);
+            await updateDoc(doc(db, "rooms", currentRoomCode), payload);
+            showToast(`Mortgaged ${space.name} for $${mortgageValue}.`, "success");
+        }
+
+        // Unmortgaging: pay back the mortgage value plus 10% interest,
+        // matching standard Monopoly/Richup convention.
+        async function unmortgageCurrentProperty() {
+            if (!currentRoomCode || !cachedGameState) return;
+            const currentPos = cachedGameState.playerPositions[localUser.uid] || 0;
+            const space = BOARD_DATA[currentPos];
+            if (cachedGameState.properties?.[currentPos] !== localUser.uid) return;
+            if (!cachedGameState.propertyMortgaged?.[currentPos]) return;
+
+            const mortgageValue = Math.floor(space.cost / 2);
+            const payoff = Math.ceil(mortgageValue * 1.1);
+            const currentBalance = cachedGameState.playerBalances[localUser.uid] || 0;
+            if (currentBalance < payoff) {
+                showToast(`Need $${payoff} to unmortgage — insufficient funds.`, "error");
+                return;
+            }
+
+            const updatedBalances = { ...cachedGameState.playerBalances };
+            const updatedMortgaged = { ...cachedGameState.propertyMortgaged };
+            updatedBalances[localUser.uid] -= payoff;
+            delete updatedMortgaged[currentPos];
+
+            const payload = { playerBalances: updatedBalances, propertyMortgaged: updatedMortgaged };
+            withLog(payload, [{ msg: `${shortNameFor(localUser.uid)} paid $${payoff} to unmortgage ${space.name}.`, tag: 'buy' }]);
+            await updateDoc(doc(db, "rooms", currentRoomCode), payload);
+            showToast(`Unmortgaged ${space.name}!`, "success");
+        }
+
+        // ─────────────────────────────────────────────
+        // Auctions — triggered when the active player declines to buy an
+        // unowned property they land on. All other (non-bankrupt) players
+        // get one bid-or-pass action in turn order; highest bidder wins.
+        // ─────────────────────────────────────────────
+        async function declinePurchaseAndAuction() {
+            if (!currentRoomCode || !cachedGameState) return;
+            const currentPos = cachedGameState.playerPositions[localUser.uid] || 0;
+            const space = BOARD_DATA[currentPos];
+            if (cachedGameState.properties?.[currentPos]) return; // already owned somehow
+
+            const orders = cachedGameState.playersOrder || [];
+            const bidOrder = orders.filter(uid => uid !== localUser.uid && !cachedGameState.playerBankrupt?.[uid]);
+
+            if (bidOrder.length === 0) {
+                // No one else to bid — auction fizzles, property stays unowned.
+                document.getElementById("buyActionWrapper").classList.add("hidden");
+                return;
+            }
+
+            const payload = {
+                auction: { spaceId: currentPos, highBid: 0, highBidder: null, order: bidOrder, cursor: 0, passed: [] }
+            };
+            withLog(payload, [{ msg: `${shortNameFor(localUser.uid)} declined to buy ${space.name} — auction started!`, tag: 'buy' }]);
+            await updateDoc(doc(db, "rooms", currentRoomCode), payload);
+            showToast(`Auctioning ${space.name}!`, "info");
+        }
+
+        function activeAuctionBidderUid() {
+            const auction = cachedGameState?.auction;
+            if (!auction) return null;
+            return auction.order[auction.cursor % auction.order.length];
+        }
+
+        async function submitAuctionBid(amount) {
+            if (!currentRoomCode || !cachedGameState?.auction) return;
+            const auction = cachedGameState.auction;
+            if (activeAuctionBidderUid() !== localUser.uid) return;
+
+            const currentBalance = cachedGameState.playerBalances[localUser.uid] || 0;
+            if (amount <= auction.highBid || amount > currentBalance) {
+                showToast("Bid must beat the current high bid and be within your balance.", "error");
+                return;
+            }
+            await advanceAuction({ highBid: amount, highBidder: localUser.uid });
+        }
+
+        async function passAuctionBid() {
+            if (!currentRoomCode || !cachedGameState?.auction) return;
+            if (activeAuctionBidderUid() !== localUser.uid) return;
+            const auction = cachedGameState.auction;
+            await advanceAuction({ passed: [...auction.passed, localUser.uid] });
+        }
+
+        async function advanceAuction(delta) {
+            const auction = { ...cachedGameState.auction, ...delta };
+            const remaining = auction.order.filter(uid => !auction.passed.includes(uid));
+
+            // Auction ends when everyone but (at most) the high bidder has
+            // passed, or everyone has passed with no bids at all.
+            const stillIn = remaining.length;
+            const shouldEnd = (auction.highBidder && stillIn <= 1) || (!auction.highBidder && remaining.length === 0);
+
+            if (shouldEnd) {
+                const updatedProperties = { ...cachedGameState.properties };
+                const updatedBalances = { ...cachedGameState.playerBalances };
+                const space = BOARD_DATA[auction.spaceId];
+                const logEntries = [];
+
+                if (auction.highBidder) {
+                    updatedProperties[auction.spaceId] = auction.highBidder;
+                    updatedBalances[auction.highBidder] = (updatedBalances[auction.highBidder] || 0) - auction.highBid;
+                    logEntries.push({ msg: `${shortNameFor(auction.highBidder)} won the auction for ${space.name} at $${auction.highBid}.`, tag: 'buy' });
+                } else {
+                    logEntries.push({ msg: `Auction for ${space.name} closed with no bids.` });
+                }
+
+                const payload = { properties: updatedProperties, playerBalances: updatedBalances, auction: null };
+                withLog(payload, logEntries);
+                await updateDoc(doc(db, "rooms", currentRoomCode), payload);
+                document.getElementById("buyActionWrapper").classList.add("hidden");
+                return;
+            }
+
+            // Move cursor to the next bidder still in the running.
+            let nextCursor = auction.cursor;
+            do {
+                nextCursor = (nextCursor + 1) % auction.order.length;
+            } while (auction.passed.includes(auction.order[nextCursor]));
+            auction.cursor = nextCursor;
+
+            await updateDoc(doc(db, "rooms", currentRoomCode), { auction });
+        }
+
         async function stepNextTurn() {
             if (!currentRoomCode || !cachedGameState) return;
             const orders = cachedGameState.playersOrder || [];
-            
+
+            // Rolled doubles (and didn't just get sent to Jail on a 3rd
+            // double, which already resets doublesStreak to 0) -> same
+            // player goes again instead of advancing turnIndex.
+            const dice = cachedGameState.dice || [1, 1];
+            const rolledDoubles = dice[0] === dice[1];
+            const isJailedNow = cachedGameState.playerJailStatus?.[localUser.uid] || false;
+            if (rolledDoubles && (cachedGameState.doublesStreak || 0) > 0 && !isJailedNow) {
+                await updateDoc(doc(db, "rooms", currentRoomCode), {
+                    turnPhase: "roll"
+                });
+                showToast("Doubles! Roll again.", "success");
+                return;
+            }
+
             // Loop step sequence skipping bankrupt players
             let nextIndex = cachedGameState.turnIndex;
             let safetyCounter = 0;
@@ -1978,7 +2432,8 @@
 
             await updateDoc(doc(db, "rooms", currentRoomCode), {
                 turnIndex: nextIndex,
-                turnPhase: "roll"
+                turnPhase: "roll",
+                doublesStreak: 0
             });
         }
 
@@ -2129,9 +2584,23 @@
         document.getElementById("btnStartGame").addEventListener("click", launchMatch);
         document.getElementById("btnRollDice").addEventListener("click", handleDiceRollSequence);
         document.getElementById("btnBuyProperty").addEventListener("click", buyCurrentAsset);
+        document.getElementById("btnDeclineAuction").addEventListener("click", declinePurchaseAndAuction);
         document.getElementById("btnBuildHouse").addEventListener("click", buildPropertyImprovement);
         document.getElementById("btnPayJailFine").addEventListener("click", payJailFineToEscape);
         document.getElementById("btnRollJailEscape").addEventListener("click", rollJailEscapeAttempt);
+        document.getElementById("btnUseGoojf").addEventListener("click", useGoojfCard);
+        document.getElementById("btnMortgage").addEventListener("click", mortgageCurrentProperty);
+        document.getElementById("btnUnmortgage").addEventListener("click", unmortgageCurrentProperty);
+        document.getElementById("btnSubmitBid").addEventListener("click", () => {
+            const amount = parseInt(document.getElementById("auctionBidInput").value, 10);
+            if (!Number.isFinite(amount) || amount <= 0) {
+                showToast("Enter a valid bid amount.", "error");
+                return;
+            }
+            submitAuctionBid(amount);
+            document.getElementById("auctionBidInput").value = "";
+        });
+        document.getElementById("btnPassBid").addEventListener("click", passAuctionBid);
         document.getElementById("btnEndTurn").addEventListener("click", stepNextTurn);
         document.getElementById("exitButton").addEventListener("click", exitToHub);
 

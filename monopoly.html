@@ -130,8 +130,8 @@
             flex-direction: column;
             justify-content: flex-end;
             align-items: center;
-            padding: 3px 2px 4px;
-            font-size: 8.5px;
+            padding: 2px 1px 3px;
+            font-size: 7.5px;
             font-weight: 600;
             letter-spacing: 0.01em;
             position: relative;
@@ -165,19 +165,28 @@
             color: #dbe2ea;
             line-height: 1.15;
             text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+            max-width: 100%;
         }
         .space-flag-icon {
-            font-size: 13px;
+            font-size: 11px;
             line-height: 1;
             margin-bottom: 1px;
             filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
         }
         .space-price-label {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 8px;
+            font-size: 7px;
             color: #9585f8;
             margin-top: 1px;
             font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
         }
 
         .corner-space {
@@ -189,9 +198,13 @@
             gap: 2px;
         }
         .corner-space .space-name-label {
-            font-size: 11px;
-            letter-spacing: 0.05em;
+            font-size: 9.5px;
+            letter-spacing: 0.03em;
             color: #f5f1e8;
+            white-space: normal;
+            overflow-wrap: break-word;
+            text-overflow: clip;
+            line-height: 1.1;
         }
         .corner-icon {
             font-size: 20px;

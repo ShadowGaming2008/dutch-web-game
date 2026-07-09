@@ -459,6 +459,41 @@
             transition: background 0.15s;
         }
         .hub-dropdown-item:hover { background: rgba(124,106,245,0.08); }
+
+        /* ── House Rules toggle style ── */
+        .hr-active {
+            background: var(--hub-accent) !important;
+            color: white !important;
+            border-color: var(--hub-accent-dark) !important;
+        }
+        /* ── Trade modal ── */
+        #tradeModal {
+            position: fixed; inset: 0; z-index: 55;
+            display: flex; align-items: center; justify-content: center; padding: 16px;
+            background: rgba(10,14,19,0.88); backdrop-filter: blur(5px);
+        }
+        #tradeModal.hidden { display: none; }
+        #incomingTradeModal {
+            position: fixed; inset: 0; z-index: 56;
+            display: flex; align-items: center; justify-content: center; padding: 16px;
+            background: rgba(10,14,19,0.88); backdrop-filter: blur(5px);
+        }
+        #incomingTradeModal.hidden { display: none; }
+        .trade-prop-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
+            cursor: pointer; border: 2px solid transparent; transition: all 0.12s;
+            background: var(--hub-panel); color: var(--hub-muted);
+            border-color: var(--hub-border); margin: 2px;
+        }
+        .trade-prop-chip.selected {
+            background: rgba(124,106,245,0.18);
+            color: var(--hub-accent-bright);
+            border-color: var(--hub-accent);
+        }
+        .trade-prop-chip .chip-dot {
+            width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -660,6 +695,48 @@
                 <h3 class="text-xs font-bold uppercase tracking-wider" style="color:var(--hub-muted);">Players (max 6)</h3>
                 <div id="lobbyPlayerList" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
             </div>
+            <!-- House Rules (host-only — shown/hidden in syncLobbyAndGameData) -->
+            <div id="houseRulesSection" class="hidden space-y-3 pt-4" style="border-top:1px solid var(--hub-border-soft);">
+                <h3 class="text-xs font-bold uppercase tracking-wider" style="color:var(--hub-muted);">⚙️ House Rules</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="p-3 rounded-xl" style="background:var(--hub-panel-raised);border:1px solid var(--hub-border);">
+                        <label class="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style="color:var(--hub-muted);">Starting Cash</label>
+                        <div class="flex gap-2">
+                            <button class="hr-cash-btn flex-1 py-1 rounded-lg text-xs font-bold transition" data-val="1000" style="background:var(--hub-panel);color:var(--hub-muted);border:1px solid var(--hub-border);">$1,000</button>
+                            <button class="hr-cash-btn flex-1 py-1 rounded-lg text-xs font-bold transition hr-active" data-val="1500">$1,500</button>
+                            <button class="hr-cash-btn flex-1 py-1 rounded-lg text-xs font-bold transition" data-val="2000" style="background:var(--hub-panel);color:var(--hub-muted);border:1px solid var(--hub-border);">$2,000</button>
+                        </div>
+                    </div>
+                    <div class="p-3 rounded-xl space-y-2" style="background:var(--hub-panel-raised);border:1px solid var(--hub-border);">
+                        <label class="block text-[10px] font-bold uppercase tracking-wider mb-0.5" style="color:var(--hub-muted);">Toggles</label>
+                        <label class="flex items-center justify-between cursor-pointer">
+                            <span class="text-xs font-medium" style="color:var(--hub-text);">🅿️ Free Parking Jackpot</span>
+                            <div class="relative">
+                                <input type="checkbox" id="hrFreeParkingToggle" class="sr-only">
+                                <div class="hr-toggle-track w-9 h-5 rounded-full transition" style="background:var(--hub-panel);border:1px solid var(--hub-border);"></div>
+                                <div class="hr-toggle-thumb absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-all" style="background:var(--hub-muted);"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between cursor-pointer">
+                            <span class="text-xs font-medium" style="color:var(--hub-text);">🔨 Auctions on Decline</span>
+                            <div class="relative">
+                                <input type="checkbox" id="hrAuctionToggle" class="sr-only" checked>
+                                <div class="hr-toggle-track w-9 h-5 rounded-full transition" style="background:var(--hub-accent);border:1px solid var(--hub-accent-dark);"></div>
+                                <div class="hr-toggle-thumb absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-all" style="background:white;transform:translateX(16px);"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between cursor-pointer">
+                            <span class="text-xs font-medium" style="color:var(--hub-text);">🤝 Allow Trading</span>
+                            <div class="relative">
+                                <input type="checkbox" id="hrTradingToggle" class="sr-only" checked>
+                                <div class="hr-toggle-track w-9 h-5 rounded-full transition" style="background:var(--hub-accent);border:1px solid var(--hub-accent-dark);"></div>
+                                <div class="hr-toggle-thumb absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-all" style="background:white;transform:translateX(16px);"></div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
             <div class="flex gap-3 pt-5 mt-1 items-center" style="border-top:1px solid var(--hub-border-soft);">
                 <button id="btnStartGame" class="hidden hub-btn hub-btn-brass flex-1 py-3 text-sm tracking-wide uppercase">Start Match ⚔️</button>
                 <p id="hostWaitMessage" class="flex-1 text-xs text-center italic" style="color:var(--hub-faint);">Waiting for the host to launch...</p>
@@ -744,6 +821,12 @@
                             Pass Turn →
                         </button>
                     </div>
+                    <button id="btnOpenTrade" class="hidden w-full py-2 bg-teal-800 hover:bg-teal-700 text-teal-200 font-bold rounded-xl text-xs transition">
+                        🤝 Propose Trade
+                    </button>
+                    <div id="freeParkingPot" class="hidden text-xs text-center rounded-lg py-1.5 font-mono font-bold" style="background:rgba(234,179,8,0.1);color:#fde047;border:1px solid rgba(234,179,8,0.25);">
+                        🅿️ Free Parking Pot: <span id="freeParkingAmount">$0</span>
+                    </div>
                 </div>
 
                 <div id="statusAlert" class="text-sm text-[#9aa5b3] bg-slate-800/20 p-3 rounded-lg border border-slate-800/40 italic">
@@ -757,6 +840,79 @@
             </div>
         </section>
     </main>
+
+    <!-- ── Trade Proposal Modal ── -->
+    <div id="tradeModal" class="hidden">
+        <div class="hub-panel w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 space-y-5">
+            <div class="flex items-center justify-between pb-3" style="border-bottom:1px solid var(--hub-border-soft);">
+                <h3 class="font-display text-xl font-bold" style="color:var(--hub-text-bright);">🤝 Propose Trade</h3>
+                <button id="closeTradeModalBtn" class="text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg transition" style="color:var(--hub-muted);">✕</button>
+            </div>
+            <!-- Target player picker -->
+            <div>
+                <div class="text-xs font-bold uppercase tracking-wider mb-2" style="color:var(--hub-muted);">Trade With</div>
+                <div id="tradeTargetList" class="flex flex-wrap gap-2"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <!-- YOUR OFFER -->
+                <div class="space-y-3">
+                    <div class="text-xs font-bold uppercase tracking-wider" style="color:#6ee7b7;">You Offer</div>
+                    <div>
+                        <div class="text-[10px] font-bold uppercase mb-1" style="color:var(--hub-muted);">Cash</div>
+                        <input type="number" id="tradeOfferCash" min="0" step="50" value="0" placeholder="$0" class="hub-input px-3 py-2 text-sm w-full" style="padding:7px 10px;">
+                    </div>
+                    <div>
+                        <div class="text-[10px] font-bold uppercase mb-1" style="color:var(--hub-muted);">Properties</div>
+                        <div id="tradeOfferProps" class="flex flex-wrap"></div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] font-bold uppercase mb-1" style="color:var(--hub-muted);">Get Out of Jail Cards</div>
+                        <select id="tradeOfferGoojf" class="hub-input px-3 py-2 text-xs w-full" style="padding:6px 10px;">
+                            <option value="0">None</option>
+                            <option value="1">1 card</option>
+                            <option value="2">2 cards</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- YOU REQUEST -->
+                <div class="space-y-3">
+                    <div class="text-xs font-bold uppercase tracking-wider" style="color:#fca5a5;">You Request</div>
+                    <div>
+                        <div class="text-[10px] font-bold uppercase mb-1" style="color:var(--hub-muted);">Cash</div>
+                        <input type="number" id="tradeRequestCash" min="0" step="50" value="0" placeholder="$0" class="hub-input px-3 py-2 text-sm w-full" style="padding:7px 10px;">
+                    </div>
+                    <div>
+                        <div class="text-[10px] font-bold uppercase mb-1" style="color:var(--hub-muted);">Properties</div>
+                        <div id="tradeRequestProps" class="flex flex-wrap"></div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] font-bold uppercase mb-1" style="color:var(--hub-muted);">Get Out of Jail Cards</div>
+                        <select id="tradeRequestGoojf" class="hub-input px-3 py-2 text-xs w-full" style="padding:6px 10px;">
+                            <option value="0">None</option>
+                            <option value="1">1 card</option>
+                            <option value="2">2 cards</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <p id="tradeModalError" class="hidden text-xs text-rose-400 bg-rose-950/40 border border-rose-900 rounded-lg px-3 py-2"></p>
+            <button id="btnSendTrade" class="hub-btn hub-btn-brass w-full py-3 text-sm tracking-wide uppercase">Send Trade Offer</button>
+        </div>
+    </div>
+
+    <!-- ── Incoming Trade Modal ── -->
+    <div id="incomingTradeModal" class="hidden">
+        <div class="hub-panel w-full max-w-lg p-6 space-y-5">
+            <div class="flex items-center justify-between pb-3" style="border-bottom:1px solid var(--hub-border-soft);">
+                <h3 class="font-display text-xl font-bold" style="color:var(--hub-text-bright);">🤝 Trade Offer Received</h3>
+            </div>
+            <div id="incomingTradeDetails" class="space-y-3 text-sm"></div>
+            <div class="flex gap-3 pt-2">
+                <button id="btnAcceptTrade" class="hub-btn hub-btn-brass flex-1 py-3">✅ Accept</button>
+                <button id="btnRejectTrade" class="hub-btn hub-btn-ghost flex-1 py-3">❌ Decline</button>
+            </div>
+        </div>
+    </div>
 
     <!-- ── Rules Modal ── -->
     <div id="rulesModalBackdrop" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(10,14,19,0.82);backdrop-filter:blur(5px);">
@@ -1298,11 +1454,44 @@
             { id: 39, name: "Kyoto", type: "property", color: "#2563eb", cost: 400, rent: [50, 200, 600, 1400, 1700, 2000], houseCost: 200, group: "darkblue" }
         ];
 
+        // ── Full card decks (Chance + Community Chest drawn independently) ──
+        // Actions: cash, goojf, advance_go, advance_to, go_back, advance_nearest_railroad,
+        //          advance_nearest_utility, repairs, pay_each_player, collect_each_player
         const CHANCE_CARDS = [
-            { text: "Global Market Rally! Collect $150", value: 150, action: "cash" },
-            { text: "Aviation fuel surcharge penalty. Pay $50", value: -50, action: "cash" },
-            { text: "Advanced Research Grant awarded. Collect $100", value: 100, action: "cash" },
-            { text: "Get Out of Jail Free — keep this card until needed.", value: 0, action: "goojf" }
+            { text: "Global Market Rally! Collect $150.", action: "cash", value: 150 },
+            { text: "Aviation fuel surcharge. Pay $50.", action: "cash", value: -50 },
+            { text: "Advance to START. Collect $200.", action: "advance_go" },
+            { text: "Advance to Tokyo. If you pass GO, collect $200.", action: "advance_to", target: 37 },
+            { text: "Advance to Sydney. If you pass GO, collect $200.", action: "advance_to", target: 31 },
+            { text: "Advance to the nearest Railroad. Pay double rent if unowned.", action: "advance_nearest_railroad" },
+            { text: "Advance to the nearest Railroad. Pay double rent if unowned.", action: "advance_nearest_railroad" },
+            { text: "Advance to the nearest Utility.", action: "advance_nearest_utility" },
+            { text: "Bank dividend pays out. Collect $50.", action: "cash", value: 50 },
+            { text: "Get Out of Jail Free — keep this card until needed.", action: "goojf" },
+            { text: "Go Back 3 Spaces.", action: "go_back", value: 3 },
+            { text: "Go directly to Jail. Do not pass GO.", action: "advance_to", target: 10, is_jail: true },
+            { text: "Building repairs: pay $25 per house and $100 per hotel you own.", action: "repairs", houseCost: 25, hotelCost: 100 },
+            { text: "Speeding fine. Pay $15.", action: "cash", value: -15 },
+            { text: "Advance to Trans-Siberian Railroad. If you pass GO, collect $200.", action: "advance_to", target: 5 },
+            { text: "Elected Chairman — pay each other player $50.", action: "pay_each_player", value: 50 },
+        ];
+        const CHEST_CARDS = [
+            { text: "Bank error in your favour! Collect $200.", action: "cash", value: 200 },
+            { text: "Doctor's fees. Pay $50.", action: "cash", value: -50 },
+            { text: "Advance to START. Collect $200.", action: "advance_go" },
+            { text: "Get Out of Jail Free — keep this card until needed.", action: "goojf" },
+            { text: "Go directly to Jail. Do not pass GO.", action: "advance_to", target: 10, is_jail: true },
+            { text: "Grand Opera Night — collect $50 from every player.", action: "collect_each_player", value: 50 },
+            { text: "Holiday fund matures. Collect $100.", action: "cash", value: 100 },
+            { text: "Income tax refund. Collect $20.", action: "cash", value: 20 },
+            { text: "It's your birthday! Collect $10 from each player.", action: "collect_each_player", value: 10 },
+            { text: "Life insurance matures. Collect $100.", action: "cash", value: 100 },
+            { text: "Hospital fees. Pay $100.", action: "cash", value: -100 },
+            { text: "School fees. Pay $50.", action: "cash", value: -50 },
+            { text: "Receive consultancy fee. Collect $25.", action: "cash", value: 25 },
+            { text: "Street repairs: pay $40 per house and $115 per hotel you own.", action: "repairs", houseCost: 40, hotelCost: 115 },
+            { text: "You have won second prize in a beauty contest. Collect $10.", action: "cash", value: 10 },
+            { text: "Inheritance windfall. Collect $100.", action: "cash", value: 100 },
         ];
 
         const PLAYER_HUES = [140, 260, 20, 200, 320, 50];
@@ -1460,6 +1649,9 @@
                 playerGoojf: {}, // uid -> count of Get Out Of Jail Free cards held
                 doublesStreak: 0, // consecutive doubles rolled by the current player this turn
                 auction: null, // { spaceId, highBid, highBidder, order:[uids left to act], passed:[uids] } while an auction is live
+                pendingTrade: null, // { fromUid, toUid, offerCash, offerProps, offerGoojf, requestCash, requestProps, requestGoojf }
+                freeParkingPot: 0, // accumulated fines/taxes when Free Parking jackpot house rule is on
+                houseRules: { startingCash: 1500, freeParkingJackpot: false, auctionsEnabled: true, tradingEnabled: true },
                 createdAt: new Date().toISOString()
             };
 
@@ -1536,9 +1728,11 @@
                 document.getElementById("btnStartGame").classList.remove("hidden");
                 document.getElementById("btnStartGame").disabled = orders.length < 2;
                 document.getElementById("hostWaitMessage").classList.add("hidden");
+                document.getElementById("houseRulesSection").classList.remove("hidden");
             } else {
                 document.getElementById("btnStartGame").classList.add("hidden");
                 document.getElementById("hostWaitMessage").classList.remove("hidden");
+                document.getElementById("houseRulesSection").classList.add("hidden");
                 document.getElementById("hostWaitMessage").textContent = orders.length < 2
                     ? "Waiting for at least one more player to join..."
                     : "Waiting for the host to launch...";
@@ -1553,6 +1747,23 @@
                 if (state.dice) {
                     document.getElementById("dice1").textContent = DICE_FACES[(state.dice[0] - 1) || 0];
                     document.getElementById("dice2").textContent = DICE_FACES[(state.dice[1] - 1) || 0];
+                }
+
+                // Free Parking pot display
+                const fpPot = document.getElementById("freeParkingPot");
+                if (state.houseRules?.freeParkingJackpot) {
+                    fpPot.classList.remove("hidden");
+                    document.getElementById("freeParkingAmount").textContent = `$${state.freeParkingPot || 0}`;
+                } else {
+                    fpPot.classList.add("hidden");
+                }
+
+                // Incoming trade notification
+                const trade = state.pendingTrade;
+                if (trade && trade.toUid === localUser.uid) {
+                    renderIncomingTrade(state, trade);
+                } else {
+                    document.getElementById("incomingTradeModal").classList.add("hidden");
                 }
 
                 updateBoardTokens(state);
@@ -1627,6 +1838,13 @@
         async function launchMatch() {
             if (!currentRoomCode || !cachedGameState) return;
             const orders = cachedGameState.playersOrder || [];
+
+            // Read house rules from the lobby UI (host is the only one who sees them)
+            const startingCash = parseInt(document.querySelector('.hr-cash-btn.hr-active')?.dataset.val || '1500', 10);
+            const freeParkingJackpot = document.getElementById('hrFreeParkingToggle').checked;
+            const auctionsEnabled = document.getElementById('hrAuctionToggle').checked;
+            const tradingEnabled = document.getElementById('hrTradingToggle').checked;
+            const houseRules = { startingCash, freeParkingJackpot, auctionsEnabled, tradingEnabled };
             
             const startingBalances = {};
             const startingPositions = {};
@@ -1634,7 +1852,7 @@
             const startingBankrupt = {};
             const startingGoojf = {};
             orders.forEach(uid => {
-                startingBalances[uid] = 1500;
+                startingBalances[uid] = startingCash;
                 startingPositions[uid] = 0;
                 startingJail[uid] = false;
                 startingBankrupt[uid] = false;
@@ -1655,7 +1873,10 @@
                 propertyMortgaged: {},
                 doublesStreak: 0,
                 auction: null,
-                activityLog: [{ msg: "Game started! Good luck.", time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]
+                pendingTrade: null,
+                freeParkingPot: 0,
+                houseRules,
+                activityLog: [{ msg: `Game started! Starting cash: $${startingCash}. ${freeParkingJackpot ? 'Free Parking jackpot ON.' : ''} ${!auctionsEnabled ? 'Auctions disabled.' : ''} ${!tradingEnabled ? 'Trading disabled.' : ''}`.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]
             });
         }
 
@@ -1765,6 +1986,7 @@
                     buyWrapper.classList.add("hidden");
                     housingWrapper.classList.add("hidden");
                     mortgageWrapper.classList.add("hidden");
+                    document.getElementById("btnOpenTrade").classList.add("hidden");
                     
                     if (isJailed) {
                         jailWrapper.classList.remove("hidden");
@@ -1840,10 +2062,15 @@
                     }
 
                     document.getElementById("actionPrompt").textContent = "Actions complete. Pass turn when ready.";
+
+                    // Show trade button if trading is enabled and there are non-bankrupt opponents
+                    const tradingOn = state.houseRules?.tradingEnabled !== false;
+                    const hasTradableOpponent = orders.some(uid => uid !== localUser.uid && !state.playerBankrupt?.[uid]);
+                    document.getElementById("btnOpenTrade").classList.toggle("hidden", !(tradingOn && hasTradableOpponent));
                 }
             } else {
-                const shortId = activePlayerUid ? activePlayerUid.substring(0, 5) : "Unknown";
-                turnIndicator.textContent = `P(${shortId})'s Turn`;
+                const activeName = shortNameFor(activePlayerUid) || 'Another Player';
+                turnIndicator.textContent = `${activeName}'s Turn`;
                 turnIndicator.className = "font-mono text-xs bg-[#7c6af5]/10 text-[#9585f8] px-2.5 py-1 rounded-full border border-[#7c6af5]/20";
                 actionPanel.classList.add("hidden");
                 statusAlert.classList.remove("hidden");
@@ -1851,7 +2078,8 @@
                 jailWrapper.classList.add("hidden");
                 housingWrapper.classList.add("hidden");
                 mortgageWrapper.classList.add("hidden");
-                statusAlert.textContent = `Waiting for Player ${shortId} to complete actions...`;
+                statusAlert.textContent = `Waiting for ${activeName} to complete their turn...`;
+                document.getElementById("btnOpenTrade").classList.add("hidden");
             }
         }
 
@@ -2018,22 +2246,147 @@
             }
 
             // Chance & Community Chest Card processing
+            let freeParkingPot = cachedGameState.freeParkingPot || 0;
+            const houseRules = cachedGameState.houseRules || {};
+
             if (!sentToJail && ["chance", "chest"].includes(targetSpace.type)) {
-                const card = CHANCE_CARDS[Math.floor(Math.random() * CHANCE_CARDS.length)];
+                const deck = targetSpace.type === "chance" ? CHANCE_CARDS : CHEST_CARDS;
+                const card = deck[Math.floor(Math.random() * deck.length)];
+                showToast(`Card: ${card.text}`, "info", 5000);
+                logEntries.push({ msg: `${myName} drew: ${card.text}` });
+
                 if (card.action === "goojf") {
                     updatedGoojf[localUser.uid] = (updatedGoojf[localUser.uid] || 0) + 1;
-                    showToast(`Card Drawn: ${card.text}`, "info");
-                    logEntries.push({ msg: `${myName} drew a Get Out of Jail Free card.` });
-                } else {
-                    updatedBalances[localUser.uid] += card.value;
-                    showToast(`Card Drawn: ${card.text}`, "info");
-                    logEntries.push({ msg: `${myName} drew: ${card.text}` });
+                } else if (card.action === "cash") {
+                    updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + card.value;
+                    if (card.value < 0 && houseRules.freeParkingJackpot) {
+                        freeParkingPot += Math.abs(card.value);
+                    }
+                } else if (card.action === "advance_go") {
+                    // Only collect $200 if not already on GO
+                    if (nextPos !== 0) {
+                        updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + 200;
+                        logEntries.push({ msg: `${myName} advanced to GO and collected $200.`, tag: 'buy' });
+                    }
+                    nextPos = 0;
+                    updatedPositions[localUser.uid] = 0;
+                } else if (card.action === "advance_to") {
+                    const dest = card.target;
+                    const isJailDest = card.is_jail;
+                    if (isJailDest) {
+                        nextPos = 10;
+                        updatedPositions[localUser.uid] = 10;
+                        updatedJail[localUser.uid] = true;
+                        sentToJail = true;
+                        logEntries.push({ msg: `${myName} was sent to Jail by a card!`, tag: 'rent' });
+                    } else {
+                        if (dest < nextPos) {
+                            // Passed GO
+                            updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + 200;
+                            logEntries.push({ msg: `${myName} passed GO and collected $200.`, tag: 'buy' });
+                        }
+                        nextPos = dest;
+                        updatedPositions[localUser.uid] = dest;
+                        // Check rent on advanced-to space
+                        const advSpace = BOARD_DATA[dest];
+                        const advOwner = cachedGameState.properties?.[dest];
+                        if (advOwner && advOwner !== localUser.uid) {
+                            const advRent = computeRent(advSpace, advOwner, cachedGameState, totalRoll);
+                            if (advRent > 0) {
+                                updatedBalances[localUser.uid] -= advRent;
+                                updatedBalances[advOwner] = (updatedBalances[advOwner] || 0) + advRent;
+                                logEntries.push({ msg: `${myName} paid $${advRent} rent on ${advSpace.name} (card move).`, tag: 'rent' });
+                            }
+                        }
+                    }
+                } else if (card.action === "advance_nearest_railroad") {
+                    const railroadIds = BOARD_DATA.filter(s => s.type === "railroad").map(s => s.id);
+                    const nearestRR = railroadIds.reduce((best, id) => {
+                        const dist = (id - nextPos + 40) % 40;
+                        return dist < (best.dist) ? { id, dist } : best;
+                    }, { id: railroadIds[0], dist: 40 });
+                    if (nearestRR.id < nextPos) {
+                        updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + 200;
+                        logEntries.push({ msg: `${myName} passed GO (card) and collected $200.`, tag: 'buy' });
+                    }
+                    nextPos = nearestRR.id;
+                    updatedPositions[localUser.uid] = nearestRR.id;
+                    const rrSpace = BOARD_DATA[nearestRR.id];
+                    const rrOwner = cachedGameState.properties?.[nearestRR.id];
+                    if (rrOwner && rrOwner !== localUser.uid) {
+                        // Double rent per Chance card rule
+                        const rrRent = computeRent(rrSpace, rrOwner, cachedGameState, totalRoll) * 2;
+                        updatedBalances[localUser.uid] -= rrRent;
+                        updatedBalances[rrOwner] = (updatedBalances[rrOwner] || 0) + rrRent;
+                        logEntries.push({ msg: `${myName} paid $${rrRent} double rent on ${rrSpace.name} (Chance).`, tag: 'rent' });
+                    }
+                } else if (card.action === "advance_nearest_utility") {
+                    const utilIds = BOARD_DATA.filter(s => s.type === "utility").map(s => s.id);
+                    const nearestUtil = utilIds.reduce((best, id) => {
+                        const dist = (id - nextPos + 40) % 40;
+                        return dist < best.dist ? { id, dist } : best;
+                    }, { id: utilIds[0], dist: 40 });
+                    if (nearestUtil.id < nextPos) {
+                        updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + 200;
+                        logEntries.push({ msg: `${myName} passed GO (card) and collected $200.`, tag: 'buy' });
+                    }
+                    nextPos = nearestUtil.id;
+                    updatedPositions[localUser.uid] = nearestUtil.id;
+                } else if (card.action === "go_back") {
+                    nextPos = Math.max(0, nextPos - (card.value || 3));
+                    updatedPositions[localUser.uid] = nextPos;
+                    logEntries.push({ msg: `${myName} moved back ${card.value} spaces to ${BOARD_DATA[nextPos]?.name}.` });
+                } else if (card.action === "repairs") {
+                    // Count houses and hotels the player owns
+                    let totalHouses = 0, totalHotels = 0;
+                    Object.keys(cachedGameState.propertyHouses || {}).forEach(sid => {
+                        if (cachedGameState.properties?.[sid] === localUser.uid) {
+                            const h = cachedGameState.propertyHouses[sid] || 0;
+                            if (h === 5) totalHotels++;
+                            else totalHouses += h;
+                        }
+                    });
+                    const repairBill = totalHouses * card.houseCost + totalHotels * card.hotelCost;
+                    if (repairBill > 0) {
+                        updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) - repairBill;
+                        if (houseRules.freeParkingJackpot) freeParkingPot += repairBill;
+                        logEntries.push({ msg: `${myName} paid $${repairBill} in repairs (${totalHouses}×$${card.houseCost} houses, ${totalHotels}×$${card.hotelCost} hotels).`, tag: 'rent' });
+                    } else {
+                        logEntries.push({ msg: `${myName} drew repairs card — no properties to repair.` });
+                    }
+                } else if (card.action === "pay_each_player") {
+                    const others = (cachedGameState.playersOrder || []).filter(uid => uid !== localUser.uid && !cachedGameState.playerBankrupt?.[uid]);
+                    const perPlayer = card.value;
+                    const total = perPlayer * others.length;
+                    updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) - total;
+                    others.forEach(uid => {
+                        updatedBalances[uid] = (updatedBalances[uid] || 0) + perPlayer;
+                    });
+                    logEntries.push({ msg: `${myName} paid $${perPlayer} to each player ($${total} total).`, tag: 'rent' });
+                } else if (card.action === "collect_each_player") {
+                    const others = (cachedGameState.playersOrder || []).filter(uid => uid !== localUser.uid && !cachedGameState.playerBankrupt?.[uid]);
+                    const perPlayer = card.value;
+                    const total = perPlayer * others.length;
+                    updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + total;
+                    others.forEach(uid => {
+                        updatedBalances[uid] = (updatedBalances[uid] || 0) - perPlayer;
+                    });
+                    logEntries.push({ msg: `${myName} collected $${perPlayer} from each player ($${total} total).`, tag: 'buy' });
                 }
+            }
+
+            // Free Parking landing — collect the pot if house rule is on
+            if (!sentToJail && targetSpace.type === "parking" && houseRules.freeParkingJackpot && freeParkingPot > 0) {
+                updatedBalances[localUser.uid] = (updatedBalances[localUser.uid] || 0) + freeParkingPot;
+                logEntries.push({ msg: `${myName} landed on Free Parking and collected the $${freeParkingPot} jackpot! 🅿️`, tag: 'buy' });
+                showToast(`Free Parking Jackpot! Collected $${freeParkingPot}!`, "success");
+                freeParkingPot = 0;
             }
 
             if (!sentToJail && targetSpace.type === "tax") {
                 const taxAmount = targetSpace.rent[0];
                 updatedBalances[localUser.uid] -= taxAmount;
+                if (houseRules.freeParkingJackpot) freeParkingPot += taxAmount;
                 showToast(`Tax Applied! Deducted $${taxAmount}`, "error");
                 logEntries.push({ msg: `${myName} paid $${taxAmount} in tax.`, tag: 'rent' });
             }
@@ -2059,6 +2412,7 @@
                 playerBankrupt: updatedBankrupt,
                 playerGoojf: updatedGoojf,
                 doublesStreak: newStreak,
+                freeParkingPot,
                 turnPhase: "action"
             };
             const winnerUpdate = checkForWinner(updatedBankrupt);
@@ -2325,6 +2679,13 @@
             const space = BOARD_DATA[currentPos];
             if (cachedGameState.properties?.[currentPos]) return; // already owned somehow
 
+            // If auctions are disabled by house rule, just decline with no auction
+            if (cachedGameState.houseRules?.auctionsEnabled === false) {
+                document.getElementById("buyActionWrapper").classList.add("hidden");
+                showToast(`Declined ${space.name} — no auction (house rule).`, "info");
+                return;
+            }
+
             const orders = cachedGameState.playersOrder || [];
             const bidOrder = orders.filter(uid => uid !== localUser.uid && !cachedGameState.playerBankrupt?.[uid]);
 
@@ -2406,6 +2767,214 @@
             auction.cursor = nextCursor;
 
             await updateDoc(doc(db, "rooms", currentRoomCode), { auction });
+        }
+
+        // ─────────────────────────────────────────────
+        // Trading system — propose, receive, accept, reject
+        // pendingTrade is stored on the room doc so all players see it.
+        // Only the target sees the incoming modal; only the proposer can
+        // cancel. One trade at a time (simpler than a queue).
+        // ─────────────────────────────────────────────
+
+        let tradeOfferSelectedProps = new Set(); // space IDs from my properties
+        let tradeRequestSelectedProps = new Set(); // space IDs from target's properties
+        let tradeTargetUid = null;
+
+        function openTradeModal() {
+            if (!cachedGameState) return;
+            tradeOfferSelectedProps.clear();
+            tradeRequestSelectedProps.clear();
+            tradeTargetUid = null;
+
+            // Populate target player list
+            const orders = cachedGameState.playersOrder || [];
+            const targetList = document.getElementById("tradeTargetList");
+            targetList.innerHTML = orders
+                .filter(uid => uid !== localUser.uid && !cachedGameState.playerBankrupt?.[uid])
+                .map(uid => {
+                    const profile = cachedGameState.playerProfiles?.[uid];
+                    const name = profile?.name || 'Player';
+                    return `<button class="trade-target-btn hub-btn hub-btn-slate text-xs px-3 py-1.5" data-uid="${uid}">${name}</button>`;
+                }).join('');
+
+            targetList.querySelectorAll('.trade-target-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    tradeTargetUid = btn.dataset.uid;
+                    targetList.querySelectorAll('.trade-target-btn').forEach(b => b.classList.remove('hub-btn-brass'));
+                    btn.classList.add('hub-btn-brass');
+                    renderTradePropertyChips();
+                });
+            });
+
+            document.getElementById("tradeOfferCash").value = 0;
+            document.getElementById("tradeRequestCash").value = 0;
+            document.getElementById("tradeOfferGoojf").value = 0;
+            document.getElementById("tradeRequestGoojf").value = 0;
+            document.getElementById("tradeOfferProps").innerHTML = '';
+            document.getElementById("tradeRequestProps").innerHTML = '';
+            document.getElementById("tradeModalError").classList.add("hidden");
+            document.getElementById("tradeModal").classList.remove("hidden");
+        }
+
+        function renderTradePropertyChips() {
+            if (!tradeTargetUid || !cachedGameState) return;
+            const props = cachedGameState.properties || {};
+            const myProps = Object.keys(props).filter(sid => props[sid] === localUser.uid && !cachedGameState.propertyMortgaged?.[sid]);
+            const theirProps = Object.keys(props).filter(sid => props[sid] === tradeTargetUid && !cachedGameState.propertyMortgaged?.[sid]);
+
+            function makeChips(container, propIds, selectedSet) {
+                container.innerHTML = propIds.length === 0
+                    ? `<span class="text-[11px]" style="color:var(--hub-faint);">No properties</span>`
+                    : propIds.map(sid => {
+                        const space = BOARD_DATA[parseInt(sid, 10)];
+                        const sel = selectedSet.has(sid);
+                        return `<span class="trade-prop-chip${sel ? ' selected' : ''}" data-sid="${sid}">
+                            <span class="chip-dot" style="background:${space.color || '#64748b'};"></span>${space.name}
+                        </span>`;
+                    }).join('');
+                container.querySelectorAll('.trade-prop-chip').forEach(chip => {
+                    chip.addEventListener('click', () => {
+                        const sid = chip.dataset.sid;
+                        if (selectedSet.has(sid)) selectedSet.delete(sid);
+                        else selectedSet.add(sid);
+                        renderTradePropertyChips();
+                    });
+                });
+            }
+
+            makeChips(document.getElementById("tradeOfferProps"), myProps, tradeOfferSelectedProps);
+            makeChips(document.getElementById("tradeRequestProps"), theirProps, tradeRequestSelectedProps);
+        }
+
+        async function sendTradeOffer() {
+            if (!currentRoomCode || !cachedGameState || !tradeTargetUid) {
+                document.getElementById("tradeModalError").textContent = "Select a player to trade with.";
+                document.getElementById("tradeModalError").classList.remove("hidden");
+                return;
+            }
+            const offerCash = parseInt(document.getElementById("tradeOfferCash").value, 10) || 0;
+            const requestCash = parseInt(document.getElementById("tradeRequestCash").value, 10) || 0;
+            const offerGoojf = parseInt(document.getElementById("tradeOfferGoojf").value, 10) || 0;
+            const requestGoojf = parseInt(document.getElementById("tradeRequestGoojf").value, 10) || 0;
+
+            // Validate
+            const myBalance = cachedGameState.playerBalances?.[localUser.uid] || 0;
+            const myGoojf = cachedGameState.playerGoojf?.[localUser.uid] || 0;
+            const theirGoojf = cachedGameState.playerGoojf?.[tradeTargetUid] || 0;
+            const errEl = document.getElementById("tradeModalError");
+
+            if (offerCash < 0 || requestCash < 0) { errEl.textContent = "Cash amounts must be positive."; errEl.classList.remove("hidden"); return; }
+            if (offerCash > myBalance) { errEl.textContent = `You don't have $${offerCash}.`; errEl.classList.remove("hidden"); return; }
+            if (offerGoojf > myGoojf) { errEl.textContent = `You only have ${myGoojf} GOOJF card(s).`; errEl.classList.remove("hidden"); return; }
+            if (requestGoojf > theirGoojf) { errEl.textContent = `They only have ${theirGoojf} GOOJF card(s).`; errEl.classList.remove("hidden"); return; }
+            if (offerCash === 0 && requestCash === 0 && tradeOfferSelectedProps.size === 0 && tradeRequestSelectedProps.size === 0 && offerGoojf === 0 && requestGoojf === 0) {
+                errEl.textContent = "A trade must include at least one item.";
+                errEl.classList.remove("hidden"); return;
+            }
+
+            const trade = {
+                fromUid: localUser.uid,
+                toUid: tradeTargetUid,
+                offerCash,
+                requestCash,
+                offerProps: [...tradeOfferSelectedProps],
+                requestProps: [...tradeRequestSelectedProps],
+                offerGoojf,
+                requestGoojf
+            };
+
+            await updateDoc(doc(db, "rooms", currentRoomCode), { pendingTrade: trade });
+            document.getElementById("tradeModal").classList.add("hidden");
+            showToast("Trade offer sent!", "info");
+        }
+
+        function renderIncomingTrade(state, trade) {
+            const fromName = state.playerProfiles?.[trade.fromUid]?.name || 'A player';
+            const details = document.getElementById("incomingTradeDetails");
+
+            function propsDesc(ids) {
+                if (!ids || ids.length === 0) return 'Nothing';
+                return ids.map(sid => BOARD_DATA[parseInt(sid,10)]?.name || sid).join(', ');
+            }
+            details.innerHTML = `
+                <p class="text-sm font-semibold" style="color:var(--hub-text-bright);">${fromName} wants to trade with you:</p>
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="p-3 rounded-xl" style="background:var(--hub-panel-raised);border:1px solid var(--hub-border);">
+                        <div class="font-bold uppercase mb-1" style="color:#6ee7b7;">They Offer</div>
+                        <div style="color:var(--hub-text);">Cash: <b>$${trade.offerCash}</b></div>
+                        <div style="color:var(--hub-text);">Properties: <b>${propsDesc(trade.offerProps)}</b></div>
+                        ${trade.offerGoojf > 0 ? `<div style="color:var(--hub-text);">GOOJF cards: <b>${trade.offerGoojf}</b></div>` : ''}
+                    </div>
+                    <div class="p-3 rounded-xl" style="background:var(--hub-panel-raised);border:1px solid var(--hub-border);">
+                        <div class="font-bold uppercase mb-1" style="color:#fca5a5;">They Request</div>
+                        <div style="color:var(--hub-text);">Cash: <b>$${trade.requestCash}</b></div>
+                        <div style="color:var(--hub-text);">Properties: <b>${propsDesc(trade.requestProps)}</b></div>
+                        ${trade.requestGoojf > 0 ? `<div style="color:var(--hub-text);">GOOJF cards: <b>${trade.requestGoojf}</b></div>` : ''}
+                    </div>
+                </div>
+            `;
+            document.getElementById("incomingTradeModal").classList.remove("hidden");
+        }
+
+        async function acceptTrade() {
+            if (!currentRoomCode || !cachedGameState?.pendingTrade) return;
+            const trade = cachedGameState.pendingTrade;
+            if (trade.toUid !== localUser.uid) return;
+
+            const updatedBalances = { ...cachedGameState.playerBalances };
+            const updatedProperties = { ...cachedGameState.properties };
+            const updatedGoojf = { ...cachedGameState.playerGoojf };
+
+            // Validate trade is still valid
+            if ((updatedBalances[trade.fromUid] || 0) < trade.offerCash) {
+                showToast("Trade failed — proposer no longer has enough cash.", "error");
+                await updateDoc(doc(db, "rooms", currentRoomCode), { pendingTrade: null });
+                return;
+            }
+            if ((updatedBalances[trade.toUid] || 0) < trade.requestCash) {
+                showToast("You don't have enough cash to complete this trade.", "error");
+                await updateDoc(doc(db, "rooms", currentRoomCode), { pendingTrade: null });
+                return;
+            }
+
+            // Cash exchange
+            updatedBalances[trade.fromUid] -= trade.offerCash;
+            updatedBalances[trade.toUid] += trade.offerCash;
+            updatedBalances[trade.toUid] -= trade.requestCash;
+            updatedBalances[trade.fromUid] += trade.requestCash;
+
+            // Property transfers
+            (trade.offerProps || []).forEach(sid => { updatedProperties[sid] = trade.toUid; });
+            (trade.requestProps || []).forEach(sid => { updatedProperties[sid] = trade.fromUid; });
+
+            // GOOJF card transfers
+            if (trade.offerGoojf > 0) {
+                updatedGoojf[trade.fromUid] = Math.max(0, (updatedGoojf[trade.fromUid] || 0) - trade.offerGoojf);
+                updatedGoojf[trade.toUid] = (updatedGoojf[trade.toUid] || 0) + trade.offerGoojf;
+            }
+            if (trade.requestGoojf > 0) {
+                updatedGoojf[trade.toUid] = Math.max(0, (updatedGoojf[trade.toUid] || 0) - trade.requestGoojf);
+                updatedGoojf[trade.fromUid] = (updatedGoojf[trade.fromUid] || 0) + trade.requestGoojf;
+            }
+
+            const fromName = cachedGameState.playerProfiles?.[trade.fromUid]?.name || 'Player';
+            const toName = cachedGameState.playerProfiles?.[trade.toUid]?.name || 'Player';
+            const payload = { playerBalances: updatedBalances, properties: updatedProperties, playerGoojf: updatedGoojf, pendingTrade: null };
+            withLog(payload, [{ msg: `🤝 Trade accepted! ${fromName} ↔ ${toName}.`, tag: 'buy' }]);
+            await updateDoc(doc(db, "rooms", currentRoomCode), payload);
+            document.getElementById("incomingTradeModal").classList.add("hidden");
+            showToast("Trade completed!", "success");
+        }
+
+        async function rejectTrade() {
+            if (!currentRoomCode) return;
+            const fromName = cachedGameState?.playerProfiles?.[cachedGameState?.pendingTrade?.fromUid]?.name || 'The proposer';
+            await updateDoc(doc(db, "rooms", currentRoomCode), { pendingTrade: null });
+            document.getElementById("incomingTradeModal").classList.add("hidden");
+            showToast(`Trade declined.`, "info");
+            const payload = {};
+            withLog(payload, [{ msg: `${fromName}'s trade offer was declined.` }]);
+            if (Object.keys(payload).length > 1) await updateDoc(doc(db, "rooms", currentRoomCode), payload);
         }
 
         async function stepNextTurn() {
@@ -2596,6 +3165,54 @@
         document.getElementById("btnUseGoojf").addEventListener("click", useGoojfCard);
         document.getElementById("btnMortgage").addEventListener("click", mortgageCurrentProperty);
         document.getElementById("btnUnmortgage").addEventListener("click", unmortgageCurrentProperty);
+        // ── House rules cash toggle ──
+        document.querySelectorAll('.hr-cash-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.hr-cash-btn').forEach(b => {
+                    b.classList.remove('hr-active');
+                    b.style.background = 'var(--hub-panel)';
+                    b.style.color = 'var(--hub-muted)';
+                    b.style.borderColor = 'var(--hub-border)';
+                });
+                btn.classList.add('hr-active');
+                btn.style.background = '';
+                btn.style.color = '';
+                btn.style.borderColor = '';
+            });
+        });
+
+        // ── Toggle visual feedback (CSS :checked handles thumb movement; this handles the track colour) ──
+        ['hrFreeParkingToggle', 'hrAuctionToggle', 'hrTradingToggle'].forEach(id => {
+            const cb = document.getElementById(id);
+            if (!cb) return;
+            function syncTrack() {
+                const track = cb.nextElementSibling;
+                const thumb = track?.nextElementSibling;
+                if (!track || !thumb) return;
+                if (cb.checked) {
+                    track.style.background = 'var(--hub-accent)';
+                    track.style.borderColor = 'var(--hub-accent-dark)';
+                    thumb.style.transform = 'translateX(16px)';
+                    thumb.style.background = 'white';
+                } else {
+                    track.style.background = 'var(--hub-panel)';
+                    track.style.borderColor = 'var(--hub-border)';
+                    thumb.style.transform = 'translateX(0)';
+                    thumb.style.background = 'var(--hub-muted)';
+                }
+            }
+            cb.addEventListener('change', syncTrack);
+            syncTrack(); // initialise
+        });
+
+        // ── Trade buttons ──
+        document.getElementById("btnOpenTrade").addEventListener("click", openTradeModal);
+        document.getElementById("closeTradeModalBtn").addEventListener("click", () => document.getElementById("tradeModal").classList.add("hidden"));
+        document.getElementById("tradeModal").addEventListener("click", e => { if (e.target.id === "tradeModal") e.target.classList.add("hidden"); });
+        document.getElementById("btnSendTrade").addEventListener("click", sendTradeOffer);
+        document.getElementById("btnAcceptTrade").addEventListener("click", acceptTrade);
+        document.getElementById("btnRejectTrade").addEventListener("click", rejectTrade);
+
         document.getElementById("btnSubmitBid").addEventListener("click", () => {
             const amount = parseInt(document.getElementById("auctionBidInput").value, 10);
             if (!Number.isFinite(amount) || amount <= 0) {

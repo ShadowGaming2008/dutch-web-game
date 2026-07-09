@@ -42,26 +42,42 @@
             aspect-ratio: 1 / 1;
             width: 100%;
             max-width: 760px;
-            background-color: var(--hub-panel-raised);
-            border: 4px solid var(--hub-border);
-            border-radius: 12px;
+            background: radial-gradient(circle at 50% 50%, #171022 0%, var(--hub-panel-raised) 70%);
+            border: 5px solid #3a2f5c;
+            border-radius: 18px;
             position: relative;
             gap: 2px;
-            padding: 2px;
+            padding: 5px;
+            box-shadow:
+                0 0 0 1px rgba(149, 133, 248, 0.15),
+                0 20px 60px rgba(0,0,0,0.55),
+                inset 0 0 40px rgba(0,0,0,0.4);
         }
 
         /* Center element wrapper */
         .board-center {
             grid-column: 2 / 11;
             grid-row: 2 / 11;
-            background-color: var(--hub-bg);
+            background:
+                radial-gradient(circle at 50% 40%, rgba(124,106,245,0.16) 0%, transparent 60%),
+                linear-gradient(160deg, #140f22 0%, #0c0a16 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            border-radius: 8px;
-            border: 2px dashed var(--hub-border);
+            border-radius: 14px;
+            border: 2px solid rgba(149, 133, 248, 0.25);
+            box-shadow: inset 0 0 60px rgba(124, 106, 245, 0.08);
             position: relative;
+            overflow: hidden;
+        }
+        .board-center::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 14px);
+            pointer-events: none;
         }
 
         /* Grid specific positional item placements (0 to 39) */
@@ -107,24 +123,83 @@
         .space-39 { grid-column: 11; grid-row: 10; }
 
         .board-space {
-            background-color: var(--hub-panel);
-            border: 1px solid rgba(255, 255, 255, 0.03);
+            background: linear-gradient(160deg, #1c2836 0%, #151f2b 100%);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            justify-content: flex-end;
             align-items: center;
-            padding: 4px;
-            font-size: 9px;
+            padding: 3px 2px 4px;
+            font-size: 8.5px;
             font-weight: 600;
+            letter-spacing: 0.01em;
             position: relative;
             overflow: hidden;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+        .board-space:hover {
+            background: linear-gradient(160deg, #223145 0%, #1a2634 100%);
+            z-index: 5;
+        }
+        .board-space.owned-space {
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+        }
+
+        /* Color-group strip: hugs the outer edge of the board, like a real Monopoly board */
+        .space-color-bar {
+            position: absolute;
+            border-radius: 2px;
+            box-shadow: 0 0 8px -1px rgba(0,0,0,0.5), inset 0 0 6px rgba(255,255,255,0.15);
+        }
+        .board-space.side-bottom .space-color-bar { left: 3px; right: 3px; bottom: 3px; height: 22%; }
+        .board-space.side-top    .space-color-bar { left: 3px; right: 3px; top: 3px;    height: 22%; }
+        .board-space.side-left   .space-color-bar { top: 3px; bottom: 3px; left: 3px;   width: 22%; }
+        .board-space.side-right  .space-color-bar { top: 3px; bottom: 3px; right: 3px;  width: 22%; }
+        .board-space.side-bottom, .board-space.side-top { justify-content: flex-start; padding-top: calc(22% + 6px); }
+        .board-space.side-bottom { justify-content: flex-end; padding-top: 3px; padding-bottom: calc(22% + 5px); }
+
+        .space-name-label {
+            text-align: center;
+            width: 100%;
+            color: #dbe2ea;
+            line-height: 1.15;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        .space-flag-icon {
+            font-size: 13px;
+            line-height: 1;
+            margin-bottom: 1px;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+        }
+        .space-price-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px;
+            color: #9585f8;
+            margin-top: 1px;
+            font-weight: 700;
         }
 
         .corner-space {
-            background-color: #1e293b;
+            background: radial-gradient(circle at 50% 30%, #2a1f45 0%, #191129 100%);
             font-weight: 800;
             text-transform: uppercase;
+            border: 1px solid rgba(149,133,248,0.25);
+            justify-content: center;
+            gap: 2px;
         }
+        .corner-space .space-name-label {
+            font-size: 11px;
+            letter-spacing: 0.05em;
+            color: #f5f1e8;
+        }
+        .corner-icon {
+            font-size: 20px;
+            line-height: 1;
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+        }
+        .space-0 .corner-icon { color: #ef4444; transform: rotate(-135deg) scaleX(-1); }
+        .space-30 .corner-icon { color: #ef4444; }
 
         .token-holder {
             display: flex;
@@ -132,24 +207,29 @@
             gap: 2px;
             justify-content: center;
             position: absolute;
-            bottom: 4px;
+            bottom: 3px;
             left: 0;
             right: 0;
             z-index: 10;
         }
 
         .avatar-token {
-            width: 18px;
-            height: 18px;
+            width: 17px;
+            height: 17px;
             border-radius: 99px;
-            border: 2px solid #fff;
+            border: 2px solid rgba(255,255,255,0.9);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: bold;
             color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3);
+            animation: token-pop 0.25s ease;
+        }
+        @keyframes token-pop {
+            from { transform: scale(0.3); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
         }
 
         .owner-badge {
@@ -159,29 +239,33 @@
             width: 6px;
             height: 6px;
             border-radius: 55px;
-            box-shadow: 0 0 4px currentColor;
+            box-shadow: 0 0 5px currentColor;
+            z-index: 6;
         }
 
         .house-indicator-row {
             display: flex;
-            gap: 1px;
+            gap: 2px;
             justify-content: center;
             position: absolute;
-            top: 14px;
+            top: 3px;
             left: 0;
             right: 0;
+            z-index: 6;
         }
         .house-dot {
-            width: 5px;
-            height: 5px;
-            background-color: #22c55e;
-            border-radius: 1px;
+            width: 6px;
+            height: 6px;
+            background: linear-gradient(160deg, #4ade80, #16a34a);
+            border-radius: 2px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.5);
         }
         .hotel-dot {
-            width: 7px;
-            height: 7px;
-            background-color: #ef4444;
-            border-radius: 1px;
+            width: 9px;
+            height: 8px;
+            background: linear-gradient(160deg, #f87171, #dc2626);
+            border-radius: 2px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.6);
         }
 
         /* ── Toasts (self-contained — this page doesn't share app.js's DOM) ── */
@@ -750,12 +834,12 @@
         <section class="col-span-1 lg:col-span-7 flex justify-center">
             <div id="boardContainer" class="monopoly-board">
                 <div class="board-center p-6 text-center select-none">
-                    <h1 class="font-display font-black text-4xl tracking-tight text-[#f5f1e8] opacity-20">GLOBAL TYCOON</h1>
-                    <p class="font-mono text-xs text-[#7c6af5] uppercase tracking-widest mt-2 opacity-40">World Cities Edition</p>
-                    
-                    <div class="mt-8 flex gap-4 items-center justify-center">
-                        <div id="dice1" class="w-12 h-12 bg-slate-800 border-2 border-slate-700 rounded-xl flex items-center justify-center text-2xl font-bold font-mono">⚀</div>
-                        <div id="dice2" class="w-12 h-12 bg-slate-800 border-2 border-slate-700 rounded-xl flex items-center justify-center text-2xl font-bold font-mono">⚀</div>
+                    <h1 class="font-display font-black text-4xl tracking-tight text-[#f5f1e8] opacity-20" style="position:relative;z-index:1;">GLOBAL TYCOON</h1>
+                    <p class="font-mono text-xs text-[#7c6af5] uppercase tracking-widest mt-2 opacity-40" style="position:relative;z-index:1;">World Cities Edition</p>
+
+                    <div class="mt-8 flex gap-4 items-center justify-center" style="position:relative;z-index:1;">
+                        <div id="dice1" class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl font-bold font-mono" style="background:linear-gradient(160deg,#f5f1e8,#d9d2c0);color:#171022;box-shadow:0 6px 16px rgba(0,0,0,0.5), inset 0 -3px 4px rgba(0,0,0,0.15);">⚀</div>
+                        <div id="dice2" class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl font-bold font-mono" style="background:linear-gradient(160deg,#f5f1e8,#d9d2c0);color:#171022;box-shadow:0 6px 16px rgba(0,0,0,0.5), inset 0 -3px 4px rgba(0,0,0,0.15);">⚀</div>
                     </div>
                 </div>
             </div>
@@ -1538,29 +1622,72 @@
             return (p?.name || '?').charAt(0).toUpperCase();
         }
 
+        const CORNER_ICONS = { 0: '➜', 10: '🔒', 20: '🅿️', 30: '🚔' };
+
+        const SPACE_ICONS = {
+            1: '🇬🇷', 3: '🇨🇾',                         // brown: Greece, Cyprus
+            5: '🚆',                                     // Trans-Siberian
+            6: '🇮🇹', 8: '🇮🇹', 9: '🇮🇹',                 // light blue: Italy
+            12: '📡',                                    // Telecom
+            11: '🇪🇸', 13: '🇪🇸', 14: '🇪🇸',              // pink: Spain
+            15: '🚂',                                    // Orient Express
+            16: '🇩🇪', 18: '🇩🇪', 19: '🇩🇪',              // orange: Germany
+            21: '🇬🇧', 23: '🇬🇧', 24: '🇬🇧',              // red: UK
+            25: '🚤',                                    // Canal Grande
+            26: '🇫🇷', 27: '🇫🇷', 29: '🇫🇷',              // yellow: France
+            28: '🚰',                                    // Water Works
+            31: '🇦🇺', 32: '🇦🇺', 34: '🇦🇺',              // green: Australia
+            35: '🚄',                                    // Bullet Train
+            37: '🇯🇵', 39: '🇯🇵',                        // dark blue: Japan
+            2: '📦', 17: '📦', 33: '📦',                 // Community Chest
+            7: '❓', 22: '❓', 36: '❓',                  // Chance
+            4: '💰', 38: '💎'                            // Income Tax, Luxury Tax
+        };
+
+        function sideForSpaceId(id) {
+            if (id >= 1 && id <= 9) return 'side-bottom';
+            if (id >= 11 && id <= 19) return 'side-left';
+            if (id >= 21 && id <= 29) return 'side-top';
+            if (id >= 31 && id <= 39) return 'side-right';
+            return '';
+        }
+
         function initializeBoardLayout() {
             const board = document.getElementById("boardContainer");
             BOARD_DATA.forEach(space => {
                 const div = document.createElement("div");
                 const isCorner = [0, 10, 20, 30].includes(space.id);
-                div.className = `board-space space-${space.id} ${isCorner ? 'corner-space' : ''}`;
+                const side = isCorner ? '' : sideForSpaceId(space.id);
+                div.className = `board-space space-${space.id} ${isCorner ? 'corner-space' : ''} ${side}`.trim();
                 div.id = `space-card-${space.id}`;
-                
-                if (space.color && !isCorner) {
+
+                if (isCorner) {
+                    const icon = document.createElement("div");
+                    icon.className = "corner-icon";
+                    icon.textContent = CORNER_ICONS[space.id] || '';
+                    div.appendChild(icon);
+                } else if (space.color) {
                     const bar = document.createElement("div");
-                    bar.className = "w-full h-2.5 rounded-sm mb-1";
+                    bar.className = "space-color-bar";
                     bar.style.backgroundColor = space.color;
                     div.appendChild(bar);
                 }
 
+                if (!isCorner && SPACE_ICONS[space.id]) {
+                    const flag = document.createElement("div");
+                    flag.className = "space-flag-icon";
+                    flag.textContent = SPACE_ICONS[space.id];
+                    div.appendChild(flag);
+                }
+
                 const title = document.createElement("div");
-                title.className = "text-center truncate w-full text-[10px] text-slate-200 mt-auto";
+                title.className = "space-name-label truncate w-full";
                 title.textContent = space.name;
                 div.appendChild(title);
 
                 if (space.cost) {
                     const price = document.createElement("div");
-                    price.className = "font-mono text-[9px] text-[#7c6af5] mt-auto";
+                    price.className = "space-price-label";
                     price.textContent = `$${space.cost}`;
                     div.appendChild(price);
                 }

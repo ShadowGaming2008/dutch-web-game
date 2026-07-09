@@ -1544,45 +1544,45 @@
 
         const BOARD_DATA = [
             { id: 10,  name: "START", type: "go", color: null, cost: null, rent: [0], group: "special" },
-            { id: 1,  name: "Athens", type: "property", color: "#92400e", cost: 60, rent: [2, 10, 30, 90, 160, 250], houseCost: 50, group: "brown" },
+            { id: 1,  name: "Salvador", type: "property", color: "#92400e", cost: 60, rent: [2, 10, 30, 90, 160, 250], houseCost: 50, group: "brown" },
             { id: 2,  name: "Community Chest", type: "chest", color: null, cost: null, rent: [0], group: "special" },
-            { id: 3,  name: "Limassol", type: "property", color: "#92400e", cost: 60, rent: [4, 20, 60, 180, 320, 450], houseCost: 50, group: "brown" },
+            { id: 3,  name: "Rio", type: "property", color: "#92400e", cost: 60, rent: [4, 20, 60, 180, 320, 450], houseCost: 50, group: "brown" },
             { id: 4,  name: "Income Tax", type: "tax", color: null, cost: null, rent: [200], group: "special" },
-            { id: 5,  name: "Trans-Siberian", type: "railroad", color: "#475569", cost: 200, rent: [25, 50, 100, 200], group: "railroad" },
-            { id: 6,  name: "Rome", type: "property", color: "#0284c7", cost: 100, rent: [6, 30, 90, 270, 400, 550], houseCost: 50, group: "lightblue" },
+            { id: 5,  name: "TLV Airport", type: "railroad", color: "#475569", cost: 200, rent: [25, 50, 100, 200], group: "railroad" },
+            { id: 6,  name: "Tel Aviv", type: "property", color: "#0284c7", cost: 100, rent: [6, 30, 90, 270, 400, 550], houseCost: 50, group: "lightblue" },
             { id: 7,  name: "Chance", type: "chance", color: null, cost: null, rent: [0], group: "special" },
-            { id: 8,  name: "Venice", type: "property", color: "#0284c7", cost: 100, rent: [6, 30, 90, 270, 400, 550], houseCost: 50, group: "lightblue" },
-            { id: 9,  name: "Milan", type: "property", color: "#0284c7", cost: 120, rent: [8, 40, 100, 300, 450, 600], houseCost: 50, group: "lightblue" },
+            { id: 8,  name: "Haifa", type: "property", color: "#0284c7", cost: 100, rent: [6, 30, 90, 270, 400, 550], houseCost: 50, group: "lightblue" },
+            { id: 9,  name: "Jerusalem", type: "property", color: "#0284c7", cost: 120, rent: [8, 40, 100, 300, 450, 600], houseCost: 50, group: "lightblue" },
             { id: 0, name: "JAIL", type: "jail", color: null, cost: null, rent: [0], group: "special" },
-            { id: 11, name: "Barcelona", type: "property", color: "#db2777", cost: 140, rent: [10, 50, 150, 450, 625, 750], houseCost: 100, group: "pink" },
-            { id: 12, name: "Telecom", type: "utility", color: "#78716c", cost: 150, rent: [4, 10], group: "utility" },
-            { id: 13, name: "Madrid", type: "property", color: "#db2777", cost: 140, rent: [10, 50, 150, 450, 625, 750], houseCost: 100, group: "pink" },
-            { id: 14, name: "Seville", type: "property", color: "#db2777", cost: 160, rent: [12, 60, 180, 500, 700, 900], houseCost: 100, group: "pink" },
-            { id: 15, name: "Orient Express", type: "railroad", color: "#475569", cost: 200, rent: [25, 50, 100, 200], group: "railroad" },
+            { id: 11, name: "Venice", type: "property", color: "#db2777", cost: 140, rent: [10, 50, 150, 450, 625, 750], houseCost: 100, group: "pink" },
+            { id: 12, name: "Electric Company", type: "utility", color: "#78716c", cost: 150, rent: [4, 10], group: "utility" },
+            { id: 13, name: "Milan", type: "property", color: "#db2777", cost: 140, rent: [10, 50, 150, 450, 625, 750], houseCost: 100, group: "pink" },
+            { id: 14, name: "Rome", type: "property", color: "#db2777", cost: 160, rent: [12, 60, 180, 500, 700, 900], houseCost: 100, group: "pink" },
+            { id: 15, name: "MUC Airport", type: "railroad", color: "#475569", cost: 200, rent: [25, 50, 100, 200], group: "railroad" },
             { id: 16, name: "Frankfurt", type: "property", color: "#ea580c", cost: 180, rent: [14, 70, 200, 550, 750, 950], houseCost: 100, group: "orange" },
             { id: 17, name: "Community Chest", type: "chest", color: null, cost: null, rent: [0], group: "special" },
             { id: 18, name: "Munich", type: "property", color: "#ea580c", cost: 180, rent: [14, 70, 200, 550, 750, 950], houseCost: 100, group: "orange" },
             { id: 19, name: "Berlin", type: "property", color: "#ea580c", cost: 200, rent: [16, 80, 220, 600, 800, 1000], houseCost: 100, group: "orange" },
             { id: 30, name: "VACATION", type: "parking", color: null, cost: null, rent: [0], group: "special" },
-            { id: 21, name: "London", type: "property", color: "#e11d48", cost: 220, rent: [18, 90, 250, 700, 875, 1050], houseCost: 150, group: "red" },
+            { id: 21, name: "Shenzhen", type: "property", color: "#e11d48", cost: 220, rent: [18, 90, 250, 700, 875, 1050], houseCost: 150, group: "red" },
             { id: 22, name: "Chance", type: "chance", color: null, cost: null, rent: [0], group: "special" },
-            { id: 23, name: "Manchester", type: "property", color: "#e11d48", cost: 220, rent: [18, 90, 250, 700, 875, 1050], houseCost: 150, group: "red" },
-            { id: 24, name: "Edinburgh", type: "property", color: "#e11d48", cost: 240, rent: [20, 100, 300, 750, 925, 1100], houseCost: 150, group: "red" },
-            { id: 25, name: "Canal Grande", type: "railroad", color: "#475569", cost: 200, rent: [25, 50, 100, 200], group: "railroad" },
-            { id: 26, name: "Paris", type: "property", color: "#eab308", cost: 260, rent: [22, 110, 330, 800, 975, 1150], houseCost: 150, group: "yellow" },
-            { id: 27, name: "Lyon", type: "property", color: "#eab308", cost: 260, rent: [22, 110, 330, 800, 975, 1150], houseCost: 150, group: "yellow" },
-            { id: 28, name: "Water Works", type: "utility", color: "#78716c", cost: 150, rent: [4, 10], group: "utility" },
-            { id: 29, name: "Bordeaux", type: "property", color: "#eab308", cost: 280, rent: [24, 120, 360, 850, 1025, 1200], houseCost: 150, group: "yellow" },
+            { id: 23, name: "Beijing", type: "property", color: "#e11d48", cost: 220, rent: [18, 90, 250, 700, 875, 1050], houseCost: 150, group: "red" },
+            { id: 24, name: "Shanghai", type: "property", color: "#e11d48", cost: 240, rent: [20, 100, 300, 750, 925, 1100], houseCost: 150, group: "red" },
+            { id: 25, name: "CDG Airport", type: "railroad", color: "#475569", cost: 200, rent: [25, 50, 100, 200], group: "railroad" },
+            { id: 26, name: "Lyon", type: "property", color: "#eab308", cost: 260, rent: [22, 110, 330, 800, 975, 1150], houseCost: 150, group: "yellow" },
+            { id: 27, name: "Toulouse", type: "property", color: "#eab308", cost: 260, rent: [22, 110, 330, 800, 975, 1150], houseCost: 150, group: "yellow" },
+            { id: 28, name: "Water Company", type: "utility", color: "#78716c", cost: 150, rent: [4, 10], group: "utility" },
+            { id: 29, name: "Paris", type: "property", color: "#eab308", cost: 280, rent: [24, 120, 360, 850, 1025, 1200], houseCost: 150, group: "yellow" },
             { id: 20, name: "GO TO JAIL", type: "gotojail", color: null, cost: null, rent: [0], group: "special" },
-            { id: 31, name: "Sydney", type: "property", color: "#16a34a", cost: 300, rent: [26, 130, 390, 900, 1100, 1275], houseCost: 200, group: "green" },
-            { id: 32, name: "Melbourne", type: "property", color: "#16a34a", cost: 300, rent: [26, 130, 390, 900, 1100, 1275], houseCost: 200, group: "green" },
+            { id: 31, name: "Liverpool", type: "property", color: "#16a34a", cost: 300, rent: [26, 130, 390, 900, 1100, 1275], houseCost: 200, group: "green" },
+            { id: 32, name: "Manchester", type: "property", color: "#16a34a", cost: 300, rent: [26, 130, 390, 900, 1100, 1275], houseCost: 200, group: "green" },
             { id: 33, name: "Community Chest", type: "chest", color: null, cost: null, rent: [0], group: "special" },
-            { id: 34, name: "Brisbane", type: "property", color: "#16a34a", cost: 320, rent: [28, 150, 450, 1000, 1200, 1400], houseCost: 200, group: "green" },
-            { id: 35, name: "Bullet Train", type: "railroad", color: "#475569", cost: 200, rent: [25, 50, 100, 200], group: "railroad" },
+            { id: 34, name: "London", type: "property", color: "#16a34a", cost: 320, rent: [28, 150, 450, 1000, 1200, 1400], houseCost: 200, group: "green" },
+            { id: 35, name: "JFK Airport", type: "railroad", color: "#475569", cost: 200, rent: [25, 50, 100, 200], group: "railroad" },
             { id: 36, name: "Chance", type: "chance", color: null, cost: null, rent: [0], group: "special" },
-            { id: 37, name: "Tokyo", type: "property", color: "#2563eb", cost: 350, rent: [35, 175, 500, 1100, 1300, 1500], houseCost: 200, group: "darkblue" },
+            { id: 37, name: "San Francisco", type: "property", color: "#2563eb", cost: 350, rent: [35, 175, 500, 1100, 1300, 1500], houseCost: 200, group: "darkblue" },
             { id: 38, name: "Luxury Tax", type: "tax", color: null, cost: null, rent: [100], group: "special" },
-            { id: 39, name: "Kyoto", type: "property", color: "#2563eb", cost: 400, rent: [50, 200, 600, 1400, 1700, 2000], houseCost: 200, group: "darkblue" }
+            { id: 39, name: "New York", type: "property", color: "#2563eb", cost: 400, rent: [50, 200, 600, 1400, 1700, 2000], houseCost: 200, group: "darkblue" }
         ];
 
         // ── Full card decks (Chance + Community Chest drawn independently) ──
@@ -1592,8 +1592,8 @@
             { text: "Global Market Rally! Collect $150.", action: "cash", value: 150 },
             { text: "Aviation fuel surcharge. Pay $50.", action: "cash", value: -50 },
             { text: "Advance to START. Collect $200.", action: "advance_go" },
-            { text: "Advance to Tokyo. If you pass GO, collect $200.", action: "advance_to", target: 37 },
-            { text: "Advance to Sydney. If you pass GO, collect $200.", action: "advance_to", target: 31 },
+            { text: "Advance to San Francisco. If you pass GO, collect $200.", action: "advance_to", target: 37 },
+            { text: "Advance to Liverpool. If you pass GO, collect $200.", action: "advance_to", target: 31 },
             { text: "Advance to the nearest Railroad. Pay double rent if unowned.", action: "advance_nearest_railroad" },
             { text: "Advance to the nearest Railroad. Pay double rent if unowned.", action: "advance_nearest_railroad" },
             { text: "Advance to the nearest Utility.", action: "advance_nearest_utility" },
@@ -1603,7 +1603,7 @@
             { text: "Go directly to Jail. Do not pass GO.", action: "advance_to", target: 0, is_jail: true },
             { text: "Building repairs: pay $25 per house and $100 per hotel you own.", action: "repairs", houseCost: 25, hotelCost: 100 },
             { text: "Speeding fine. Pay $15.", action: "cash", value: -15 },
-            { text: "Advance to Trans-Siberian Railroad. If you pass GO, collect $200.", action: "advance_to", target: 5 },
+            { text: "Advance to TLV Airport. If you pass GO, collect $200.", action: "advance_to", target: 5 },
             { text: "Elected Chairman — pay each other player $50.", action: "pay_each_player", value: 50 },
         ];
         const CHEST_CARDS = [
@@ -1672,20 +1672,20 @@
         const CORNER_ICONS = { 10: '➜', 0: '🔒', 30: '🏖️', 20: '🚔' };
 
         const SPACE_ICONS = {
-            1: '🇬🇷', 3: '🇨🇾',                         // brown: Greece, Cyprus
-            5: '🚆',                                     // Trans-Siberian
-            6: '🇮🇹', 8: '🇮🇹', 9: '🇮🇹',                 // light blue: Italy
-            12: '📡',                                    // Telecom
-            11: '🇪🇸', 13: '🇪🇸', 14: '🇪🇸',              // pink: Spain
-            15: '🚂',                                    // Orient Express
+            1: '🇧🇷', 3: '🇧🇷',                         // brown: Brazil
+            5: '✈️',                                     // TLV Airport
+            6: '🇮🇱', 8: '🇮🇱', 9: '🇮🇱',                 // light blue: Israel
+            12: '💡',                                    // Electric Company
+            11: '🇮🇹', 13: '🇮🇹', 14: '🇮🇹',              // pink: Italy
+            15: '✈️',                                     // MUC Airport
             16: '🇩🇪', 18: '🇩🇪', 19: '🇩🇪',              // orange: Germany
-            21: '🇬🇧', 23: '🇬🇧', 24: '🇬🇧',              // red: UK
-            25: '🚤',                                    // Canal Grande
+            21: '🇨🇳', 23: '🇨🇳', 24: '🇨🇳',              // red: China
+            25: '✈️',                                     // CDG Airport
             26: '🇫🇷', 27: '🇫🇷', 29: '🇫🇷',              // yellow: France
-            28: '🚰',                                    // Water Works
-            31: '🇦🇺', 32: '🇦🇺', 34: '🇦🇺',              // green: Australia
-            35: '🚄',                                    // Bullet Train
-            37: '🇯🇵', 39: '🇯🇵',                        // dark blue: Japan
+            28: '🚰',                                    // Water Company
+            31: '🇬🇧', 32: '🇬🇧', 34: '🇬🇧',              // green: UK
+            35: '✈️',                                     // JFK Airport
+            37: '🇺🇸', 39: '🇺🇸',                        // dark blue: USA
             2: '📦', 17: '📦', 33: '📦',                 // Community Chest
             7: '❓', 22: '❓', 36: '❓',                  // Chance
             4: '💰', 38: '💎'                            // Income Tax, Luxury Tax

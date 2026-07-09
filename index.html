@@ -240,7 +240,9 @@
         }
         .game-card.suit-brass:hover { border-color: #7c6af5; box-shadow: 0 24px 48px rgba(124,106,245,0.14); }
         .game-card.suit-slate:hover { border-color: #5b7a99; box-shadow: 0 24px 48px rgba(91,122,153,0.16); }
-
+        .game-card.suit-emerald:hover { border-color: #10b981; /* Premium Emerald Green */
+         box-shadow: 0 24px 48px rgba(16, 185, 129, 0.16); 
+}
         .card-index {
             position: absolute;
             top: 18px; right: 20px;
@@ -252,6 +254,7 @@
         }
         .suit-brass .card-index { color: #7c6af5; }
         .suit-slate .card-index { color: #5b7a99; }
+        .suit-emerald .card-index { color: #10b981;}
 
         .card-glyph { font-size: 2.1rem; margin-bottom: 18px; display: block; }
 
@@ -274,6 +277,10 @@
         }
         .suit-brass .card-tag { background: rgba(124,106,245,0.15); color: #9585f8; }
         .suit-slate .card-tag { background: rgba(91,122,153,0.18); color: #8fb0cc; }
+        .suit-emerald .card-tag { 
+    background: rgba(16, 185, 129, 0.15); 
+    color: #34d399; 
+}
 
         .card-desc {
             color: #9aa5b3;
@@ -290,6 +297,7 @@
         }
         .suit-brass .card-cta { color: #7c6af5; }
         .suit-slate .card-cta { color: #7fa3c4; }
+        .suit-emerald .card-cta { color: #10b981;}
         .card-cta .arrow { transition: transform 0.2s; }
         .game-card:hover .card-cta .arrow { transform: translateX(3px); }
 
@@ -387,7 +395,7 @@
             <div class="card-cta">Open chat <span class="arrow">→</span></div>
         </a>
 
-        <a class="game-card suit-brass" href="monopoly.html">
+        <a class="game-card suit-emerald" href="monopoly.html">
     <span class="card-index">Game</span>
     <span class="card-glyph">🎩</span>
     <h2 class="card-title">RichUp</h2>

@@ -583,6 +583,13 @@
             background: rgba(10,14,19,0.88); backdrop-filter: blur(5px);
         }
         #propertyModal.hidden { display: none; }
+        /* ── Auction modal ── */
+        #auctionModal {
+            position: fixed; inset: 0; z-index: 58;
+            display: flex; align-items: center; justify-content: center; padding: 16px;
+            background: rgba(10,14,19,0.88); backdrop-filter: blur(5px);
+        }
+        #auctionModal.hidden { display: none; }
         .prop-modal-clickable { cursor: pointer; }
         .trade-prop-chip {
             display: inline-flex; align-items: center; gap: 4px;
@@ -897,20 +904,6 @@
                         </div>
                     </div>
 
-                    <div id="auctionWrapper" class="hidden bg-[#1a2530] p-3 rounded-xl border border-amber-700/50 space-y-2 text-xs">
-                        <div class="flex items-center justify-between">
-                            <p id="auctionStatus" class="text-amber-300 font-medium"></p>
-                            <span id="auctionTimer" class="font-mono text-sm font-bold text-amber-400 flex-shrink-0 ml-2"></span>
-                        </div>
-                        <div id="auctionBidderControls" class="space-y-2">
-                            <div class="grid grid-cols-3 gap-2">
-                                <button class="auction-quick-bid py-2 bg-amber-700 hover:bg-amber-600 font-bold rounded-lg text-white" data-increment="10">+$10</button>
-                                <button class="auction-quick-bid py-2 bg-amber-700 hover:bg-amber-600 font-bold rounded-lg text-white" data-increment="50">+$50</button>
-                                <button class="auction-quick-bid py-2 bg-amber-700 hover:bg-amber-600 font-bold rounded-lg text-white" data-increment="100">+$100</button>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="flex gap-2">
                         <button id="btnRollDice" class="flex-1 py-3 bg-[#7c6af5] hover:bg-[#9585f8] text-white font-bold rounded-xl text-sm transition">
                             🎲 Roll Dice
@@ -945,6 +938,25 @@
 
     <!-- ── Trade Proposal Modal ── -->
     <!-- ── Property Management Modal (click any board space to manage it) ── -->
+
+    <div id="auctionModal" class="hidden">
+        <div class="hub-panel w-full max-w-sm p-6 space-y-4">
+            <div class="flex items-center justify-between pb-3" style="border-bottom:1px solid var(--hub-border-soft);">
+                <h3 class="font-display text-xl font-bold" style="color:var(--hub-text-bright);">🔨 Live Auction</h3>
+                <span id="auctionTimer" class="font-mono text-lg font-bold text-amber-400 flex-shrink-0 ml-2"></span>
+            </div>
+            <p id="auctionStatus" class="text-sm font-medium text-amber-300"></p>
+            <div id="auctionBidderControls" class="space-y-2">
+                <div class="grid grid-cols-3 gap-2">
+                    <button class="auction-quick-bid py-2 bg-amber-700 hover:bg-amber-600 font-bold rounded-lg text-white text-sm" data-increment="10">+$10</button>
+                    <button class="auction-quick-bid py-2 bg-amber-700 hover:bg-amber-600 font-bold rounded-lg text-white text-sm" data-increment="50">+$50</button>
+                    <button class="auction-quick-bid py-2 bg-amber-700 hover:bg-amber-600 font-bold rounded-lg text-white text-sm" data-increment="100">+$100</button>
+                </div>
+            </div>
+            <p id="auctionSpectatorHint" class="hidden text-xs italic" style="color:var(--hub-faint);">You're sitting this one out — watch the bidding until it resolves.</p>
+        </div>
+    </div>
+
     <div id="propertyModal" class="hidden">
         <div class="hub-panel w-full max-w-sm p-6 space-y-4">
             <div class="flex items-center justify-between pb-3" style="border-bottom:1px solid var(--hub-border-soft);">
@@ -2133,25 +2145,22 @@
             
             const buyWrapper = document.getElementById("buyActionWrapper");
             const jailWrapper = document.getElementById("jailControlsWrapper");
-            const auctionWrapper = document.getElementById("auctionWrapper");
+            const auctionModal = document.getElementById("auctionModal");
 
-            // Auction UI overrides everything else and is shown to ANY
-            // eligible bidder, regardless of whose "turn" it nominally is —
-            // an auction is a cross-player mini-phase.
+            // Auction UI is a modal popup shown to ANY eligible bidder,
+            // regardless of whose "turn" it nominally is — an auction is a
+            // cross-player mini-phase that shouldn't be buried in the hub.
             if (state.auction) {
                 renderAuctionPanel(state);
-                actionPanel.classList.remove("hidden");
-                statusAlert.classList.add("hidden");
-                buyWrapper.classList.add("hidden");
-                jailWrapper.classList.add("hidden");
-                document.getElementById("btnRollDice").classList.add("hidden");
-                document.getElementById("btnEndTurn").classList.add("hidden");
-                document.getElementById("actionPrompt").textContent = `🔨 Auction in progress: ${BOARD_DATA[state.auction.spaceId].name}`;
+                auctionModal.classList.remove("hidden");
+                actionPanel.classList.add("hidden");
+                statusAlert.classList.remove("hidden");
+                statusAlert.textContent = `🔨 Auction in progress: ${BOARD_DATA[state.auction.spaceId].name}`;
                 turnIndicator.textContent = "Auction";
                 turnIndicator.className = "font-mono text-xs bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full border border-amber-500/20";
                 return;
             }
-            auctionWrapper.classList.add("hidden");
+            auctionModal.classList.add("hidden");
 
             if (isMyTurn) {
                 turnIndicator.textContent = "Your Turn";
@@ -2232,16 +2241,15 @@
         function renderAuctionPanel(state) {
             const auction = state.auction;
             const space = BOARD_DATA[auction.spaceId];
-            const wrapper = document.getElementById("auctionWrapper");
             const statusEl = document.getElementById("auctionStatus");
 
-            wrapper.classList.remove("hidden");
             const highBidderName = auction.highBidder ? shortNameFor(auction.highBidder) : "No bids yet";
-            statusEl.textContent = `🔨 ${space.name} — High bid: $${auction.highBid} (${highBidderName})`;
+            statusEl.textContent = `${space.name} — High bid: $${auction.highBid} (${highBidderName})`;
 
             const controls = document.getElementById("auctionBidderControls");
             const canBid = auction.participants.includes(localUser.uid);
             controls.classList.toggle("hidden", !canBid);
+            document.getElementById("auctionSpectatorHint").classList.toggle("hidden", canBid);
 
             const currentBalance = state.playerBalances?.[localUser.uid] || 0;
             document.querySelectorAll(".auction-quick-bid").forEach(btn => {

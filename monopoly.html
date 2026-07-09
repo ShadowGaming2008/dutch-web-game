@@ -618,12 +618,12 @@
                 <span class="hub-brand-name">Game Hub</span>
             </a>
             <span class="hub-divider"></span>
-            <span class="hub-game-tag">Global Tycoon</span>
+            <span class="hub-game-tag">Richup</span>
         </div>
         <div class="flex items-center gap-2">
             <button id="rulesBtn" class="hub-btn hub-btn-ghost">📖 How to Play</button>
             <button id="exitButton" class="hub-btn hub-btn-ghost">← Exit to Hub</button>
-            <button id="leaderboardBtn" class="hub-btn hub-btn-brass" title="Monopoly leaderboard — separate from Dutch's">🏆 Leaderboard</button>
+            <button id="leaderboardBtn" class="hub-btn hub-btn-brass" title="Richup leaderboard — separate from Dutch's">🏆 Leaderboard</button>
             <button id="headerSignInBtn" class="hub-btn hub-btn-slate">Sign in</button>
             <button id="headerAccountBtn" class="hidden hub-account-btn">
                 <div id="headerAvatar" class="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-xs flex-shrink-0" style="background:var(--hub-panel-raised);border:1px solid var(--hub-border);"></div>
@@ -706,7 +706,7 @@
     <div id="leaderboardModal" class="hidden fixed inset-0 backdrop-blur-sm hub-modal-backdrop flex items-end sm:items-center justify-center p-4" style="z-index:50;">
         <div class="hub-panel w-full max-w-lg max-h-[80vh] flex flex-col">
             <div class="flex items-center justify-between p-5" style="border-bottom:1px solid var(--hub-border-soft);">
-                <h2 class="font-display text-xl font-bold" style="color:var(--hub-text-bright);">🏆 Monopoly Leaderboard</h2>
+                <h2 class="font-display text-xl font-bold" style="color:var(--hub-text-bright);">🏆 RichUp Leaderboard</h2>
                 <button id="closeLeaderboardBtn" class="text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-lg transition" style="color:var(--hub-muted);" onmouseover="this.style.color='var(--hub-text)';this.style.background='var(--hub-panel-raised)'" onmouseout="this.style.color='var(--hub-muted)';this.style.background='transparent'">✕</button>
             </div>
             <div id="leaderboardContent" class="flex-1 overflow-y-auto p-4 space-y-2">
@@ -729,7 +729,7 @@
                      play works fine via "Continue as Guest" below. -->
                 <div id="signedOutLobbyArea" class="hidden text-center space-y-4">
                     <span class="hub-eyebrow" style="margin-bottom:4px;">Pull up a chair</span>
-                    <h2 class="font-display font-bold text-2xl text-white mt-2">Global Tycoon</h2>
+                    <h2 class="font-display font-bold text-2xl text-white mt-2">RichUp</h2>
                     <p class="text-sm text-[#9aa5b3]">Sign in to save your stats and appear on the leaderboard — or play as a guest below.</p>
                     <button id="landingSignInBtn" class="w-full flex items-center justify-center gap-2 py-3 bg-white hover:bg-slate-100 text-slate-800 font-semibold rounded-xl transition border border-slate-300 shadow-sm text-sm">
                         <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6 29.6 4 24 4c-7.6 0-14.1 4.3-17.7 10.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.8 14.1-5l-6.5-5.5c-2 1.4-4.6 2.3-7.6 2.3-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.8 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.1 5.7l6.5 5.5C41.5 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
@@ -750,7 +750,7 @@
                     <!-- ── Party header: shows who you're about to play as ── -->
                     <div class="text-center">
                         <span class="hub-eyebrow" style="margin-bottom:8px;">Pull up a chair</span>
-                        <h2 class="font-display font-bold text-2xl text-white mt-2">Global Tycoon</h2>
+                        <h2 class="font-display font-bold text-2xl text-white mt-2">RichUp</h2>
                         <p class="text-sm text-[#9aa5b3] mt-1">Host a table or join one with a code — 2 to 6 players.</p>
                     </div>
 
@@ -862,7 +862,7 @@
         <section class="col-span-1 lg:col-span-7 flex justify-center">
             <div id="boardContainer" class="monopoly-board">
                 <div class="board-center p-6 text-center select-none">
-                    <h1 class="font-display font-black text-4xl tracking-tight text-[#f5f1e8] opacity-20" style="position:relative;z-index:1;">GLOBAL TYCOON</h1>
+                    <h1 class="font-display font-black text-4xl tracking-tight text-[#f5f1e8] opacity-20" style="position:relative;z-index:1;">RICHUP</h1>
                     <p class="font-mono text-xs text-[#7c6af5] uppercase tracking-widest mt-2 opacity-40" style="position:relative;z-index:1;">World Cities Edition</p>
 
                     <div class="mt-8 flex gap-4 items-center justify-center" style="position:relative;z-index:1;">
@@ -2008,9 +2008,9 @@
                     stats: updatedStats,
                     updatedAt: new Date()
                 }, { merge: true });
-                if (won) showToast('⭐ Win recorded on the Monopoly leaderboard!', 'info', 3000);
+                if (won) showToast('⭐ Win recorded on the RichUp leaderboard!', 'info', 3000);
             } catch (err) {
-                console.warn('Could not record Monopoly result:', err);
+                console.warn('Could not record RichUp result:', err);
             }
         }
 

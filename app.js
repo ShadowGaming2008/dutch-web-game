@@ -384,7 +384,13 @@ async function loadOrCreateProfile(user) {
             username: user.displayName || (user.email ? user.email.split('@')[0] : "Player"),
             avatarEmoji: null, // null = use Google photo; set to an emoji string to override
             equippedSkin: 'classic',
-            stats: defaultStats()
+            stats: defaultStats(),
+            // Token economy — see TOKEN GATE section below. New accounts
+            // start with 3 free hosts. bypassTokens is Console-only (never
+            // settable from the client — see Firestore rules).
+            tokens: 3,
+            bypassTokens: false,
+            lastAdGrant: null
         };
         await setDoc(ref, currentProfile);
     }
@@ -392,6 +398,16 @@ async function loadOrCreateProfile(user) {
     if (currentProfile.stats.xp === undefined) currentProfile.stats.xp = 0;
     if (currentProfile.avatarEmoji === undefined) currentProfile.avatarEmoji = null;
     if (!currentProfile.equippedSkin) currentProfile.equippedSkin = 'classic';
+    // Backfill for pre-existing accounts created before the token gate
+    // shipped. This is a LOCAL default only (does not write to Firestore) —
+    // profiles missing `tokens` entirely are legacy docs; the rules treat
+    // a missing tokens field as blocking (get('bypassTokens', false) and
+    // direct `tokens` reads both fail closed), so surface 0 here rather
+    // than silently granting free hosts. An admin should backfill these
+    // docs via Console if this matters for existing users.
+    if (currentProfile.tokens === undefined) currentProfile.tokens = 0;
+    if (currentProfile.bypassTokens === undefined) currentProfile.bypassTokens = false;
+    if (currentProfile.lastAdGrant === undefined) currentProfile.lastAdGrant = null;
 
     // Live-sync from here on: if the nickname/avatar changes on the Game Hub
     // home page (or any other game sharing this users/{uid} doc) while this
@@ -405,9 +421,12 @@ async function loadOrCreateProfile(user) {
         if (currentProfile.stats.xp === undefined) currentProfile.stats.xp = 0;
         if (currentProfile.avatarEmoji === undefined) currentProfile.avatarEmoji = null;
         if (!currentProfile.equippedSkin) currentProfile.equippedSkin = 'classic';
+        if (currentProfile.tokens === undefined) currentProfile.tokens = 0;
+        if (currentProfile.bypassTokens === undefined) currentProfile.bypassTokens = false;
+        if (currentProfile.lastAdGrant === undefined) currentProfile.lastAdGrant = null;
         // Only repaint chrome that reflects identity — avoid touching anything
         // mid-game-render (cards, board) since this can fire during a round.
-        if (currentUser) applySignedInUI();
+        if (currentUser) { applySignedInUI(); renderTokenBalanceUI(); }
     });
 }
 
@@ -439,6 +458,8 @@ function applySignedInUI() {
     if (!usernameInput.dataset.userEdited) {
         usernameInput.value = currentProfile?.username || currentUser.displayName || "";
     }
+
+    renderTokenBalanceUI();
 }
 
 function applySignedOutUI() {
@@ -449,6 +470,8 @@ function applySignedOutUI() {
     document.getElementById("landingEmailSignInBtn").classList.remove("hidden");
     document.getElementById("landingSignedInChip").classList.add("hidden");
     delete document.getElementById("usernameInput").dataset.userEdited;
+    document.getElementById("tokenBalanceDisplay")?.classList.add("hidden");
+    document.getElementById("watchAdBtn")?.classList.add("hidden");
 }
 
 onAuthStateChanged(auth, async (user) => {
@@ -1490,10 +1513,132 @@ const gameScreen = document.getElementById("screen-game");
 const roundEndScreen = document.getElementById("screen-roundend");
 
 // ==========================================
+// Token Gate — hosting a room costs 1 token
+// ==========================================
+// Scope: this module ONLY gates room-HOSTING in Dutch (createRoomBtn below)
+// and Monopoly (hostNewTable, see monopoly.html — duplicated there since
+// app.js is Dutch-only, not a shared module; see the comment at the top of
+// monopoly.html's script block). Joining a room stays free, and nothing
+// here is ever invoked from chat.html or the in-room party chat — party
+// chat (sendChatMessage/subscribeChatForRoom below) has zero token
+// involvement by design.
+//
+// Guests (not signed in) have no Firestore profile, so they aren't token-
+// gated at all — hosting stays free for guest play, same as before this
+// feature. Only signed-in accounts draw from/spend the tokens field.
+const AD_COOLDOWN_MS = 60000; // mirrors the Firestore rule's 55s floor with a little headroom
+
+function renderTokenBalanceUI() {
+    const el = document.getElementById('tokenBalanceDisplay');
+    const adBtn = document.getElementById('watchAdBtn');
+    if (!el) return; // element may not exist yet during early load
+    if (!currentUser || !currentProfile) {
+        el.classList.add('hidden');
+        adBtn?.classList.add('hidden');
+        return;
+    }
+    el.classList.remove('hidden');
+    if (currentProfile.bypassTokens) {
+        el.innerHTML = `<span title="Unlimited hosting">♾️ Unlimited</span>`;
+        adBtn?.classList.add('hidden'); // bypass accounts never need to earn tokens
+    } else {
+        el.innerHTML = `🎟️ <span id="tokenBalanceCount">${currentProfile.tokens ?? 0}</span>`;
+        adBtn?.classList.remove('hidden');
+    }
+}
+
+// Attempts to spend 1 token for hosting. Returns true if the spend
+// succeeded (or the user has bypass/is a guest), false if blocked.
+// Uses runTransaction so the read-then-write is atomic against concurrent
+// spends from the same account in another tab; the actual anti-cheat
+// enforcement is the Firestore rule (see firestore.rules), which
+// independently re-validates the balance server-side regardless of what
+// this function does.
+async function trySpendHostToken() {
+    if (!currentUser) return true; // guests: ungated, unchanged from before
+    if (currentProfile?.bypassTokens) return true;
+
+    const ref = doc(db, "users", currentUser.uid);
+    try {
+        await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            const data = snap.data() || {};
+            if (data.bypassTokens) return; // re-check inside the transaction too
+            const tokens = data.tokens ?? 0;
+            if (tokens <= 0) throw new Error("no-tokens");
+            tx.update(ref, { tokens: tokens - 1 });
+        });
+        return true;
+    } catch (err) {
+        if (err?.message === "no-tokens") return false;
+        console.warn("Token spend failed:", err);
+        showToast("Couldn't verify your token balance — try again.", 'error');
+        return false;
+    }
+}
+
+async function watchAdForToken() {
+    if (!currentUser) { showToast("Sign in to earn tokens by watching an ad.", 'info'); return; }
+    if (currentProfile?.bypassTokens) { showToast("Your account has unlimited hosting already.", 'info'); return; }
+
+    const last = currentProfile?.lastAdGrant;
+    const lastMs = last?.toMillis ? last.toMillis() : (last ? new Date(last).getTime() : 0);
+    if (lastMs && Date.now() - lastMs < AD_COOLDOWN_MS) {
+        const waitSec = Math.ceil((AD_COOLDOWN_MS - (Date.now() - lastMs)) / 1000);
+        showToast(`You can watch another ad in ${waitSec}s.`, 'warning');
+        return;
+    }
+
+    // ── Ad SDK integration point ──────────────────────────────────────
+    // Isolated on purpose so a real rewarded-ad SDK (e.g. Google AdSense
+    // H5 rewarded units) can be dropped in later without touching the
+    // token-grant logic below. Swap this block for the SDK's "show
+    // rewarded ad" call, and invoke onAdRewardEarned() from its completion
+    // callback instead of calling it directly.
+    showToast("Loading ad…", 'info', 1200);
+    setTimeout(() => { onAdRewardEarned(); }, 1200); // simulated ad completion
+}
+
+async function onAdRewardEarned() {
+    if (!currentUser) return;
+    const ref = doc(db, "users", currentUser.uid);
+    try {
+        await updateDoc(ref, { tokens: (currentProfile?.tokens ?? 0) + 1, lastAdGrant: serverTimestamp() });
+        showToast("+1 token earned!", 'success');
+    } catch (err) {
+        // Most likely cause: the Firestore rule's cooldown rejected this
+        // write (e.g. a replayed/duplicate callback fired faster than the
+        // cooldown allows). This is expected and not a bug — see the
+        // cooldown-abuse note in firestore.rules.
+        console.warn("Ad token grant failed:", err);
+        showToast("Couldn't grant your token — please try again shortly.", 'error');
+    }
+}
+
+document.getElementById('watchAdBtn')?.addEventListener('click', watchAdForToken);
+
+// ==========================================
 // Lobby / Room setup
 // ==========================================
 document.getElementById("createRoomBtn").addEventListener("click", async () => {
     if (!authReady) { showToast("Still checking your sign-in status — one moment…", 'info'); return; }
+
+    if (currentUser && !currentProfile?.bypassTokens && (currentProfile?.tokens ?? 0) <= 0) {
+        showChoiceModal(
+            "You're out of tokens to host a party.",
+            "Watch a short ad to earn +1 token, then try hosting again.",
+            "🎬 Watch ad for +1 token",
+            'bg-violet-600 hover:bg-violet-500'
+        ).then((wantsAd) => { if (wantsAd) watchAdForToken(); });
+        return;
+    }
+
+    const spent = await trySpendHostToken();
+    if (!spent) {
+        showToast("Out of tokens — watch an ad to earn one.", 'warning');
+        return;
+    }
+
     const name = document.getElementById("usernameInput").value.trim() || "Player";
     roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
     gameState = {

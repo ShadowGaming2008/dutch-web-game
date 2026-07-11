@@ -624,6 +624,8 @@
             <button id="rulesBtn" class="hub-btn hub-btn-ghost">📖 How to Play</button>
             <button id="exitButton" class="hub-btn hub-btn-ghost">← Exit to Hub</button>
             <button id="leaderboardBtn" class="hub-btn hub-btn-brass" title="Richup leaderboard — separate from Dutch's">🏆 Leaderboard</button>
+            <span id="tokenBalanceDisplay" class="hidden hub-btn hub-btn-ghost" style="cursor:default;pointer-events:none;" title="Tokens — spend 1 to host a table"></span>
+            <button id="watchAdBtn" class="hidden hub-btn hub-btn-ghost" title="Watch a short ad to earn +1 token">🎬 +1</button>
             <button id="headerSignInBtn" class="hub-btn hub-btn-slate">Sign in</button>
             <button id="headerAccountBtn" class="hidden hub-account-btn">
                 <div id="headerAvatar" class="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-xs flex-shrink-0" style="background:var(--hub-panel-raised);border:1px solid var(--hub-border);"></div>
@@ -1125,7 +1127,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import {
             getFirestore, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, arrayUnion, arrayRemove, deleteField,
-            collection, addDoc, query, orderBy, limit, serverTimestamp
+            collection, addDoc, query, orderBy, limit, serverTimestamp, runTransaction
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import {
             getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut,
@@ -1221,18 +1223,31 @@
                     photoURL: user.photoURL || '',
                     username: user.displayName || (user.email ? user.email.split('@')[0] : 'Player'),
                     avatarEmoji: null,
-                    stats: defaultStats()
+                    stats: defaultStats(),
+                    // Token economy — shared with Dutch/app.js via the same
+                    // users/{uid} doc and Firestore rules. New accounts get
+                    // 3 free hosts; bypassTokens is Console-only.
+                    tokens: 3,
+                    bypassTokens: false,
+                    lastAdGrant: null
                 });
             }
             profileUnsub = onSnapshot(ref, s => {
                 if (!s.exists()) return;
                 currentProfile = s.data();
+                // Backfill for legacy profiles (created before the token gate
+                // shipped, or by the other page's older profile shape). Local
+                // default only — missing tokens surfaces as 0, not free hosts.
+                if (currentProfile.tokens === undefined) currentProfile.tokens = 0;
+                if (currentProfile.bypassTokens === undefined) currentProfile.bypassTokens = false;
+                if (currentProfile.lastAdGrant === undefined) currentProfile.lastAdGrant = null;
                 const name = currentProfile.username || localUser?.displayName || 'Player';
                 const avatarEmoji = currentProfile.avatarEmoji || null;
                 const photo = currentProfile.photoURL || localUser?.photoURL || '';
                 renderAvatarInto(document.getElementById('headerAvatar'), photo, avatarEmoji);
                 document.getElementById('headerAccountName').textContent = name;
                 renderAvatarInto(document.getElementById('dropdownAvatar'), photo, avatarEmoji);
+                renderTokenBalanceUI();
                 // playerProfiles.{uid} on the room doc is only written at
                 // join time (see myProfileSnapshot/joinRoom) — without this,
                 // an avatar/name change made mid-lobby via Edit Profile
@@ -1785,6 +1800,8 @@
                 if (profileUnsub) { profileUnsub(); profileUnsub = null; }
                 currentProfile = null;
                 if (!inActiveRoom) localUser = guestUser;
+                document.getElementById('tokenBalanceDisplay')?.classList.add('hidden');
+                document.getElementById('watchAdBtn')?.classList.add('hidden');
             }
             // Guest play is always available, same as dutch.html — the
             // signed-out gate is just a nudge, not a hard block, so once
@@ -1792,6 +1809,7 @@
             // (tracked via guestChoiceMade) even though `user` is still null.
             applyLandingSignedState();
             refreshLobbyNameField();
+            renderTokenBalanceUI();
             if (!lobbyBootstrapped) {
                 lobbyBootstrapped = true;
                 if (!localUser) localUser = guestUser;
@@ -1805,7 +1823,133 @@
         });
         let lobbyBootstrapped = false;
 
+        // ==========================================
+        // Token Gate — hosting a table costs 1 token
+        // ==========================================
+        // Same rules/pattern as Dutch's copy in app.js (this page can't
+        // import app.js — it's not a shared module, see the note at the
+        // top of this script block — so the module is duplicated here).
+        // Scope: only gates hostNewTable() below. Joining a table
+        // (joinActiveTable/joinRoom) stays free. Never invoked from
+        // chat.html or the in-room party chat (subscribeChat/sendChat
+        // further down this file) — those have zero token involvement.
+        // Guests (localUser.isGuest) have no Firestore profile and are
+        // not token-gated, same as before this feature.
+        const AD_COOLDOWN_MS = 60000; // mirrors the Firestore rule's 55s floor with headroom
+
+        function renderTokenBalanceUI() {
+            const el = document.getElementById('tokenBalanceDisplay');
+            const adBtn = document.getElementById('watchAdBtn');
+            if (!el) return;
+            if (!localUser || localUser.isGuest || !currentProfile) {
+                el.classList.add('hidden');
+                adBtn?.classList.add('hidden');
+                return;
+            }
+            el.classList.remove('hidden');
+            if (currentProfile.bypassTokens) {
+                el.innerHTML = `<span title="Unlimited hosting">♾️ Unlimited</span>`;
+                adBtn?.classList.add('hidden');
+            } else {
+                el.innerHTML = `🎟️ <span id="tokenBalanceCount">${currentProfile.tokens ?? 0}</span>`;
+                adBtn?.classList.remove('hidden');
+            }
+        }
+
+        // Minimal confirm-style modal, matching this page's hub-panel visual
+        // language (no showChoiceModal helper exists here, unlike app.js).
+        function showTokenBlockedModal() {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.className = 'fixed inset-0 backdrop-blur-sm hub-modal-backdrop flex items-center justify-center p-4';
+                overlay.style.zIndex = '60';
+                overlay.innerHTML = `
+                    <div class="hub-panel max-w-sm w-full p-6 space-y-4" style="text-align:center;">
+                        <div style="font-size:2rem;">🎟️</div>
+                        <p class="font-bold text-lg" style="color:var(--hub-text-bright);">Out of tokens to host</p>
+                        <p class="text-sm" style="color:var(--hub-muted);">Watch a short ad to earn +1 token, then try hosting again.</p>
+                        <div class="flex gap-3 pt-1">
+                            <button class="cancel-btn hub-btn hub-btn-ghost flex-1">Not now</button>
+                            <button class="confirm-btn hub-btn hub-btn-brass flex-1">🎬 Watch ad</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(overlay);
+                overlay.querySelector('.confirm-btn').onclick = () => { overlay.remove(); resolve(true); };
+                overlay.querySelector('.cancel-btn').onclick = () => { overlay.remove(); resolve(false); };
+                overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } };
+            });
+        }
+
+        async function trySpendHostToken() {
+            if (!localUser || localUser.isGuest) return true; // guests: ungated
+            if (currentProfile?.bypassTokens) return true;
+
+            const ref = doc(db, "users", localUser.uid);
+            try {
+                await runTransaction(db, async (tx) => {
+                    const snap = await tx.get(ref);
+                    const data = snap.data() || {};
+                    if (data.bypassTokens) return;
+                    const tokens = data.tokens ?? 0;
+                    if (tokens <= 0) throw new Error("no-tokens");
+                    tx.update(ref, { tokens: tokens - 1 });
+                });
+                return true;
+            } catch (err) {
+                if (err?.message === "no-tokens") return false;
+                console.warn("Token spend failed:", err);
+                showToast("Couldn't verify your token balance — try again.", "error");
+                return false;
+            }
+        }
+
+        async function watchAdForToken() {
+            if (!localUser || localUser.isGuest) { showToast("Sign in to earn tokens by watching an ad.", "info"); return; }
+            if (currentProfile?.bypassTokens) { showToast("Your account has unlimited hosting already.", "info"); return; }
+
+            const last = currentProfile?.lastAdGrant;
+            const lastMs = last?.toMillis ? last.toMillis() : (last ? new Date(last).getTime() : 0);
+            if (lastMs && Date.now() - lastMs < AD_COOLDOWN_MS) {
+                const waitSec = Math.ceil((AD_COOLDOWN_MS - (Date.now() - lastMs)) / 1000);
+                showToast(`You can watch another ad in ${waitSec}s.`, "warning");
+                return;
+            }
+
+            // ── Ad SDK integration point — see app.js's copy of this
+            // comment for the same note. Swap this block for a real
+            // rewarded-ad SDK call; invoke onAdRewardEarned() from its
+            // completion callback instead of the setTimeout below.
+            showToast("Loading ad…", "info", 1200);
+            setTimeout(() => { onAdRewardEarned(); }, 1200); // simulated ad completion
+        }
+
+        async function onAdRewardEarned() {
+            if (!localUser || localUser.isGuest) return;
+            const ref = doc(db, "users", localUser.uid);
+            try {
+                await updateDoc(ref, { tokens: (currentProfile?.tokens ?? 0) + 1, lastAdGrant: serverTimestamp() });
+                showToast("+1 token earned!", "success");
+            } catch (err) {
+                console.warn("Ad token grant failed:", err);
+                showToast("Couldn't grant your token — please try again shortly.", "error");
+            }
+        }
+
+        document.getElementById('watchAdBtn')?.addEventListener('click', watchAdForToken);
+
         async function hostNewTable() {
+            if (localUser && !localUser.isGuest && !currentProfile?.bypassTokens && (currentProfile?.tokens ?? 0) <= 0) {
+                const wantsAd = await showTokenBlockedModal();
+                if (wantsAd) watchAdForToken();
+                return;
+            }
+
+            const spent = await trySpendHostToken();
+            if (!spent) {
+                showToast("Out of tokens — watch an ad to earn one.", "warning");
+                return;
+            }
+
             const code = generateRoomCode();
             const initialGameState = {
                 roomCode: code,

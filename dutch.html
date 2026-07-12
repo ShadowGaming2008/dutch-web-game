@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Hub has moved</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --hub-bg: #0e0920;
+        --hub-panel: #171130;
+        --hub-panel-raised: #1d1640;
+        --hub-border: #2c2454;
+        --hub-border-soft: #241d47;
+        --hub-text-bright: #f4f2fb;
+        --hub-text: #cfc9e8;
+        --hub-muted: #9186bd;
+        --hub-faint: #6c5f9c;
+        --hub-accent: #7c6af5;
+        --hub-accent-bright: #9585f8;
+        --hub-accent-dark: #5a49c9;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--hub-bg);
+        color: var(--hub-text);
+        font-family: 'Inter', sans-serif;
+        padding: 24px;
+        position: relative;
+        overflow-x: hidden;
+    }
+
+    /* Ambient glow, echoing the violet identity without competing with it */
+    body::before {
+        content: '';
+        position: fixed;
+        top: -20%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 900px;
+        height: 900px;
+        background: radial-gradient(circle, rgba(124,106,245,0.16) 0%, rgba(124,106,245,0) 70%);
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    .card {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 480px;
+        background: var(--hub-panel);
+        border: 1px solid var(--hub-border);
+        border-radius: 24px;
+        padding: 44px 36px 36px;
+        text-align: center;
+        box-shadow: 0 30px 80px -20px rgba(0,0,0,0.6);
+        animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes rise {
+        from { opacity: 0; transform: translateY(14px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--hub-accent-bright);
+        background: rgba(124,106,245,0.12);
+        border: 1px solid rgba(124,106,245,0.3);
+        padding: 6px 14px;
+        border-radius: 999px;
+        margin-bottom: 22px;
+    }
+
+    .badge-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--hub-accent-bright);
+        box-shadow: 0 0 8px var(--hub-accent-bright);
+    }
+
+    h1 {
+        font-family: 'Fraunces', serif;
+        font-weight: 700;
+        font-size: 30px;
+        line-height: 1.2;
+        color: var(--hub-text-bright);
+        margin: 0 0 14px;
+    }
+
+    p.lede {
+        font-size: 14.5px;
+        line-height: 1.6;
+        color: var(--hub-muted);
+        margin: 0 0 30px;
+    }
+
+    .old-url {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: var(--hub-faint);
+        background: var(--hub-panel-raised);
+        border: 1px solid var(--hub-border-soft);
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin-bottom: 28px;
+        word-break: break-all;
+        text-decoration: line-through;
+        text-decoration-color: var(--hub-faint);
+    }
+
+    .btn {
+        appearance: none;
+        border: none;
+        cursor: pointer;
+        font-family: 'Inter', sans-serif;
+        font-weight: 700;
+        font-size: 14.5px;
+        letter-spacing: 0.01em;
+        border-radius: 14px;
+        transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+    }
+
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary {
+        width: 100%;
+        padding: 15px;
+        background: var(--hub-accent);
+        color: #0d0a2e;
+        box-shadow: 0 8px 24px -8px rgba(124,106,245,0.6);
+    }
+
+    .btn-primary:hover { background: var(--hub-accent-bright); }
+
+    .footnote {
+        margin-top: 22px;
+        font-size: 11.5px;
+        color: var(--hub-faint);
+    }
+
+    /* ── Modal ── */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(8, 5, 20, 0.72);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 10;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+    }
+
+    .modal-overlay.open {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .modal {
+        width: 100%;
+        max-width: 420px;
+        background: var(--hub-panel);
+        border: 1px solid var(--hub-border);
+        border-radius: 20px;
+        padding: 32px 28px 26px;
+        transform: translateY(10px) scale(0.98);
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 30px 80px -20px rgba(0,0,0,0.7);
+    }
+
+    .modal-overlay.open .modal {
+        transform: translateY(0) scale(1);
+    }
+
+    .modal-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: rgba(234,179,8,0.12);
+        border: 1px solid rgba(234,179,8,0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        margin-bottom: 18px;
+    }
+
+    .modal h2 {
+        font-family: 'Fraunces', serif;
+        font-weight: 700;
+        font-size: 20px;
+        color: var(--hub-text-bright);
+        margin: 0 0 10px;
+    }
+
+    .modal p {
+        font-size: 13.5px;
+        line-height: 1.65;
+        color: var(--hub-muted);
+        margin: 0 0 26px;
+    }
+
+    .modal p b {
+        color: var(--hub-text);
+        font-weight: 600;
+    }
+
+    .modal-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .btn-ghost {
+        background: transparent;
+        color: var(--hub-muted);
+        border: 1px solid var(--hub-border);
+        padding: 13px;
+    }
+
+    .btn-ghost:hover {
+        background: var(--hub-panel-raised);
+        color: var(--hub-text);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .card, .modal, .modal-overlay { animation: none !important; transition: none !important; }
+    }
+</style>
+</head>
+<body>
+
+    <div class="card">
+        <span class="badge"><span class="badge-dot"></span>Address changed</span>
+        <h1>Game Hub lives at a new address now</h1>
+        <p class="lede">This link is no longer where the games are hosted. Head over to the new site to keep playing Global Tycoon, Dutch, and everything else.</p>
+        <button class="btn btn-primary" id="continueBtn">Take me to the new site →</button>
+        <p class="footnote">Bookmarked this page? Update it to the new address below.</p>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-icon">⚠️</div>
+            <h2>Still a work in progress</h2>
+            <p>The new site is actively being built. Some things may look unfinished, and <b>player data might get wiped</b> as things change under the hood — so don't be surprised if scores or progress don't carry over.</p>
+            <div class="modal-actions">
+                <button class="btn btn-primary" id="goBtn">Take me there anyway</button>
+                <button class="btn btn-ghost" id="cancelBtn">Not right now</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const NEW_SITE_URL = "https://shadowgaming2008.github.io/";
+
+    const overlay = document.getElementById("modalOverlay");
+    const continueBtn = document.getElementById("continueBtn");
+    const goBtn = document.getElementById("goBtn");
+    const cancelBtn = document.getElementById("cancelBtn");
+
+    function openModal() {
+        overlay.classList.add("open");
+    }
+
+    function closeModal() {
+        overlay.classList.remove("open");
+    }
+
+    continueBtn.addEventListener("click", openModal);
+    cancelBtn.addEventListener("click", closeModal);
+    goBtn.addEventListener("click", () => {
+        window.location.href = NEW_SITE_URL;
+    });
+
+    // Click on the dimmed backdrop also dismisses, same as the cancel button
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) closeModal();
+    });
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && overlay.classList.contains("open")) closeModal();
+    });
+</script>
+
+</body>
+</html>
